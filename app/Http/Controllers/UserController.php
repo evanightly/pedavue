@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Data\User\UserData;
+use App\Models\Role;
 use App\Models\User;
 use App\QueryFilters\DateRangeFilter;
 use App\QueryFilters\MultiColumnSearchFilter;
@@ -20,7 +21,7 @@ class UserController extends BaseResourceController {
     protected array $allowedFilters = ['created_at', 'email', 'name', 'password', 'search', 'updated_at'];
     protected array $allowedSorts = ['created_at', 'email', 'id', 'name', 'password', 'updated_at'];
     protected array $allowedIncludes = [];
-    protected array $defaultIncludes = [];
+    protected array $defaultIncludes = ['roles'];
     protected array $defaultSorts = ['-created_at'];
 
     public function __construct() {
@@ -58,7 +59,12 @@ class UserController extends BaseResourceController {
     }
 
     public function create(): Response {
-        return Inertia::render('user/create');
+        return Inertia::render('user/create', [
+            'allRoles' => Role::all()->map(fn ($role) => [
+                'id' => $role->id,
+                'name' => $role->name,
+            ]),
+        ]);
     }
 
     public function show(User $user): Response {
@@ -70,11 +76,21 @@ class UserController extends BaseResourceController {
     public function edit(User $user): Response {
         return Inertia::render('user/edit', [
             'record' => UserData::fromModel($user)->toArray(),
+            'allRoles' => Role::all()->map(fn ($role) => [
+                'id' => $role->id,
+                'name' => $role->name,
+            ]),
         ]);
     }
 
     public function store(UserData $userData): RedirectResponse {
-        $user = User::create($userData->toArray());
+        $data = $userData->toArray();
+        $roleIds = array_map('intval', is_array($data['roleIds'] ?? null) ? $data['roleIds'] : []);
+        unset($data['roleIds'], $data['roles'], $data['permissions'], $data['role']);
+
+        $user = User::create($data);
+
+        $user->syncRoles($roleIds);
 
         return redirect()
             ->route('users.index', $user)
@@ -82,7 +98,17 @@ class UserController extends BaseResourceController {
     }
 
     public function update(UserData $userData, User $user): RedirectResponse {
-        $user->update($userData->toArray());
+        $data = $userData->toArray();
+        $roleIds = array_map('intval', is_array($data['roleIds'] ?? null) ? $data['roleIds'] : []);
+        unset($data['roleIds'], $data['roles'], $data['permissions'], $data['role']);
+
+        if (!filled($data['password'] ?? null)) {
+            unset($data['password']);
+        }
+
+        $user->update($data);
+
+        $user->syncRoles($roleIds);
 
         return redirect()
             ->route('users.index', $user)

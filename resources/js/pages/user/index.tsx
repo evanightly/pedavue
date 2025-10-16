@@ -81,6 +81,21 @@ export default function UserIndex({ users, filters = null, sort = null, filtered
                 filter: { type: 'text', placeholder: 'Filter by email...' },
             },
             {
+                id: 'roles',
+                accessorKey: 'roles',
+                header: 'Roles',
+                cell: ({ row }) => {
+                    const roles = row.original.roles;
+                    if (!roles || roles.length === 0) {
+                        return '—';
+                    }
+                    return roles.map((role) => role.name).join(', ');
+                },
+                enableSorting: false,
+                enableFiltering: true,
+                filter: { type: 'text', placeholder: 'Filter by roles...' },
+            },
+            {
                 id: 'created_at',
                 accessorKey: 'created_at',
                 header: 'Created At',

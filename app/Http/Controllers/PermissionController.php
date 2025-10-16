@@ -77,7 +77,7 @@ class PermissionController extends BaseResourceController {
         $permission = Permission::create($permissionData->toArray());
 
         return redirect()
-            ->route('permissions.edit', $permission)
+            ->route('permissions.index', $permission)
             ->with('flash.success', 'Permission created.');
     }
 
@@ -85,7 +85,7 @@ class PermissionController extends BaseResourceController {
         $permission->update($permissionData->toArray());
 
         return redirect()
-            ->route('permissions.edit', $permission)
+            ->route('permissions.index', $permission)
             ->with('flash.success', 'Permission updated.');
     }
 

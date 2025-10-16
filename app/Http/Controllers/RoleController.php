@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Data\Role\RoleData;
+use App\Models\Permission;
 use App\Models\Role;
 use App\QueryFilters\DateRangeFilter;
 use App\QueryFilters\MultiColumnSearchFilter;
@@ -20,7 +21,7 @@ class RoleController extends BaseResourceController {
     protected array $allowedFilters = ['created_at', 'guard_name', 'name', 'search', 'updated_at'];
     protected array $allowedSorts = ['created_at', 'guard_name', 'id', 'name', 'updated_at'];
     protected array $allowedIncludes = [];
-    protected array $defaultIncludes = [];
+    protected array $defaultIncludes = ['permissions'];
     protected array $defaultSorts = ['-created_at'];
 
     public function __construct() {
@@ -57,7 +58,13 @@ class RoleController extends BaseResourceController {
     }
 
     public function create(): Response {
-        return Inertia::render('role/create');
+        return Inertia::render('role/create', [
+            'allPermissions' => Permission::all()->map(fn ($permission) => [
+                'id' => $permission->id,
+                'name' => $permission->name,
+                'group' => $permission->group,
+            ]),
+        ]);
     }
 
     public function show(Role $role): Response {
@@ -69,22 +76,40 @@ class RoleController extends BaseResourceController {
     public function edit(Role $role): Response {
         return Inertia::render('role/edit', [
             'record' => RoleData::fromModel($role)->toArray(),
+            'allPermissions' => Permission::all()->map(fn ($permission) => [
+                'id' => $permission->id,
+                'name' => $permission->name,
+                'group' => $permission->group,
+            ]),
         ]);
     }
 
     public function store(RoleData $roleData): RedirectResponse {
-        $role = Role::create($roleData->toArray());
+        $data = $roleData->toArray();
+        $permissionIds = $data['permissionIds'];
+        unset($data['permissionIds'], $data['permissions']);
+
+        $role = Role::create($data);
+
+        $permissionIds = Permission::whereIn('id', $permissionIds ?? [])->get();
+        $role->syncPermissions($permissionIds);
 
         return redirect()
-            ->route('roles.edit', $role)
+            ->route('roles.index', $role)
             ->with('flash.success', 'Role created.');
     }
 
     public function update(RoleData $roleData, Role $role): RedirectResponse {
-        $role->update($roleData->toArray());
+        $data = $roleData->toArray();
+        $permissionIds = array_map('intval', is_array($data['permissionIds'] ?? null) ? $data['permissionIds'] : []);
+        unset($data['permissionIds'], $data['permissions']);
+
+        $role->update($data);
+
+        $role->syncPermissions($permissionIds);
 
         return redirect()
-            ->route('roles.edit', $role)
+            ->route('roles.index', $role)
             ->with('flash.success', 'Role updated.');
     }
 

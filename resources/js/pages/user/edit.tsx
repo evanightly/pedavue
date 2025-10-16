@@ -1,19 +1,38 @@
 import UserController from '@/actions/App/Http/Controllers/UserController';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { Form, Head } from '@inertiajs/react';
 import { LoaderCircle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
 type User = App.Data.User.UserData;
 
-interface UserEditProps {
-    record: User;
+interface RoleOption {
+    id: number;
+    name: string;
 }
 
-export default function UserEdit({ record }: UserEditProps) {
+interface UserEditProps {
+    record: User;
+    allRoles: RoleOption[];
+}
+
+export default function UserEdit({ record, allRoles }: UserEditProps) {
+    const initialSelectedRoles = useMemo(() => (record.roleIds ? record.roleIds.map(Number) : []), [record.roleIds]);
+    const [selectedRoles, setSelectedRoles] = useState<number[]>(initialSelectedRoles);
+
+    useEffect(() => {
+        setSelectedRoles(initialSelectedRoles);
+    }, [initialSelectedRoles]);
+
+    const handleRoleToggle = (roleId: number) => {
+        setSelectedRoles((prev) => (prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId]));
+    };
+
     const normalizeFieldValue = (value: unknown): string => {
         if (value === null || value === undefined) {
             return '';
@@ -57,6 +76,32 @@ export default function UserEdit({ record }: UserEditProps) {
                                 <Label htmlFor='password'>Password</Label>
                                 <Input id='password' name='password' type='text' />
                                 <InputError message={errors.password} />
+                            </div>
+
+                            <div className='grid gap-3'>
+                                <Label>Roles</Label>
+                                <div className='space-y-3 rounded-md border p-4'>
+                                    {allRoles.map((role) => {
+                                        const checked = selectedRoles.includes(role.id);
+
+                                        return (
+                                            <div key={role.id} className='flex items-center gap-2'>
+                                                <Checkbox
+                                                    id={`role-${role.id}`}
+                                                    checked={checked}
+                                                    onCheckedChange={() => handleRoleToggle(role.id)}
+                                                />
+                                                <Label htmlFor={`role-${role.id}`} className='cursor-pointer font-normal'>
+                                                    {role.name}
+                                                </Label>
+                                            </div>
+                                        );
+                                    })}
+                                    {selectedRoles.map((roleId) => (
+                                        <input key={roleId} type='hidden' name='roleIds[]' value={roleId} />
+                                    ))}
+                                </div>
+                                <InputError message={errors.roleIds} />
                             </div>
                         </div>
                         <Button type='submit' disabled={processing} className='w-full sm:w-auto'>

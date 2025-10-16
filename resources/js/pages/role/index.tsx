@@ -1,8 +1,10 @@
 import RoleController from '@/actions/App/Http/Controllers/RoleController';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnFilterMeta, DataTableFilters, PaginationMeta } from '@/components/ui/data-table-types';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { confirm } from '@/lib/confirmation-utils';
 import { Head, Link, router } from '@inertiajs/react';
@@ -24,9 +26,9 @@ interface RoleIndexProps {
 }
 
 export default function RoleIndex({ roles, filters = null, sort = null, filteredData: initialFilteredData = null }: RoleIndexProps) {
-    const resolveDestroyUrl = useCallback((id: number | string) => RoleController.destroy(id).url, []);
+    const resolveDestroyUrl = useCallback((id: number) => RoleController.destroy(id).url, []);
     const handleDelete = useCallback(
-        (id: number | string) => {
+        (id: number) => {
             confirm.delete('This action cannot be undone. Delete this role?', () => {
                 router.delete(resolveDestroyUrl(id), {
                     preserveScroll: true,
@@ -83,6 +85,36 @@ export default function RoleIndex({ roles, filters = null, sort = null, filtered
                 enableSorting: true,
                 enableFiltering: true,
                 filter: { type: 'text', placeholder: 'Filter by guard name...' },
+            },
+            {
+                id: 'permissions',
+                accessorKey: 'permissions',
+                header: 'Permissions',
+                cell: ({ row }) => {
+                    const permissions = row.original.permissions;
+                    if (!permissions || permissions.length === 0) {
+                        return '—';
+                    }
+                    return (
+                        <div className='flex flex-wrap gap-1'>
+                            <Tooltip>
+                                <TooltipTrigger>
+                                    <Button variant='outline' size='sm'>
+                                        {permissions.length} Permission{permissions.length !== 1 ? 's' : ''}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent className='flex max-h-64 max-w-32 flex-wrap gap-4 overflow-y-auto bg-transparent'>
+                                    {permissions.map((permission) => (
+                                        <Badge key={permission.id}>{permission.name}</Badge>
+                                    ))}
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
+                    );
+                },
+                enableSorting: false,
+                enableFiltering: false,
+                filter: { type: 'text', placeholder: 'Filter by permissions...' },
             },
             {
                 id: 'created_at',

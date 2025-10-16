@@ -13,6 +13,8 @@ declare namespace App.Data.Role {
         id: any | number;
         name: string | null;
         guard_name: string | null;
+        permissions: App.Data.Permission.PermissionData[] | null;
+        permissionIds: number[] | null;
         created_at: string | null;
         updated_at: string | null;
     };
@@ -24,7 +26,9 @@ declare namespace App.Data.User {
         email: string | null;
         password: string | null;
         role: string | null;
-        permissions: Array<any>;
+        permissions: string[] | null;
+        roles: App.Data.Role.RoleData[] | null;
+        roleIds: number[] | null;
         created_at: string | null;
         updated_at: string | null;
     };
