@@ -30,7 +30,7 @@ interface DataTableProps<TData extends Record<string, any>> {
     title: string;
     description?: string;
     data: TData[];
-    columns: (ColumnDef<TData> & ColumnFilterMeta & { header?: string })[];
+    columns: (ColumnDef<TData> & ColumnFilterMeta)[];
     actionBulkButtons?: DataTableBulkAction<TData>[];
     pagination?: PaginationMeta;
     filters?: DataTableFilters;

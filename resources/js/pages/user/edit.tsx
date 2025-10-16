@@ -1,101 +1,71 @@
-import AppLayout from '@/layouts/app-layout';
-import InputError from '@/components/input-error';
 import UserController from '@/actions/App/Http/Controllers/UserController';
-import type { PaginationMeta } from '@/components/ui/data-table-types';
+import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { Form, Head } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/app-layout';
+import { Form, Head } from '@inertiajs/react';
 import { LoaderCircle } from 'lucide-react';
 
-
-
-export type UserRecord = App.Data.User.UserData;
-
-export type UserCollection = PaginationMeta & {
-  data: App.Data.User.UserData[];
-};
+type User = App.Data.User.UserData;
 
 interface UserEditProps {
-  record: UserRecord;
+    record: User;
 }
 
 export default function UserEdit({ record }: UserEditProps) {
-  const normalizeFieldValue = (value: unknown): string => {
-    if (value === null || value === undefined) {
-      return '';
-    }
+    const normalizeFieldValue = (value: unknown): string => {
+        if (value === null || value === undefined) {
+            return '';
+        }
 
-    if (typeof value === 'object') {
-      try {
-        return JSON.stringify(value, null, 2);
-      } catch (_error) {
-        return '';
-      }
-    }
+        if (typeof value === 'object') {
+            try {
+                return JSON.stringify(value, null, 2);
+            } catch (_error) {
+                return '';
+            }
+        }
 
-    return String(value);
-  };
+        return String(value);
+    };
 
-  return (
-    <AppLayout title="Edit User">
-      <Head title="Edit User" />
-      <Form {...UserController.update.form(record.id)}
-        options={{ preserveScroll: true }}
-        className="mx-auto flex max-w-3xl flex-col gap-8"
-      >
-        {({ errors, processing }) => (
-          <div className="space-y-6 rounded-xl border bg-card p-8 shadow-sm">
-            <div className="space-y-2">
-              <h1 className="text-2xl font-semibold tracking-tight">Edit User</h1>
-              <p className="text-sm text-muted-foreground">
-                Provide the necessary information below and submit when you're ready.
-              </p>
-            </div>
-            <div className="grid gap-6">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  type="text"
-                  required
-                  defaultValue={normalizeFieldValue(record.name)}
-                />
-                <InputError message={errors.name} />
-              </div>
+    return (
+        <AppLayout>
+            <Head title='Edit User' />
+            <Form {...UserController.update.form(record.id)} options={{ preserveScroll: true }} className='mx-auto flex max-w-3xl flex-col gap-8'>
+                {({ errors, processing }) => (
+                    <div className='space-y-6 rounded-xl border bg-card p-8 shadow-sm'>
+                        <div className='space-y-2'>
+                            <h1 className='text-2xl font-semibold tracking-tight'>Edit User</h1>
+                            <p className='text-sm text-muted-foreground'>Provide the necessary information below and submit when you're ready.</p>
+                        </div>
+                        <div className='grid gap-6'>
+                            <div className='grid gap-2'>
+                                <Label htmlFor='name'>Name</Label>
+                                <Input id='name' name='name' type='text' required defaultValue={normalizeFieldValue(record.name)} />
+                                <InputError message={errors.name} />
+                            </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="text"
-                  required
-                  defaultValue={normalizeFieldValue(record.email)}
-                />
-                <InputError message={errors.email} />
-              </div>
+                            <div className='grid gap-2'>
+                                <Label htmlFor='email'>Email</Label>
+                                <Input id='email' name='email' type='text' required defaultValue={normalizeFieldValue(record.email)} />
+                                <InputError message={errors.email} />
+                            </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="text"
-                  required
-                  defaultValue={normalizeFieldValue(record.password)}
-                />
-                <InputError message={errors.password} />
-              </div>
-            </div>
-            <Button type="submit" disabled={processing} className="w-full sm:w-auto">
-              {processing && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-              {processing ? 'Saving…' : 'Save changes'}
-            </Button>
-          </div>
-        )}
-      </Form>
-    </AppLayout>
-  );
+                            <div className='grid gap-2'>
+                                <Label htmlFor='password'>Password</Label>
+                                <Input id='password' name='password' type='text' required defaultValue={normalizeFieldValue(record.password)} />
+                                <InputError message={errors.password} />
+                            </div>
+                        </div>
+                        <Button type='submit' disabled={processing} className='w-full sm:w-auto'>
+                            {processing && <LoaderCircle className='mr-2 h-4 w-4 animate-spin' />}
+                            {processing ? 'Saving…' : 'Save changes'}
+                        </Button>
+                    </div>
+                )}
+            </Form>
+        </AppLayout>
+    );
 }

@@ -40,6 +40,7 @@ export interface ColumnFilter {
 // We are now using TanStack's native ColumnDef directly. To keep our custom filter metadata
 // we define a light augmentation shape that can be merged onto ColumnDef objects.
 export interface ColumnFilterMeta {
+    header?: string; // Optional header override
     enableFiltering?: boolean;
     filterOnly?: boolean; // if true, not rendered in table body/header
     filter?: ColumnFilter;

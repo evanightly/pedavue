@@ -13,9 +13,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
-
-class UserController extends BaseResourceController
-{
+class UserController extends BaseResourceController {
     use AuthorizesRequests;
 
     protected string $modelClass = User::class;
@@ -25,13 +23,7 @@ class UserController extends BaseResourceController
     protected array $defaultIncludes = [];
     protected array $defaultSorts = ['-created_at'];
 
-    public function __construct()
-    {
-        $this->authorizeResource(User::class, 'user');
-    }
-
-    protected function filters(): array
-    {
+    protected function filters(): array {
         return [
             'email',
             'name',
@@ -41,8 +33,8 @@ class UserController extends BaseResourceController
             DateRangeFilter::make('updated_at'),
         ];
     }
-    public function index(Request $request): Response|JsonResponse
-    {
+
+    public function index(Request $request): Response|JsonResponse {
         $filteredData = [];
 
         $query = $this->buildIndexQuery($request);
@@ -60,45 +52,48 @@ class UserController extends BaseResourceController
             'sort' => (string) $request->query('sort', $this->defaultSorts[0] ?? '-created_at'),
         ]);
     }
-    public function create(): Response
-    {
+
+    public function create(): Response {
         return Inertia::render('user/create');
     }
-    public function show(User $user): Response
-    {
+
+    public function show(User $user): Response {
         return Inertia::render('user/show', [
             'record' => UserData::fromModel($user)->toArray(),
         ]);
     }
-    public function edit(User $user): Response
-    {
+
+    public function edit(User $user): Response {
         return Inertia::render('user/edit', [
             'record' => UserData::fromModel($user)->toArray(),
         ]);
     }
-    public function store(UserData $userData): RedirectResponse
-    {
+
+    public function store(UserData $userData): RedirectResponse {
         $user = User::create($userData->toArray());
+
         return redirect()
             ->route('users.edit', $user)
             ->with('flash.success', 'User created.');
     }
-    public function update(UserData $userData, User $user): RedirectResponse
-    {
+
+    public function update(UserData $userData, User $user): RedirectResponse {
         $user->update($userData->toArray());
+
         return redirect()
             ->route('users.edit', $user)
             ->with('flash.success', 'User updated.');
     }
-    public function destroy(User $user): RedirectResponse
-    {
+
+    public function destroy(User $user): RedirectResponse {
         $user->delete();
+
         return redirect()
             ->route('users.index')
             ->with('flash.success', 'User deleted.');
     }
-    public function bulkDelete(Request $request): JsonResponse
-    {
+
+    public function bulkDelete(Request $request): JsonResponse {
         $this->authorize('deleteAny', User::class);
 
         $payload = $request->validate([
@@ -115,5 +110,4 @@ class UserController extends BaseResourceController
             'deleted_count' => $deletedCount,
         ]);
     }
-
 }
