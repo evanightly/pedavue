@@ -1,11 +1,13 @@
 import DashboardController from '@/actions/App/Http/Controllers/DashboardController';
+import PermissionController from '@/actions/App/Http/Controllers/PermissionController';
+import RoleController from '@/actions/App/Http/Controllers/RoleController';
 import UserController from '@/actions/App/Http/Controllers/UserController';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavGroup } from '@/types';
-import { Link } from '@inertiajs/react';
-import { LayoutGrid } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import { Key, LayoutGrid, Lock, User } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const navGroups: NavGroup[] = [
@@ -20,13 +22,27 @@ const navGroups: NavGroup[] = [
             {
                 title: 'User Management',
                 href: UserController.index(),
-                icon: LayoutGrid,
+                icon: User,
+            },
+            {
+                title: 'Permission Management',
+                href: PermissionController.index(),
+                icon: Key,
+            },
+            {
+                title: 'Role Management',
+                href: RoleController.index(),
+                icon: Lock,
             },
         ],
     },
 ];
 
 export function AppSidebar() {
+    const page = usePage();
+
+    console.log(page);
+
     return (
         <Sidebar collapsible='icon' variant='inset'>
             <SidebarHeader>

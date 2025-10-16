@@ -4,14 +4,13 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller as BaseController;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\QueryBuilder\AllowedFilter;
-use Spatie\QueryBuilder\AllowedSort;
 use Spatie\QueryBuilder\QueryBuilder;
 
-abstract class BaseResourceController extends Controller
-{
+abstract class BaseResourceController extends BaseController {
     protected string $modelClass;
     protected array $allowedFilters = [];
     protected array $allowedSorts = [];
@@ -22,21 +21,18 @@ abstract class BaseResourceController extends Controller
     /**
      * Override to supply extra AllowedFilter callbacks or custom filters.
      */
-    protected function filters(): array
-    {
+    protected function filters(): array {
         return $this->allowedFilters;
     }
 
     /**
      * Hook for child controllers to supply complex / callback sorts.
      */
-    protected function extraSorts(): array
-    {
+    protected function extraSorts(): array {
         return [];
     }
 
-    protected function baseQuery(Request $request): QueryBuilder
-    {
+    protected function baseQuery(Request $request): QueryBuilder {
         return QueryBuilder::for($this->modelClass)
             ->allowedFilters($this->filters())
             ->allowedSorts(array_merge($this->allowedSorts, $this->extraSorts()))
@@ -44,8 +40,7 @@ abstract class BaseResourceController extends Controller
             ->with($this->defaultIncludes);
     }
 
-    protected function buildIndexQuery(Request $request): QueryBuilder
-    {
+    protected function buildIndexQuery(Request $request): QueryBuilder {
         $query = $this->baseQuery($request);
 
         if (!empty($this->defaultSorts)) {
@@ -57,8 +52,7 @@ abstract class BaseResourceController extends Controller
         return $query;
     }
 
-    protected function respond(Request $request, string $component, array $data): Response|JsonResponse
-    {
+    protected function respond(Request $request, string $component, array $data): Response|JsonResponse {
         if ($request->wantsJson()) {
             return response()->json($data['resource'] ?? $data['items'] ?? $data['notes'] ?? $data);
         }

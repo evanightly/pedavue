@@ -1,4 +1,3 @@
-import { PartialBlock } from '@blocknote/core';
 import { InertiaLinkProps } from '@inertiajs/react';
 import { LucideIcon } from 'lucide-react';
 
@@ -25,6 +24,7 @@ export interface NavItem {
     children?: NavItem[];
     subMenu?: NavItem[]; // Alternative name for children to match your preferred structure
     badge?: string | number;
+    permissions?: App.Support.Enums.PermissionEnum[] | App.Support.Enums.RoleEnum[];
 }
 
 export interface SharedData {
@@ -41,6 +41,8 @@ export interface User {
     email: string;
     avatar?: string;
     email_verified_at: string | null;
+    role: App.Support.Enums.RoleEnum;
+    permissions: App.Support.Enums.PermissionEnum[];
     created_at: string;
     updated_at: string;
     [key: string]: unknown; // This allows for additional properties...

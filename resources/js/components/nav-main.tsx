@@ -9,6 +9,7 @@ import {
     SidebarMenuSubButton,
     SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
+import { checkPermissions } from '@/lib/check-permissions';
 import { type NavGroup, type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
@@ -157,15 +158,48 @@ function NavSubMenuItem({ item, currentUrl }: { item: NavItem; currentUrl: strin
     );
 }
 
+function filterMenuItemsByPermissions(items: NavItem[]): NavItem[] {
+    return items
+        .filter((item) => {
+            // If no permissions are required, show the item
+            if (!item.permissions || item.permissions.length === 0) {
+                return true;
+            }
+            // Check if user has required permissions
+            return checkPermissions(item.permissions);
+        })
+        .map((item) => {
+            // Recursively filter sub-menu items
+            const subMenuItems = item.children || item.subMenu;
+            if (subMenuItems && subMenuItems.length > 0) {
+                const filteredSubMenu = filterMenuItemsByPermissions(subMenuItems);
+                return {
+                    ...item,
+                    children: item.children ? filteredSubMenu : undefined,
+                    subMenu: item.subMenu ? filteredSubMenu : undefined,
+                };
+            }
+            return item;
+        });
+}
+
 // Support both grouped and individual menu structures
 export function NavMain({ groups = [] }: { items?: NavItem[]; groups?: NavGroup[] }) {
     const page = usePage();
     const currentUrl = page.url;
 
+    // Filter groups and their menu items based on permissions
+    const filteredGroups = groups
+        .map((group) => ({
+            ...group,
+            menu: filterMenuItemsByPermissions(group.menu),
+        }))
+        .filter((group) => group.menu.length > 0);
+
     return (
         <>
             {/* Render grouped menus */}
-            {groups.map((group) => (
+            {filteredGroups.map((group) => (
                 <SidebarGroup key={group.title} className='px-2 py-0'>
                     <SidebarGroupLabel variant='windui'>{group.title}</SidebarGroupLabel>
                     <SidebarMenu>

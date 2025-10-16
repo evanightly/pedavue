@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Data\User\UserData;
-use App\Models\User;
+use App\Data\Role\RoleData;
+use App\Models\Role;
 use App\QueryFilters\DateRangeFilter;
 use App\QueryFilters\MultiColumnSearchFilter;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -13,26 +13,25 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class UserController extends BaseResourceController {
+class RoleController extends BaseResourceController {
     use AuthorizesRequests;
 
-    protected string $modelClass = User::class;
-    protected array $allowedFilters = ['created_at', 'email', 'name', 'password', 'search', 'updated_at'];
-    protected array $allowedSorts = ['created_at', 'email', 'id', 'name', 'password', 'updated_at'];
+    protected string $modelClass = Role::class;
+    protected array $allowedFilters = ['created_at', 'guard_name', 'name', 'search', 'updated_at'];
+    protected array $allowedSorts = ['created_at', 'guard_name', 'id', 'name', 'updated_at'];
     protected array $allowedIncludes = [];
     protected array $defaultIncludes = [];
     protected array $defaultSorts = ['-created_at'];
 
     public function __construct() {
-        $this->authorizeResource(User::class, 'user');
+        $this->authorizeResource(Role::class, 'role');
     }
 
     protected function filters(): array {
         return [
-            'email',
+            'guard_name',
             'name',
-            'password',
-            MultiColumnSearchFilter::make(['email', 'name', 'password']),
+            MultiColumnSearchFilter::make(['guard_name', 'name']),
             DateRangeFilter::make('created_at'),
             DateRangeFilter::make('updated_at'),
         ];
@@ -47,10 +46,10 @@ class UserController extends BaseResourceController {
             ->paginate($request->input('per_page'))
             ->appends($request->query());
 
-        $users = UserData::collect($items);
+        $roles = RoleData::collect($items);
 
-        return $this->respond($request, 'user/index', [
-            'users' => $users,
+        return $this->respond($request, 'role/index', [
+            'roles' => $roles,
             'filters' => $request->only($this->allowedFilters),
             'filteredData' => $filteredData,
             'sort' => (string) $request->query('sort', $this->defaultSorts[0] ?? '-created_at'),
@@ -58,54 +57,54 @@ class UserController extends BaseResourceController {
     }
 
     public function create(): Response {
-        return Inertia::render('user/create');
+        return Inertia::render('role/create');
     }
 
-    public function show(User $user): Response {
-        return Inertia::render('user/show', [
-            'record' => UserData::fromModel($user)->toArray(),
+    public function show(Role $role): Response {
+        return Inertia::render('role/show', [
+            'record' => RoleData::fromModel($role)->toArray(),
         ]);
     }
 
-    public function edit(User $user): Response {
-        return Inertia::render('user/edit', [
-            'record' => UserData::fromModel($user)->toArray(),
+    public function edit(Role $role): Response {
+        return Inertia::render('role/edit', [
+            'record' => RoleData::fromModel($role)->toArray(),
         ]);
     }
 
-    public function store(UserData $userData): RedirectResponse {
-        $user = User::create($userData->toArray());
+    public function store(RoleData $roleData): RedirectResponse {
+        $role = Role::create($roleData->toArray());
 
         return redirect()
-            ->route('users.index', $user)
-            ->with('flash.success', 'User created.');
+            ->route('roles.edit', $role)
+            ->with('flash.success', 'Role created.');
     }
 
-    public function update(UserData $userData, User $user): RedirectResponse {
-        $user->update($userData->toArray());
+    public function update(RoleData $roleData, Role $role): RedirectResponse {
+        $role->update($roleData->toArray());
 
         return redirect()
-            ->route('users.index', $user)
-            ->with('flash.success', 'User updated.');
+            ->route('roles.edit', $role)
+            ->with('flash.success', 'Role updated.');
     }
 
-    public function destroy(User $user): RedirectResponse {
-        $user->delete();
+    public function destroy(Role $role): RedirectResponse {
+        $role->delete();
 
         return redirect()
-            ->route('users.index')
-            ->with('flash.success', 'User deleted.');
+            ->route('roles.index')
+            ->with('flash.success', 'Role deleted.');
     }
 
     public function bulkDelete(Request $request): JsonResponse {
-        $this->authorize('deleteAny', User::class);
+        $this->authorize('deleteAny', Role::class);
 
         $payload = $request->validate([
             'ids' => ['required', 'array'],
             'ids.*' => ['integer'],
         ]);
 
-        $deletedCount = User::query()
+        $deletedCount = Role::query()
             ->whereIn('id', $payload['ids'])
             ->delete();
 
