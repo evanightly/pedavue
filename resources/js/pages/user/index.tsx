@@ -160,7 +160,7 @@ export default function UserIndex({ users, filters = null, sort = null, filtered
                 <div className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
                     <div>
                         <h1 className='text-3xl font-bold tracking-tight'>Notes</h1>
-                        <p className='text-muted-foreground'>Manage your notes with advanced filtering and sorting</p>
+                        <p className='text-muted-foreground'>Manage users in one place.</p>
                     </div>
                     <div className='flex flex-wrap items-center gap-2 md:flex-nowrap'>
                         <Button asChild>
@@ -168,27 +168,27 @@ export default function UserIndex({ users, filters = null, sort = null, filtered
                         </Button>
                     </div>
                 </div>
-            <DataTable<User>
-                title='Users'
-                data={users.data}
-                columns={columns}
-                pagination={users}
-                filters={{
-                    search: searchValue,
-                    sort: activeSort,
-                    columnFilters,
-                }}
-                filteredData={filteredData}
-                searchPlaceholder='Search users...'
-                enableSearch
-                enableColumnFilters
-                enableMultiSort
-                routeFunction={UserController.index}
-                resetRoute={UserController.index().url}
-                emptyMessage='No users found'
-                emptyDescription='Try adjusting your filters or create a new user'
+                <DataTable<User>
+                    title='Users'
+                    data={users.data}
+                    columns={columns}
+                    pagination={users}
+                    filters={{
+                        search: searchValue,
+                        sort: activeSort,
+                        columnFilters,
+                    }}
+                    filteredData={filteredData}
+                    searchPlaceholder='Search users...'
+                    enableSearch
+                    enableColumnFilters
+                    enableMultiSort
+                    routeFunction={UserController.index}
+                    resetRoute={UserController.index().url}
+                    emptyMessage='No users found'
+                    emptyDescription='Try adjusting your filters or create a new user'
                 />
-                </div>
+            </div>
         </AppLayout>
     );
 }
