@@ -58,6 +58,7 @@
         "@types/canvas-confetti": "^1.9.0",
         "@types/react": "^19.0.3",
         "@types/react-dom": "^19.0.2",
+        "@uidotdev/usehooks": "^2.4.1",
         "@vitejs/plugin-react": "^4.6.0",
         "canvas-confetti": "^1.9.3",
         "class-variance-authority": "^0.7.1",
