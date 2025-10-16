@@ -1,9 +1,10 @@
-import { ElementType, memo } from "react"
-import { AnimatePresence, motion, MotionProps, Variants } from "motion/react"
+"use client";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
+import { AnimatePresence, motion, MotionProps, Variants } from "motion/react";
+import { ElementType, memo } from "react";
 
-type AnimationType = "text" | "word" | "character" | "line"
+type AnimationType = "text" | "word" | "character" | "line";
 type AnimationVariant =
   | "fadeIn"
   | "blurIn"
@@ -14,57 +15,57 @@ type AnimationVariant =
   | "slideLeft"
   | "slideRight"
   | "scaleUp"
-  | "scaleDown"
+  | "scaleDown";
 
 interface TextAnimateProps extends MotionProps {
   /**
    * The text content to animate
    */
-  children: string
+  children: string;
   /**
    * The class name to be applied to the component
    */
-  className?: string
+  className?: string;
   /**
    * The class name to be applied to each segment
    */
-  segmentClassName?: string
+  segmentClassName?: string;
   /**
    * The delay before the animation starts
    */
-  delay?: number
+  delay?: number;
   /**
    * The duration of the animation
    */
-  duration?: number
+  duration?: number;
   /**
    * Custom motion variants for the animation
    */
-  variants?: Variants
+  variants?: Variants;
   /**
    * The element type to render
    */
-  as?: ElementType
+  as?: ElementType;
   /**
    * How to split the text ("text", "word", "character")
    */
-  by?: AnimationType
+  by?: AnimationType;
   /**
    * Whether to start animation when component enters viewport
    */
-  startOnView?: boolean
+  startOnView?: boolean;
   /**
    * Whether to animate only once
    */
-  once?: boolean
+  once?: boolean;
   /**
    * The animation preset to use
    */
-  animation?: AnimationVariant
+  animation?: AnimationVariant;
   /**
    * Whether to enable accessibility features (default: true)
    */
-  accessible?: boolean
+  accessible?: boolean;
 }
 
 const staggerTimings: Record<AnimationType, number> = {
@@ -72,7 +73,7 @@ const staggerTimings: Record<AnimationType, number> = {
   word: 0.05,
   character: 0.03,
   line: 0.06,
-}
+};
 
 const defaultContainerVariants = {
   hidden: { opacity: 1 },
@@ -90,7 +91,7 @@ const defaultContainerVariants = {
       staggerDirection: -1,
     },
   },
-}
+};
 
 const defaultItemVariants: Variants = {
   hidden: { opacity: 0 },
@@ -100,7 +101,7 @@ const defaultItemVariants: Variants = {
   exit: {
     opacity: 0,
   },
-}
+};
 
 const defaultItemAnimationVariants: Record<
   AnimationVariant,
@@ -298,7 +299,7 @@ const defaultItemAnimationVariants: Record<
       },
     },
   },
-}
+};
 
 const TextAnimateBase = ({
   children,
@@ -315,23 +316,23 @@ const TextAnimateBase = ({
   accessible = true,
   ...props
 }: TextAnimateProps) => {
-  const MotionComponent = motion.create(Component)
+  const MotionComponent = motion.create(Component);
 
-  let segments: string[] = []
+  let segments: string[] = [];
   switch (by) {
     case "word":
-      segments = children.split(/(\s+)/)
-      break
+      segments = children.split(/(\s+)/);
+      break;
     case "character":
-      segments = children.split("")
-      break
+      segments = children.split("");
+      break;
     case "line":
-      segments = children.split("\n")
-      break
+      segments = children.split("\n");
+      break;
     case "text":
     default:
-      segments = [children]
-      break
+      segments = [children];
+      break;
   }
 
   const finalVariants = variants
@@ -377,7 +378,7 @@ const TextAnimateBase = ({
           },
           item: defaultItemAnimationVariants[animation].item,
         }
-      : { container: defaultContainerVariants, item: defaultItemVariants }
+      : { container: defaultContainerVariants, item: defaultItemVariants };
 
   return (
     <AnimatePresence mode="popLayout">
@@ -401,7 +402,7 @@ const TextAnimateBase = ({
             className={cn(
               by === "line" ? "block" : "inline-block whitespace-pre",
               by === "character" && "",
-              segmentClassName
+              segmentClassName,
             )}
             aria-hidden={accessible ? true : undefined}
           >
@@ -410,8 +411,8 @@ const TextAnimateBase = ({
         ))}
       </MotionComponent>
     </AnimatePresence>
-  )
-}
+  );
+};
 
 // Export the memoized version
-export const TextAnimate = memo(TextAnimateBase)
+export const TextAnimate = memo(TextAnimateBase);

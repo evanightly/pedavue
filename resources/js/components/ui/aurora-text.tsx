@@ -1,10 +1,12 @@
-import React, { memo } from "react"
+"use client";
+
+import React, { memo } from "react";
 
 interface AuroraTextProps {
-  children: React.ReactNode
-  className?: string
-  colors?: string[]
-  speed?: number
+  children: React.ReactNode;
+  className?: string;
+  colors?: string[];
+  speed?: number;
 }
 
 export const AuroraText = memo(
@@ -21,21 +23,21 @@ export const AuroraText = memo(
       WebkitBackgroundClip: "text",
       WebkitTextFillColor: "transparent",
       animationDuration: `${10 / speed}s`,
-    }
+    };
 
     return (
       <span className={`relative inline-block ${className}`}>
         <span className="sr-only">{children}</span>
         <span
-          className="animate-aurora relative bg-[length:200%_auto] bg-clip-text text-transparent"
+          className="relative animate-aurora bg-[length:200%_auto] bg-clip-text text-transparent"
           style={gradientStyle}
           aria-hidden="true"
         >
           {children}
         </span>
       </span>
-    )
-  }
-)
+    );
+  },
+);
 
-AuroraText.displayName = "AuroraText"
+AuroraText.displayName = "AuroraText";

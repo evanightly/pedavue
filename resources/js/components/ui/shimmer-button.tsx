@@ -1,15 +1,15 @@
-import React, { ComponentPropsWithoutRef, CSSProperties } from "react"
+import React, { CSSProperties, ComponentPropsWithoutRef } from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 export interface ShimmerButtonProps extends ComponentPropsWithoutRef<"button"> {
-  shimmerColor?: string
-  shimmerSize?: string
-  borderRadius?: string
-  shimmerDuration?: string
-  background?: string
-  className?: string
-  children?: React.ReactNode
+  shimmerColor?: string;
+  shimmerSize?: string;
+  borderRadius?: string;
+  shimmerDuration?: string;
+  background?: string;
+  className?: string;
+  children?: React.ReactNode;
 }
 
 export const ShimmerButton = React.forwardRef<
@@ -27,7 +27,7 @@ export const ShimmerButton = React.forwardRef<
       children,
       ...props
     },
-    ref
+    ref,
   ) => {
     return (
       <button
@@ -42,9 +42,9 @@ export const ShimmerButton = React.forwardRef<
           } as CSSProperties
         }
         className={cn(
-          "group relative z-0 flex cursor-pointer items-center justify-center overflow-hidden [border-radius:var(--radius)] border border-white/10 px-6 py-3 whitespace-nowrap text-white [background:var(--bg)]",
+          "group relative z-0 flex cursor-pointer items-center justify-center overflow-hidden whitespace-nowrap border border-white/10 px-6 py-3 text-white [background:var(--bg)] [border-radius:var(--radius)] dark:text-black",
           "transform-gpu transition-transform duration-300 ease-in-out active:translate-y-px",
-          className
+          className,
         )}
         ref={ref}
         {...props}
@@ -53,13 +53,13 @@ export const ShimmerButton = React.forwardRef<
         <div
           className={cn(
             "-z-30 blur-[2px]",
-            "[container-type:size] absolute inset-0 overflow-visible"
+            "absolute inset-0 overflow-visible [container-type:size]",
           )}
         >
           {/* spark */}
-          <div className="animate-shimmer-slide absolute inset-0 [aspect-ratio:1] h-[100cqh] [border-radius:0] [mask:none]">
+          <div className="absolute inset-0 h-[100cqh] animate-shimmer-slide [aspect-ratio:1] [border-radius:0] [mask:none]">
             {/* spark before */}
-            <div className="animate-spin-around absolute -inset-full w-auto [translate:0_0] rotate-0 [background:conic-gradient(from_calc(270deg-(var(--spread)*0.5)),transparent_0,var(--shimmer-color)_var(--spread),transparent_var(--spread))]" />
+            <div className="absolute -inset-full w-auto rotate-0 animate-spin-around [background:conic-gradient(from_calc(270deg-(var(--spread)*0.5)),transparent_0,var(--shimmer-color)_var(--spread),transparent_var(--spread))] [translate:0_0]" />
           </div>
         </div>
         {children}
@@ -67,7 +67,7 @@ export const ShimmerButton = React.forwardRef<
         {/* Highlight */}
         <div
           className={cn(
-            "absolute inset-0 size-full",
+            "insert-0 absolute size-full",
 
             "rounded-2xl px-4 py-1.5 text-sm font-medium shadow-[inset_0_-8px_10px_#ffffff1f]",
 
@@ -78,19 +78,19 @@ export const ShimmerButton = React.forwardRef<
             "group-hover:shadow-[inset_0_-6px_10px_#ffffff3f]",
 
             // on click
-            "group-active:shadow-[inset_0_-10px_10px_#ffffff3f]"
+            "group-active:shadow-[inset_0_-10px_10px_#ffffff3f]",
           )}
         />
 
         {/* backdrop */}
         <div
           className={cn(
-            "absolute [inset:var(--cut)] -z-20 [border-radius:var(--radius)] [background:var(--bg)]"
+            "absolute -z-20 [background:var(--bg)] [border-radius:var(--radius)] [inset:var(--cut)]",
           )}
         />
       </button>
-    )
-  }
-)
+    );
+  },
+);
 
-ShimmerButton.displayName = "ShimmerButton"
+ShimmerButton.displayName = "ShimmerButton";
