@@ -156,42 +156,39 @@ export default function UserIndex({ users, filters = null, sort = null, filtered
     return (
         <AppLayout>
             <Head title='Users' />
-            <div className='space-y-6 px-6 pb-10'>
-                <div className='flex flex-wrap items-center justify-between gap-4'>
+            <div className='container mx-auto py-8'>
+                <div className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
                     <div>
-                        <h1 className='text-2xl font-semibold tracking-tight'>Users</h1>
-                        <p className='text-sm text-muted-foreground'>Manage users in one place.</p>
+                        <h1 className='text-3xl font-bold tracking-tight'>Notes</h1>
+                        <p className='text-muted-foreground'>Manage your notes with advanced filtering and sorting</p>
                     </div>
-                    <Button asChild>
-                        <Link
-                            href={UserController.create().url}
-                            className='inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none'
-                        >
-                            New User
-                        </Link>
-                    </Button>
+                    <div className='flex flex-wrap items-center gap-2 md:flex-nowrap'>
+                        <Button asChild>
+                            <Link href={UserController.create().url}>New User</Link>
+                        </Button>
+                    </div>
                 </div>
-                <DataTable<User>
-                    title='Users'
-                    data={users.data}
-                    columns={columns}
-                    pagination={users}
-                    filters={{
-                        search: searchValue,
-                        sort: activeSort,
-                        columnFilters,
-                    }}
-                    filteredData={filteredData}
-                    searchPlaceholder='Search users...'
-                    enableSearch
-                    enableColumnFilters
-                    enableMultiSort
-                    routeFunction={UserController.index}
-                    resetRoute={UserController.index().url}
-                    emptyMessage='No users found'
-                    emptyDescription='Try adjusting your filters or create a new user'
+            <DataTable<User>
+                title='Users'
+                data={users.data}
+                columns={columns}
+                pagination={users}
+                filters={{
+                    search: searchValue,
+                    sort: activeSort,
+                    columnFilters,
+                }}
+                filteredData={filteredData}
+                searchPlaceholder='Search users...'
+                enableSearch
+                enableColumnFilters
+                enableMultiSort
+                routeFunction={UserController.index}
+                resetRoute={UserController.index().url}
+                emptyMessage='No users found'
+                emptyDescription='Try adjusting your filters or create a new user'
                 />
-            </div>
+                </div>
         </AppLayout>
     );
 }

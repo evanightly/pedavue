@@ -11,7 +11,7 @@ export default function UserShow({ record }: UserShowProps) {
     return (
         <AppLayout>
             <Head title='User' />
-            <div className='mx-auto max-w-3xl space-y-6'>
+            <div className='mx-auto max-w-3xl space-y-6 py-6'>
                 <h1 className='text-2xl font-semibold'>User</h1>
                 <div className='overflow-hidden rounded-lg border bg-card shadow-sm'>
                     <dl className='divide-y divide-border'>

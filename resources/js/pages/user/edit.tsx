@@ -33,7 +33,7 @@ export default function UserEdit({ record }: UserEditProps) {
     return (
         <AppLayout>
             <Head title='Edit User' />
-            <Form {...UserController.update.form(record.id!)} options={{ preserveScroll: true }} className='mx-auto flex max-w-3xl flex-col gap-8'>
+            <Form {...UserController.update.form(record.id!)} options={{ preserveScroll: true }} className='p-8'>
                 {({ errors, processing }) => (
                     <div className='space-y-6 rounded-xl border bg-card p-8 shadow-sm'>
                         <div className='space-y-2'>

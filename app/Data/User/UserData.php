@@ -20,7 +20,7 @@ class UserData extends Data {
 
     public static function fromModel(User $model): self {
         return new self(
-            id: (int) $model->getKey(),
+            id: $model->getKey(),
             name: $model->name,
             email: $model->email,
             password: $model->password,
