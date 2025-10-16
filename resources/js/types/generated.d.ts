@@ -1,6 +1,6 @@
 declare namespace App.Data.User {
     export type UserData = {
-        id: number;
+        id: any | number;
         name: string | null;
         email: string | null;
         password: string | null;

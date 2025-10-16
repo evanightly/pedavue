@@ -33,7 +33,7 @@ export default function UserEdit({ record }: UserEditProps) {
     return (
         <AppLayout>
             <Head title='Edit User' />
-            <Form {...UserController.update.form(record.id)} options={{ preserveScroll: true }} className='mx-auto flex max-w-3xl flex-col gap-8'>
+            <Form {...UserController.update.form(record.id!)} options={{ preserveScroll: true }} className='mx-auto flex max-w-3xl flex-col gap-8'>
                 {({ errors, processing }) => (
                     <div className='space-y-6 rounded-xl border bg-card p-8 shadow-sm'>
                         <div className='space-y-2'>
@@ -55,7 +55,7 @@ export default function UserEdit({ record }: UserEditProps) {
 
                             <div className='grid gap-2'>
                                 <Label htmlFor='password'>Password</Label>
-                                <Input id='password' name='password' type='text' required defaultValue={normalizeFieldValue(record.password)} />
+                                <Input id='password' name='password' type='text' />
                                 <InputError message={errors.password} />
                             </div>
                         </div>

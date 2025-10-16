@@ -38,7 +38,7 @@ type ButtonProps = React.ComponentProps<'button'> &
         ripple?: boolean;
     };
 
-function Button({ className, variant, size, asChild = false, ripple = true, ...props }: ButtonProps) {
+function Button({ className, variant, size, asChild = false, ripple = false, ...props }: ButtonProps) {
     const Comp = asChild ? Slot : 'button';
 
     return <Comp data-slot='button' className={cn(buttonVariants({ variant, size, className }), ripple && 'ripple')} {...props} />;

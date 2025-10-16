@@ -73,7 +73,7 @@ class UserController extends BaseResourceController {
         $user = User::create($userData->toArray());
 
         return redirect()
-            ->route('users.edit', $user)
+            ->route('users.index', $user)
             ->with('flash.success', 'User created.');
     }
 
@@ -81,7 +81,7 @@ class UserController extends BaseResourceController {
         $user->update($userData->toArray());
 
         return redirect()
-            ->route('users.edit', $user)
+            ->route('users.index', $user)
             ->with('flash.success', 'User updated.');
     }
 

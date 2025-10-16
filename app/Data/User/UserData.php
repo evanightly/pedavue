@@ -4,13 +4,13 @@ namespace App\Data\User;
 
 use App\Models\User;
 use Spatie\LaravelData\Data;
+use Spatie\LaravelData\Optional;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 #[TypeScript]
-class UserData extends Data
-{
+class UserData extends Data {
     public function __construct(
-        public int $id,
+        public int|Optional $id,
         public ?string $name,
         public ?string $email,
         public ?string $password,
@@ -18,9 +18,7 @@ class UserData extends Data
         public ?string $updated_at,
     ) {}
 
-
-    public static function fromModel(User $model): self
-    {
+    public static function fromModel(User $model): self {
         return new self(
             id: (int) $model->getKey(),
             name: $model->name,
