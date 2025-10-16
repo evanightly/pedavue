@@ -44,7 +44,7 @@ const runTypeScriptTransform = debounce(() => {
 function hasTypeScriptMarkers(filePath) {
     try {
         const content = readFileSync(filePath, 'utf8');
-        return content.includes('#[TypeScript]') || content.includes('/** @typescript */');
+        return content.includes('#[TypeScript]') || content.includes('/** @typescript */') || content.includes('Enum');
     } catch (error) {
         return false;
     }

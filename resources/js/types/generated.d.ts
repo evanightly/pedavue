@@ -9,5 +9,6 @@ declare namespace App.Data.User {
     };
 }
 declare namespace App.Support.Enums {
+    export type PermissionEnum = 'ReadUser' | 'CreateUser' | 'UpdateUser' | 'DeleteUser';
     export type RoleEnum = 'SuperAdmin' | 'Admin' | 'Instructor' | 'Student';
 }
