@@ -16,30 +16,6 @@ interface CourseShowProps {
 }
 
 export default function CourseShow({ record }: CourseShowProps) {
-    const formatDuration = (minutes: number | string | null | undefined) => {
-        if (!minutes) return null;
-        const numMinutes = typeof minutes === 'string' ? parseInt(minutes, 10) : minutes;
-        if (isNaN(numMinutes)) return null;
-        const hours = Math.floor(numMinutes / 60);
-        const mins = numMinutes % 60;
-        if (hours > 0 && mins > 0) return `${hours} jam ${mins} menit`;
-        if (hours > 0) return `${hours} jam`;
-        return `${mins} menit`;
-    };
-
-    const formatDate = (dateString: string | null | undefined) => {
-        if (!dateString) return '—';
-        try {
-            return new Date(dateString).toLocaleDateString('id-ID', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-            });
-        } catch {
-            return dateString;
-        }
-    };
-
     return (
         <AppLayout>
             <Head title={record.title || 'Detail Kursus'} />
@@ -100,25 +76,35 @@ export default function CourseShow({ record }: CourseShowProps) {
                             {/* Meta Information */}
                             <div className='flex flex-wrap items-center gap-6 pt-2'>
                                 {record.instructor && (
-                                    <div className='flex items-center gap-2 text-muted-foreground'>
-                                        <User className='h-4 w-4' />
-                                        <span className='text-sm font-medium'>
+                                    <div className='flex items-center gap-2.5'>
+                                        {record.instructor.avatar_url ? (
+                                            <img
+                                                src={record.instructor.avatar_url}
+                                                alt={record.instructor.name || 'Instructor'}
+                                                className='h-8 w-8 rounded-full object-cover ring-2 ring-primary/10'
+                                            />
+                                        ) : (
+                                            <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 ring-2 ring-primary/10'>
+                                                <User className='h-4 w-4 text-primary' />
+                                            </div>
+                                        )}
+                                        <span className='text-sm font-medium text-foreground'>
                                             {typeof record.instructor === 'object' && 'name' in record.instructor
                                                 ? record.instructor.name
                                                 : 'Instruktur'}
                                         </span>
                                     </div>
                                 )}
-                                {record.duration && (
+                                {record.duration_formatted && (
                                     <div className='flex items-center gap-2 text-muted-foreground'>
                                         <Clock className='h-4 w-4' />
-                                        <span className='text-sm font-medium'>{formatDuration(record.duration)}</span>
+                                        <span className='text-sm font-medium'>{record.duration_formatted}</span>
                                     </div>
                                 )}
-                                {record.created_at && (
+                                {record.created_at_formatted && (
                                     <div className='flex items-center gap-2 text-muted-foreground'>
                                         <Calendar className='h-4 w-4' />
-                                        <span className='text-sm font-medium'>Dibuat {formatDate(record.created_at)}</span>
+                                        <span className='text-sm font-medium'>Dibuat {record.created_at_formatted}</span>
                                     </div>
                                 )}
                             </div>
@@ -152,10 +138,10 @@ export default function CourseShow({ record }: CourseShowProps) {
                                     <dt className='text-sm font-medium text-muted-foreground'>Slug</dt>
                                     <dd className='text-right font-mono text-sm break-all'>{record.slug}</dd>
                                 </div>
-                                {record.duration && (
+                                {record.duration_formatted && (
                                     <div className='flex items-center justify-between border-b border-border/50 py-2'>
                                         <dt className='text-sm font-medium text-muted-foreground'>Durasi Total</dt>
-                                        <dd className='text-sm font-medium'>{formatDuration(record.duration)}</dd>
+                                        <dd className='text-sm font-medium'>{record.duration_formatted}</dd>
                                     </div>
                                 )}
                                 {record.level && (
@@ -171,16 +157,16 @@ export default function CourseShow({ record }: CourseShowProps) {
                         <div className='rounded-2xl border bg-card p-6 shadow-lg'>
                             <h3 className='mb-4 text-lg font-semibold'>Timeline</h3>
                             <dl className='space-y-3'>
-                                {record.created_at && (
+                                {record.created_at_formatted && (
                                     <div className='flex items-center justify-between border-b border-border/50 py-2'>
                                         <dt className='text-sm font-medium text-muted-foreground'>Dibuat</dt>
-                                        <dd className='text-sm'>{formatDate(record.created_at)}</dd>
+                                        <dd className='text-sm'>{record.created_at_formatted}</dd>
                                     </div>
                                 )}
-                                {record.updated_at && (
+                                {record.updated_at_formatted && (
                                     <div className='flex items-center justify-between py-2'>
                                         <dt className='text-sm font-medium text-muted-foreground'>Terakhir Diperbarui</dt>
-                                        <dd className='text-sm'>{formatDate(record.updated_at)}</dd>
+                                        <dd className='text-sm'>{record.updated_at_formatted}</dd>
                                     </div>
                                 )}
                             </dl>

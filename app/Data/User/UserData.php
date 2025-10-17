@@ -22,6 +22,8 @@ class UserData extends Data {
         public ?string $name,
         public ?string $email,
         public ?string $password,
+        public ?string $avatar,
+        public ?string $avatar_url,
         public ?string $role,
         #[LiteralTypeScriptType('string[]|null')]
         public ?array $permissions,
@@ -40,6 +42,8 @@ class UserData extends Data {
             name: $model->name,
             email: $model->email,
             password: $model->password,
+            avatar: $model->avatar,
+            avatar_url: $model->avatar_url,
             role: $model->roles->first()?->name,
 
             permissions: $model->relationLoaded('permissions')

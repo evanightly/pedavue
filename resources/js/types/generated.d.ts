@@ -10,8 +10,11 @@ declare namespace App.Data.Course {
         thumbnail_url: string | null;
         level: string | null;
         duration: string | null;
+        duration_formatted: string | null;
         created_at: string | null;
+        created_at_formatted: string | null;
         updated_at: string | null;
+        updated_at_formatted: string | null;
         instructor: any;
     };
 }
@@ -42,6 +45,8 @@ declare namespace App.Data.User {
         name: string | null;
         email: string | null;
         password: string | null;
+        avatar: string | null;
+        avatar_url: string | null;
         role: string | null;
         permissions: string[] | null;
         roles: App.Data.Role.RoleData[] | null;

@@ -278,23 +278,31 @@ export default function CourseEdit({ record }: CourseEditProps) {
             <Head title='Edit Course' />
             <Form
                 {...CourseController.update.form(record.slug)}
-                transform={(data) => ({
-                    ...data,
-                    _method: 'put',
-                    thumbnail: thumbnailFile || data.thumbnail,
-                    instructor_id: (() => {
-                        if (instructorId === null) {
-                            return null;
-                        }
+                transform={(data) => {
+                    const transformed: Record<string, any> = {
+                        ...data,
+                        _method: 'put',
+                        instructor_id: (() => {
+                            if (instructorId === null) {
+                                return null;
+                            }
 
-                        if (typeof instructorId === 'number') {
-                            return instructorId;
-                        }
+                            if (typeof instructorId === 'number') {
+                                return instructorId;
+                            }
 
-                        const numeric = Number.parseInt(String(instructorId), 10);
-                        return Number.isNaN(numeric) ? null : numeric;
-                    })(),
-                })}
+                            const numeric = Number.parseInt(String(instructorId), 10);
+                            return Number.isNaN(numeric) ? null : numeric;
+                        })(),
+                    };
+
+                    // Only include thumbnail if a new file was selected
+                    if (thumbnailFile) {
+                        transformed.thumbnail = thumbnailFile;
+                    }
+
+                    return transformed;
+                }}
                 options={{ preserveScroll: true }}
                 className='p-8'
             >

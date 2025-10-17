@@ -23,6 +23,7 @@ class User extends Authenticatable {
         'name',
         'email',
         'password',
+        'avatar',
     ];
 
     /**
@@ -36,6 +37,21 @@ class User extends Authenticatable {
         'two_factor_recovery_codes',
         'remember_token',
     ];
+
+    // append avatar_url
+    protected $appends = [
+        'avatar_url',
+    ];
+
+    public function getAvatarUrlAttribute(): ?string {
+        if ($this->avatar) {
+            return str_starts_with($this->avatar, 'http')
+                ? $this->avatar
+                : asset('storage/' . $this->avatar);
+        }
+
+        return null;
+    }
 
     /**
      * Get the attributes that should be cast.

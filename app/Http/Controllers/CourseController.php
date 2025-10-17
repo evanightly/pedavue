@@ -109,6 +109,9 @@ class CourseController extends BaseResourceController {
             $file = request()->file('thumbnail');
             $path = $file->store('courses/thumbnails', 'public');
             $data['thumbnail'] = $path;
+        } else {
+            // Don't update thumbnail if no new file was uploaded
+            unset($data['thumbnail']);
         }
 
         $course->update($data);

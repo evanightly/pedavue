@@ -35,8 +35,11 @@ class CourseData extends Data {
         public ?string $thumbnail_url,
         public ?string $level,
         public ?string $duration,
+        public ?string $duration_formatted,
         public ?string $created_at,
+        public ?string $created_at_formatted,
         public ?string $updated_at,
+        public ?string $updated_at_formatted,
         #[TypeScriptType('App.Data.User.UserData | null')]
         public ?UserData $instructor,
         // #[DataCollectionOf(ModuleData::class)]
@@ -60,6 +63,32 @@ class CourseData extends Data {
     }
 
     public static function fromModel(Course $model): self {
+        // Format duration
+        $durationFormatted = null;
+        if ($model->duration) {
+            $minutes = (int) $model->duration;
+            $hours = floor($minutes / 60);
+            $mins = $minutes % 60;
+            if ($hours > 0 && $mins > 0) {
+                $durationFormatted = "{$hours} jam {$mins} menit";
+            } elseif ($hours > 0) {
+                $durationFormatted = "{$hours} jam";
+            } else {
+                $durationFormatted = "{$mins} menit";
+            }
+        }
+
+        // Format dates
+        $createdAtFormatted = null;
+        if ($model->created_at) {
+            $createdAtFormatted = $model->created_at->locale('id')->translatedFormat('j F Y');
+        }
+
+        $updatedAtFormatted = null;
+        if ($model->updated_at) {
+            $updatedAtFormatted = $model->updated_at->locale('id')->translatedFormat('j F Y');
+        }
+
         return new self(
             id: $model->getKey(),
             instructor_id: $model->instructor_id,
@@ -83,8 +112,11 @@ class CourseData extends Data {
             thumbnail_url: Str::startsWith($model->thumbnail, 'http') ? $model->thumbnail : '/storage/' . $model->thumbnail,
             level: $model->level,
             duration: $model->duration,
+            duration_formatted: $durationFormatted,
             created_at: $model->created_at?->toIso8601String(),
+            created_at_formatted: $createdAtFormatted,
             updated_at: $model->updated_at?->toIso8601String(),
+            updated_at_formatted: $updatedAtFormatted,
             instructor: $model->relationLoaded('instructor') && $model->instructor
                 ? UserData::fromModel($model->instructor)
                 : null,

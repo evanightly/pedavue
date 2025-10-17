@@ -45,6 +45,7 @@ export interface User {
     permissions: App.Support.Enums.PermissionEnum[];
     created_at: string;
     updated_at: string;
+    avatar_url?: string;
     [key: string]: unknown; // This allows for additional properties...
 }
 
