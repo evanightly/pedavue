@@ -7,10 +7,8 @@ use Spatie\QueryBuilder\AllowedFilter;
 /**
  * Normalized date range filter supporting scalar values and array ranges.
  */
-class DateRangeFilter
-{
-    public static function make(string $column): AllowedFilter
-    {
+class DateRangeFilter {
+    public static function make(string $column): AllowedFilter {
         return AllowedFilter::callback($column, function ($query, $value) use ($column): void {
             if ($value === null || $value === '') {
                 return;
@@ -31,11 +29,13 @@ class DateRangeFilter
                         $from . ' 00:00:00',
                         $to . ' 23:59:59',
                     ]);
+
                     return;
                 }
 
                 if ($from) {
                     $query->where($column, '>=', $from . ' 00:00:00');
+
                     return;
                 }
 
