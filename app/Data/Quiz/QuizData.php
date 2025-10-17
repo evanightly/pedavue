@@ -2,9 +2,13 @@
 
 namespace App\Data\Quiz;
 
+use App\Data\QuizQuestion\QuizQuestionData;
 use App\Models\Quiz;
+use Spatie\LaravelData\Attributes\DataCollectionOf;
 use Spatie\LaravelData\Data;
+use Spatie\LaravelData\DataCollection;
 use Spatie\LaravelData\Optional;
+use Spatie\TypeScriptTransformer\Attributes\LiteralTypeScriptType;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
 #[TypeScript]
@@ -14,6 +18,9 @@ class QuizData extends Data {
         public ?string $name,
         public ?string $description,
         public ?int $duration,
+        #[DataCollectionOf(QuizQuestionData::class)]
+        #[LiteralTypeScriptType('App.Data.QuizQuestion.QuizQuestionData[]|null')]
+        public ?DataCollection $quiz_questions,
         public ?string $created_at,
         public ?string $updated_at,
     ) {}
@@ -24,6 +31,9 @@ class QuizData extends Data {
             name: $model->name,
             description: $model->description ?? null,
             duration: $model->duration ?? null,
+            quiz_questions: $model->relationLoaded('quiz_questions')
+                ? new DataCollection(QuizQuestionData::class, $model->quiz_questions)
+                : null,
             created_at: $model->created_at?->toIso8601String(),
             updated_at: $model->updated_at?->toIso8601String(),
         );

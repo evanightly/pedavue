@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class QuizQuestionOption extends Model
 {
@@ -16,7 +17,7 @@ class QuizQuestionOption extends Model
         'is_correct',
     ];
 
-    public function quiz_question()
+    public function quiz_question(): BelongsTo
     {
         return $this->belongsTo(QuizQuestion::class);
     }
