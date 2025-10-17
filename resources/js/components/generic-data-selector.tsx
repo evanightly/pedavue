@@ -18,7 +18,7 @@ type GenericDataSelectorProps<TValue extends SelectorResource> = {
   id?: string;
   data?: TValue[];
   fetchData?: (filters: SelectorFilterOptions) => Promise<TValue[] | unknown>;
-  dataMapper?: (response: unknown) => TValue[] | undefined;
+  dataMapper?: (response: any) => TValue[] | undefined;
   selectedDataId?: number | string | null;
   setSelectedData?: (id: number | string | null) => void;
   selectedDataIds?: Array<number | string>;

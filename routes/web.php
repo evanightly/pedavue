@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
@@ -13,8 +14,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('permissions', PermissionController::class);
     Route::resource('roles', RoleController::class);
+    Route::resource('courses', CourseController::class);
 });
-
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';

@@ -1,3 +1,5 @@
+import { Resource } from "@/types";
+
 // resources/js/components/ui/data-table-types.ts
 export type FilterType = 'text' | 'select' | 'multiselect' | 'date' | 'daterange' | 'number' | 'numberrange' | 'boolean' | 'selector' | 'custom';
 
@@ -16,7 +18,7 @@ export interface CustomFilterProps extends React.HTMLAttributes<HTMLDivElement> 
     onClear: () => void;
 }
 
-export interface ColumnFilter {
+export interface ColumnFilter<T extends Resource | null = null> {
     type: FilterType;
     options?: FilterOption[]; // For select/multiselect filters
     placeholder?: string;
@@ -27,6 +29,7 @@ export interface ColumnFilter {
     fetchDataUrl?: string; // API endpoint to fetch data from
     labelKey?: string; // Key to use for displaying labels (default: 'name')
     searchPlaceholder?: string; // Placeholder for search input
+    customLabel?: (item: Resource) => string; // Optional custom label builder for selector rows
     // For custom filters
     component?: React.ComponentType<CustomFilterProps>; // Custom filter component
     getDisplayValue?: (value: any) => string | null; // Custom display value function
@@ -35,6 +38,7 @@ export interface ColumnFilter {
     valueMapKey?: string;
     idField?: string; // defaults to 'id'
     labelField?: string; // defaults to 'name'
+    dataMapper?: (response: any) => T[] | undefined;
 }
 
 // We are now using TanStack's native ColumnDef directly. To keep our custom filter metadata

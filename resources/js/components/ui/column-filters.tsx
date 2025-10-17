@@ -161,8 +161,8 @@ export function ColumnFilterComponent({ column, filter, value, onChange, onClear
                         <GenericDataSelector
                             placeholder={filter.placeholder || `Select ${column.header.toLowerCase()}...`}
                             customSearchPlaceholder={filter.searchPlaceholder || 'Search...'}
-                            selectedDataId={value ? parseInt(value) : null}
-                            setSelectedData={(id: number | null) => onChange(id?.toString() || null)}
+                            selectedDataId={value !== undefined && value !== null && value !== '' ? value : null}
+                            setSelectedData={(id: number | string | null) => onChange(id !== null && id !== undefined ? id?.toString() : null)}
                             fetchData={async (filters: FilterOptions) => {
                                 if (!filter.fetchDataUrl) return [];
                                 try {
@@ -175,16 +175,32 @@ export function ColumnFilterComponent({ column, filter, value, onChange, onClear
                                             Accept: 'application/json',
                                         },
                                     });
-                                    // Handle paginated response format
-                                    return response.data.data || response.data;
+                                    return response.data;
                                 } catch (error) {
                                     console.error('Error fetching selector data:', error);
                                     return [];
                                 }
                             }}
-                            renderItem={(item: any) => item[filter.labelKey || 'name']}
+                            renderItem={(item: any) => {
+                                if (filter.customLabel) {
+                                    return filter.customLabel(item);
+                                }
+
+                                const key = filter.labelKey || 'name';
+                                const label = item[key];
+                                if (typeof label === 'string') {
+                                    return label;
+                                }
+
+                                if (label === null || label === undefined) {
+                                    return 'Select...';
+                                }
+
+                                return String(label);
+                            }}
                             labelKey={(filter.labelKey as any) || 'name'}
                             nullable={true}
+                            dataMapper={filter.dataMapper}
                         />
                     </div>
                 );

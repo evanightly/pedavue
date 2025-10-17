@@ -1,3 +1,19 @@
+declare namespace App.Data.Course {
+    export type CourseData = {
+        id: any | number;
+        instructor_id: any | number;
+        title: string | null;
+        slug: string;
+        description: string | null;
+        certification_enabled: any | boolean;
+        thumbnail: string | null;
+        level: string | null;
+        duration: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+        instructor: any;
+    };
+}
 declare namespace App.Data.Permission {
     export type PermissionData = {
         id: any | number;

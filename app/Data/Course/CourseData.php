@@ -1,0 +1,94 @@
+<?php
+
+namespace App\Data\Course;
+
+use App\Data\Certificate\CertificateData;
+use App\Data\Enrollment\EnrollmentData;
+use App\Data\Module\ModuleData;
+use App\Data\Quiz\QuizData;
+use App\Data\User\UserData;
+use App\Models\Course;
+use Spatie\LaravelData\Attributes\DataCollectionOf;
+use Spatie\LaravelData\Data;
+use Spatie\LaravelData\DataCollection;
+use Spatie\LaravelData\Optional;
+use Spatie\TypeScriptTransformer\Attributes\TypeScript;
+use Spatie\TypeScriptTransformer\Attributes\TypeScriptType;
+
+#[TypeScript]
+class CourseData extends Data {
+    public function __construct(
+        public int|Optional $id,
+        public int|Optional $instructor_id,
+        // public ?array $module_ids,
+        // public ?array $quiz_ids,
+        // public ?array $enrollment_ids,
+        // public ?array $certificate_ids,
+        public ?string $title,
+        public string $slug,
+        public ?string $description,
+        public bool|Optional $certification_enabled,
+        public ?string $thumbnail,
+        public ?string $level,
+        public ?string $duration,
+        public ?string $created_at,
+        public ?string $updated_at,
+        #[TypeScriptType('App.Data.User.UserData | null')]
+        public ?UserData $instructor,
+        // #[DataCollectionOf(ModuleData::class)]
+        // #[TypeScriptType('App.Data.Module.ModuleData[]')]
+        // public ?DataCollection $Modules,
+        // #[DataCollectionOf(QuizData::class)]
+        // #[TypeScriptType('App.Data.Quiz.QuizData[]')]
+        // public ?DataCollection $Quizzes,
+        // #[DataCollectionOf(EnrollmentData::class)]
+        // #[TypeScriptType('App.Data.Enrollment.EnrollmentData[]')]
+        // public ?DataCollection $Enrollments,
+        // #[DataCollectionOf(CertificateData::class)]
+        // #[TypeScriptType('App.Data.Certificate.CertificateData[]')]
+        // public ?DataCollection $Certificates,
+    ) {}
+
+    public static function fromModel(Course $model): self {
+        return new self(
+            id: $model->getKey(),
+            instructor_id: $model->instructor_id,
+            // module_ids: $model->relationLoaded('Modules')
+            //     ? $model->Modules->pluck('id')->map(static fn ($id) => (int) $id)->all()
+            //     : $model->Modules()->pluck('Modules.id')->map(static fn ($id) => (int) $id)->all(),
+            // quiz_ids: $model->relationLoaded('Quizzes')
+            //     ? $model->Quizzes->pluck('id')->map(static fn ($id) => (int) $id)->all()
+            //     : $model->Quizzes()->pluck('Quizzes.id')->map(static fn ($id) => (int) $id)->all(),
+            // enrollment_ids: $model->relationLoaded('Enrollments')
+            //     ? $model->Enrollments->pluck('id')->map(static fn ($id) => (int) $id)->all()
+            //     : $model->Enrollments()->pluck('Enrollments.id')->map(static fn ($id) => (int) $id)->all(),
+            // certificate_ids: $model->relationLoaded('Certificates')
+            //     ? $model->Certificates->pluck('id')->map(static fn ($id) => (int) $id)->all()
+            //     : $model->Certificates()->pluck('Certificates.id')->map(static fn ($id) => (int) $id)->all(),
+            title: $model->title,
+            slug: $model->slug,
+            description: $model->description,
+            certification_enabled: $model->certification_enabled,
+            thumbnail: $model->thumbnail,
+            level: $model->level,
+            duration: $model->duration,
+            created_at: $model->created_at?->toIso8601String(),
+            updated_at: $model->updated_at?->toIso8601String(),
+            instructor: $model->relationLoaded('instructor') && $model->instructor
+                ? UserData::fromModel($model->instructor)
+                : null,
+            // Modules: $model->relationLoaded('Modules')
+            //     ? new DataCollection(ModuleData::class, $model->Modules)
+            //     : new DataCollection(ModuleData::class, []),
+            // Quizzes: $model->relationLoaded('Quizzes')
+            //     ? new DataCollection(QuizData::class, $model->Quizzes)
+            //     : new DataCollection(QuizData::class, []),
+            // Enrollments: $model->relationLoaded('Enrollments')
+            //     ? new DataCollection(EnrollmentData::class, $model->Enrollments)
+            //     : new DataCollection(EnrollmentData::class, []),
+            // Certificates: $model->relationLoaded('Certificates')
+            //     ? new DataCollection(CertificateData::class, $model->Certificates)
+            //     : new DataCollection(CertificateData::class, []),
+        );
+    }
+}
