@@ -69,13 +69,12 @@ it('ensures slugs remain unique', function () {
         ->and($second->slug)->toBe('laravel-basics-2');
 });
 
-it('normalizes provided slugs and keeps them unique', function () {
+it('generates unique slugs when titles are identical', function () {
     $instructor = User::factory()->create();
 
     $first = Course::query()->create([
-        'title' => 'Something Else',
-        'slug' => 'Custom Slug',
-        'description' => 'Introductory course',
+        'title' => 'Laravel Basics',
+        'description' => 'First course',
         'certification_enabled' => false,
         'thumbnail' => null,
         'level' => null,
@@ -84,9 +83,8 @@ it('normalizes provided slugs and keeps them unique', function () {
     ]);
 
     $second = Course::query()->create([
-        'title' => 'Another Course',
-        'slug' => 'Custom Slug',
-        'description' => 'Another course description',
+        'title' => 'Laravel Basics',
+        'description' => 'Second course with same title',
         'certification_enabled' => false,
         'thumbnail' => null,
         'level' => null,
@@ -94,6 +92,17 @@ it('normalizes provided slugs and keeps them unique', function () {
         'instructor_id' => $instructor->id,
     ]);
 
-    expect($first->slug)->toBe('custom-slug')
-        ->and($second->slug)->toBe('custom-slug-2');
+    $third = Course::query()->create([
+        'title' => 'Laravel Basics',
+        'description' => 'Third course with same title',
+        'certification_enabled' => false,
+        'thumbnail' => null,
+        'level' => null,
+        'duration' => null,
+        'instructor_id' => $instructor->id,
+    ]);
+
+    expect($first->slug)->toBe('laravel-basics')
+        ->and($second->slug)->toBe('laravel-basics-2')
+        ->and($third->slug)->toBe('laravel-basics-3');
 });

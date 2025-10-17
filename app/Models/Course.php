@@ -18,7 +18,6 @@ class Course extends Model {
      */
     protected $fillable = [
         'title',
-        'slug',
         'description',
         'certification_enabled',
         'thumbnail',

@@ -7,11 +7,12 @@ import UserController from '@/actions/App/Http/Controllers/UserController';
 import GenericDataSelector from '@/components/generic-data-selector';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Combobox } from '@/components/ui/combobox';
 import type { PaginationMeta } from '@/components/ui/data-table-types';
+import { ImageDropzone } from '@/components/ui/image-dropzone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import AppLayout from '@/layouts/app-layout';
 import { Form, Head } from '@inertiajs/react';
 import axios from 'axios';
@@ -140,6 +141,33 @@ export default function CourseEdit({ record }: CourseEditProps) {
 
         return null;
     });
+
+    const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+    const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(record?.thumbnail_url ?? null);
+    const [levelValue, setLevelValue] = useState<string>(record?.level ?? '');
+    const [description, setDescription] = useState<string>(record?.description ?? '');
+
+    const levelOptions = [
+        { value: 'Pemula', label: 'Pemula' },
+        { value: 'Menengah', label: 'Menengah' },
+        { value: 'Lanjutan', label: 'Lanjutan' },
+        { value: 'Semua Tingkat', label: 'Semua Tingkat' },
+    ];
+
+    const handleThumbnailDrop = (file: File) => {
+        setThumbnailFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setThumbnailPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const removeThumbnail = () => {
+        setThumbnailFile(null);
+        setThumbnailPreview(null);
+    };
+
     // const [modulesIds, setModulesIds] = useState<Array<number | string>>(() => {
     //     const relationEntries = record?.Modules;
 
@@ -252,6 +280,8 @@ export default function CourseEdit({ record }: CourseEditProps) {
                 {...CourseController.update.form(record.slug)}
                 transform={(data) => ({
                     ...data,
+                    _method: 'put',
+                    thumbnail: thumbnailFile || data.thumbnail,
                     instructor_id: (() => {
                         if (instructorId === null) {
                             return null;
@@ -264,46 +294,6 @@ export default function CourseEdit({ record }: CourseEditProps) {
                         const numeric = Number.parseInt(String(instructorId), 10);
                         return Number.isNaN(numeric) ? null : numeric;
                     })(),
-                    // module_ids: modulesIds
-                    //     .map((value) => {
-                    //         if (typeof value === 'number') {
-                    //             return value;
-                    //         }
-
-                    //         const numeric = Number.parseInt(String(value), 10);
-                    //         return Number.isNaN(numeric) ? null : numeric;
-                    //     })
-                    //     .filter((value): value is number => value !== null),
-                    // quiz_ids: quizzesIds
-                    //     .map((value) => {
-                    //         if (typeof value === 'number') {
-                    //             return value;
-                    //         }
-
-                    //         const numeric = Number.parseInt(String(value), 10);
-                    //         return Number.isNaN(numeric) ? null : numeric;
-                    //     })
-                    //     .filter((value): value is number => value !== null),
-                    // enrollment_ids: enrollmentsIds
-                    //     .map((value) => {
-                    //         if (typeof value === 'number') {
-                    //             return value;
-                    //         }
-
-                    //         const numeric = Number.parseInt(String(value), 10);
-                    //         return Number.isNaN(numeric) ? null : numeric;
-                    //     })
-                    //     .filter((value): value is number => value !== null),
-                    // certificate_ids: certificatesIds
-                    //     .map((value) => {
-                    //         if (typeof value === 'number') {
-                    //             return value;
-                    //         }
-
-                    //         const numeric = Number.parseInt(String(value), 10);
-                    //         return Number.isNaN(numeric) ? null : numeric;
-                    //     })
-                    //     .filter((value): value is number => value !== null),
                 })}
                 options={{ preserveScroll: true }}
                 className='p-8'
@@ -311,81 +301,131 @@ export default function CourseEdit({ record }: CourseEditProps) {
                 {({ errors, processing }) => (
                     <div className='space-y-6 rounded-xl border bg-card p-8 shadow-sm'>
                         <div className='space-y-2'>
-                            <h1 className='text-2xl font-semibold tracking-tight'>Edit Course</h1>
-                            <p className='text-sm text-muted-foreground'>Provide the necessary information below and submit when you're ready.</p>
+                            <h1 className='text-2xl font-semibold tracking-tight'>Edit Kursus</h1>
+                            <p className='text-sm text-muted-foreground'>Perbarui informasi kursus di bawah ini dan simpan perubahan Anda.</p>
                         </div>
                         <div className='grid gap-6'>
-                            <div className='grid gap-2'>
-                                <Label htmlFor='title'>Title</Label>
-                                <Input id='title' name='title' type='text' required defaultValue={normalizeFieldValue(record.title)} />
-                                <InputError message={errors.title} />
+                            {/* Basic Information Section */}
+                            <div className='space-y-4'>
+                                <h3 className='text-sm font-medium text-foreground'>Informasi Dasar</h3>
+                                <div className='grid gap-4 md:grid-cols-2'>
+                                    <div className='grid gap-2 md:col-span-2'>
+                                        <Label htmlFor='title'>
+                                            Judul <span className='text-destructive'>*</span>
+                                        </Label>
+                                        <Input
+                                            id='title'
+                                            name='title'
+                                            type='text'
+                                            placeholder='Masukkan judul kursus'
+                                            required
+                                            defaultValue={normalizeFieldValue(record.title)}
+                                        />
+                                        <InputError message={errors.title} />
+                                    </div>
+
+                                    <div className='grid gap-2'>
+                                        <Label htmlFor='level'>
+                                            Level <span className='text-xs text-muted-foreground'>(Opsional)</span>
+                                        </Label>
+                                        <Combobox
+                                            id='level'
+                                            name='level'
+                                            options={levelOptions}
+                                            value={levelValue}
+                                            onValueChange={setLevelValue}
+                                            placeholder='Pilih atau ketik level kursus'
+                                            emptyText='Level tidak ditemukan'
+                                            allowCustom
+                                        />
+                                        <InputError message={errors.level} />
+                                    </div>
+
+                                    <div className='grid gap-2'>
+                                        <Label htmlFor='duration'>
+                                            Durasi <span className='text-xs text-muted-foreground'>(dalam menit)</span>
+                                        </Label>
+                                        <Input
+                                            id='duration'
+                                            name='duration'
+                                            type='number'
+                                            min='0'
+                                            step='1'
+                                            placeholder='Contoh: 120'
+                                            defaultValue={normalizeFieldValue(record.duration)}
+                                        />
+                                        <InputError message={errors.duration} />
+                                    </div>
+
+                                    <div className='grid gap-2 md:col-span-2'>
+                                        <Label htmlFor='instructor_id'>
+                                            Instruktur <span className='text-destructive'>*</span>
+                                        </Label>
+                                        <GenericDataSelector<App.Data.User.UserData>
+                                            id='instructor-selector'
+                                            placeholder='Pilih instruktur'
+                                            fetchData={fetchUserOptions}
+                                            dataMapper={(response) => response.data.users.data}
+                                            selectedDataId={instructorId}
+                                            setSelectedData={(value) => setInstructorId(value)}
+                                            renderItem={(item) =>
+                                                String((item as any).name ?? (item as any).title ?? (item as any).email ?? (item as any).id)
+                                            }
+                                        />
+                                        <InputError message={errors.instructor_id} />
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className='grid gap-2'>
-                                <Label htmlFor='slug'>Slug</Label>
-                                <Textarea id='slug' name='slug' rows={4} required defaultValue={normalizeFieldValue(record.slug) as string} />
-                                <InputError message={errors.slug} />
+                            {/* Description Section */}
+                            <div className='space-y-4'>
+                                <h3 className='text-sm font-medium text-foreground'>Deskripsi</h3>
+                                <div className='grid gap-2'>
+                                    <Label htmlFor='description'>
+                                        Deskripsi Kursus <span className='text-destructive'>*</span>
+                                    </Label>
+                                    <input type='hidden' name='description' value={description} />
+                                    <RichTextEditor
+                                        content={description}
+                                        onChange={setDescription}
+                                        placeholder='Jelaskan tentang kursus ini, apa yang akan dipelajari, dan manfaatnya...'
+                                        mode='block'
+                                        minHeight='200px'
+                                    />
+                                    <InputError message={errors.description} />
+                                </div>
                             </div>
 
-                            <div className='grid gap-2'>
-                                <Label htmlFor='description'>Description</Label>
-                                <Textarea
-                                    id='description'
-                                    name='description'
-                                    rows={4}
-                                    required
-                                    defaultValue={normalizeFieldValue(record.description) as string}
-                                />
-                                <InputError message={errors.description} />
+                            {/* Media Section */}
+                            <div className='space-y-4'>
+                                <h3 className='text-sm font-medium text-foreground'>Media</h3>
+                                <div className='grid gap-2'>
+                                    <Label htmlFor='thumbnail'>
+                                        Thumbnail <span className='text-xs text-muted-foreground'>(Opsional)</span>
+                                    </Label>
+                                    <ImageDropzone onDrop={handleThumbnailDrop} preview={thumbnailPreview} onRemove={removeThumbnail} />
+                                    <InputError message={errors.thumbnail} />
+                                </div>
                             </div>
 
-                            <div className='space-y-2'>
-                                <div className='flex items-center gap-3'>
+                            {/* Settings Section */}
+                            {/* <div className='space-y-4'>
+                                <h3 className='text-sm font-medium text-foreground'>Pengaturan</h3>
+                                <div className='flex items-center gap-3 rounded-lg border p-4'>
                                     <Checkbox
                                         id='certification_enabled'
                                         name='certification_enabled'
                                         defaultChecked={Boolean(record.certification_enabled)}
                                     />
-                                    <Label htmlFor='certification_enabled' className='text-sm font-medium text-foreground'>
-                                        Certification Enabled
-                                    </Label>
+                                    <div className='grid gap-1'>
+                                        <Label htmlFor='certification_enabled' className='cursor-pointer text-sm leading-none font-medium'>
+                                            Aktifkan Sertifikat
+                                        </Label>
+                                        <p className='text-xs text-muted-foreground'>Peserta yang menyelesaikan kursus akan menerima sertifikat</p>
+                                    </div>
                                 </div>
                                 <InputError message={errors.certification_enabled} />
-                            </div>
-
-                            <div className='grid gap-2'>
-                                <Label htmlFor='thumbnail'>Thumbnail</Label>
-                                <Input id='thumbnail' name='thumbnail' type='text' defaultValue={normalizeFieldValue(record.thumbnail)} />
-                                <InputError message={errors.thumbnail} />
-                            </div>
-
-                            <div className='grid gap-2'>
-                                <Label htmlFor='level'>Level</Label>
-                                <Input id='level' name='level' type='text' defaultValue={normalizeFieldValue(record.level)} />
-                                <InputError message={errors.level} />
-                            </div>
-
-                            <div className='grid gap-2'>
-                                <Label htmlFor='duration'>Duration</Label>
-                                <Input id='duration' name='duration' type='text' defaultValue={normalizeFieldValue(record.duration)} />
-                                <InputError message={errors.duration} />
-                            </div>
-
-                            <div className='grid gap-2'>
-                                <Label htmlFor='instructor_id'>Instructor</Label>
-                                <GenericDataSelector<App.Data.User.UserData>
-                                    id='instructor-selector'
-                                    placeholder={`Select Instructor`}
-                                    fetchData={fetchUserOptions}
-                                    dataMapper={(response) => response.data.data.users.data}
-                                    selectedDataId={instructorId}
-                                    setSelectedData={(value) => setInstructorId(value)}
-                                    renderItem={(item) =>
-                                        String((item as any).name ?? (item as any).title ?? (item as any).email ?? (item as any).id)
-                                    }
-                                />
-                                <InputError message={errors.instructor_id} />
-                            </div>
+                            </div> */}
 
                             {/* <div className='grid gap-2'>
                                 <Label htmlFor='module_ids'>Modules</Label>
@@ -461,7 +501,7 @@ export default function CourseEdit({ record }: CourseEditProps) {
                         </div>
                         <Button type='submit' disabled={processing} className='w-full sm:w-auto'>
                             {processing && <LoaderCircle className='mr-2 h-4 w-4 animate-spin' />}
-                            {processing ? 'Saving…' : 'Save changes'}
+                            {processing ? 'Menyimpan…' : 'Simpan Perubahan'}
                         </Button>
                     </div>
                 )}

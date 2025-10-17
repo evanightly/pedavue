@@ -116,15 +116,20 @@ export default function CourseIndex({ courses, filters = null, sort = null, filt
             },
             {
                 id: 'thumbnail',
-                accessorKey: 'thumbnail',
+                accessorKey: 'thumbnail_url',
                 header: 'Thumbnail',
-                cell: ({ getValue }) => {
-                    const value = getValue() as unknown;
-                    if (value === null || value === undefined) {
-                        return '—';
-                    }
-                    return String(value);
+                cell: ({ getValue, row }) => {
+                    return row.original.thumbnail_url ? (
+                        <img
+                            src={String(getValue())}
+                            alt={`Thumbnail for course ${row.original.title}`}
+                            className='h-10 w-10 rounded-md object-cover'
+                        />
+                    ) : (
+                        '—'
+                    );
                 },
+
                 enableSorting: true,
                 filter: { type: 'text', placeholder: 'Filter by thumbnail...' },
             },

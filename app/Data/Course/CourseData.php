@@ -8,7 +8,9 @@ use App\Data\Module\ModuleData;
 use App\Data\Quiz\QuizData;
 use App\Data\User\UserData;
 use App\Models\Course;
+use Illuminate\Support\Str;
 use Spatie\LaravelData\Attributes\DataCollectionOf;
+use Spatie\LaravelData\Attributes\Validation\Nullable;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\DataCollection;
 use Spatie\LaravelData\Optional;
@@ -25,10 +27,12 @@ class CourseData extends Data {
         // public ?array $enrollment_ids,
         // public ?array $certificate_ids,
         public ?string $title,
-        public string $slug,
+        public string|Optional $slug,
         public ?string $description,
         public bool|Optional $certification_enabled,
+        #[Nullable]
         public ?string $thumbnail,
+        public ?string $thumbnail_url,
         public ?string $level,
         public ?string $duration,
         public ?string $created_at,
@@ -48,6 +52,12 @@ class CourseData extends Data {
         // #[TypeScriptType('App.Data.Certificate.CertificateData[]')]
         // public ?DataCollection $Certificates,
     ) {}
+
+    public static function rules(): array {
+        return [
+            'thumbnail' => ['nullable', 'file', 'image', 'mimes:jpeg,jpg,png', 'max:2048'],
+        ];
+    }
 
     public static function fromModel(Course $model): self {
         return new self(
@@ -70,6 +80,7 @@ class CourseData extends Data {
             description: $model->description,
             certification_enabled: $model->certification_enabled,
             thumbnail: $model->thumbnail,
+            thumbnail_url: Str::startsWith($model->thumbnail, 'http') ? $model->thumbnail : '/storage/' . $model->thumbnail,
             level: $model->level,
             duration: $model->duration,
             created_at: $model->created_at?->toIso8601String(),

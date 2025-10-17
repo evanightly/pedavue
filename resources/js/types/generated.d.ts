@@ -3,10 +3,11 @@ declare namespace App.Data.Course {
         id: any | number;
         instructor_id: any | number;
         title: string | null;
-        slug: string;
+        slug: any | string;
         description: string | null;
         certification_enabled: any | boolean;
         thumbnail: string | null;
+        thumbnail_url: string | null;
         level: string | null;
         duration: string | null;
         created_at: string | null;

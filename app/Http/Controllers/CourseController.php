@@ -10,6 +10,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -68,7 +69,7 @@ class CourseController extends BaseResourceController {
 
     public function show(Course $course): Response {
         return Inertia::render('course/show', [
-            'record' => CourseData::fromModel($course)->toArray(),
+            'record' => CourseData::fromModel($course->load('instructor'))->toArray(),
         ]);
     }
 
@@ -79,7 +80,16 @@ class CourseController extends BaseResourceController {
     }
 
     public function store(CourseData $courseData): RedirectResponse {
-        $course = Course::create($courseData->toArray());
+        $data = $courseData->toArray();
+
+        // Handle thumbnail file upload
+        if (request()->hasFile('thumbnail')) {
+            $file = request()->file('thumbnail');
+            $path = $file->store('courses/thumbnails', 'public');
+            $data['thumbnail'] = $path;
+        }
+
+        $course = Course::create($data);
 
         return redirect()
             ->route('courses.index', $course)
@@ -87,7 +97,21 @@ class CourseController extends BaseResourceController {
     }
 
     public function update(CourseData $courseData, Course $course): RedirectResponse {
-        $course->update($courseData->toArray());
+        $data = $courseData->toArray();
+
+        // Handle thumbnail file upload
+        if (request()->hasFile('thumbnail')) {
+            // Delete old thumbnail if exists
+            if ($course->thumbnail && Storage::disk('public')->exists($course->thumbnail)) {
+                Storage::disk('public')->delete($course->thumbnail);
+            }
+
+            $file = request()->file('thumbnail');
+            $path = $file->store('courses/thumbnails', 'public');
+            $data['thumbnail'] = $path;
+        }
+
+        $course->update($data);
 
         return redirect()
             ->route('courses.index', $course)
