@@ -25,7 +25,7 @@ class QuizQuestionOptionData extends Data {
             id: $model->getKey(),
             quiz_question_id: $model->quiz_question_id,
             option_text: $model->option_text,
-            is_correct: $model->is_correct,
+            is_correct: $model->is_correct, // TODO: hide from client
             quiz_question: $model->relationLoaded('quiz_question') ? QuizQuestionData::from($model->quiz_question) : null,
             created_at: $model->created_at?->toIso8601String(),
             updated_at: $model->updated_at?->toIso8601String(),
