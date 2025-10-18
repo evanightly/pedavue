@@ -41,6 +41,17 @@ declare namespace App.Data.CourseInstructor {
         course: any;
     };
 }
+declare namespace App.Data.Enrollment {
+    export type EnrollmentData = {
+        id: any | number;
+        progress: number | null;
+        completed_at: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+        user: any;
+        course: any;
+    };
+}
 declare namespace App.Data.Permission {
     export type PermissionData = {
         id: any | number;
