@@ -21,7 +21,7 @@ class QuizQuestionData extends Data {
         public bool $is_answer_shuffled = false,
         public int $order = 0,
         public ?QuizData $quiz = null,
-        #[DataCollectionOf(QuizQuestionData::class)]
+        #[DataCollectionOf(QuizQuestionOptionData::class)]
         #[LiteralTypeScriptType('App.Data.QuizQuestionOption.QuizQuestionOptionData[]|null')]
         public ?DataCollection $quiz_question_options,
         public ?string $created_at,
