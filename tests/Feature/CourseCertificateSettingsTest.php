@@ -3,17 +3,37 @@
 use App\Data\Course\CourseData;
 use App\Models\Course;
 use App\Models\User;
+use App\Support\Enums\PermissionEnum;
+use App\Support\Enums\RoleEnum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function (): void {
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+    foreach (PermissionEnum::cases() as $permission) {
+        Permission::findOrCreate($permission->value);
+    }
+
+    foreach (RoleEnum::cases() as $role) {
+        Role::findOrCreate($role->value);
+    }
+});
 
 it('stores certificate settings when creating a course', function (): void {
     Storage::fake('public');
 
     $creator = User::factory()->create();
     $instructor = User::factory()->create();
+
+    $creator->assignRole(RoleEnum::Instructor->value);
+    Role::findByName(RoleEnum::Instructor->value)->givePermissionTo(PermissionEnum::CreateCourse->value);
 
     $response = $this
         ->actingAs($creator)
@@ -50,6 +70,9 @@ it('resets certificate placement when certification is disabled', function (): v
     $creator = User::factory()->create();
     $instructor = User::factory()->create();
 
+    $creator->assignRole(RoleEnum::Instructor->value);
+    Role::findByName(RoleEnum::Instructor->value)->givePermissionTo(PermissionEnum::UpdateCourse->value);
+
     $course = Course::factory()->create([
         'title' => 'Kursus Bersertifikat',
         'description' => '<p>Belajar</p>',
@@ -62,7 +85,7 @@ it('resets certificate placement when certification is disabled', function (): v
         'certificate_template' => 'courses/certificates/templates/example.png',
     ]);
 
-    $course->course_instructors()->attach($instructor);
+    $course->course_instructors()->attach([$creator, $instructor]);
 
     Storage::disk('public')->put('courses/certificates/templates/example.png', 'template');
 
