@@ -15,6 +15,8 @@ class Quiz extends Model
         'name',
         'description',
         'duration',
+        'is_question_shuffled',
+        'type',
     ];
 
     public function quiz_questions(): HasMany

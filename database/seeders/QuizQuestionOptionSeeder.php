@@ -15,7 +15,7 @@ class QuizQuestionOptionSeeder extends Seeder
     public function run(): void
     {
         QuizQuestion::all()->each(function ($quizQuestion) {
-            $quizQuestionOptions = QuizQuestionOption::factory(rand(3, 4))->make(['quiz_question_id' => $quizQuestion->id]);
+            $quizQuestionOptions = QuizQuestionOption::factory(rand(3, 4))->create(['quiz_question_id' => $quizQuestion->id]);
             $quizQuestionOptions->each(function ($quizQuestionOption, $index) {
                 $quizQuestionOption->is_correct = $index === 0;
             });

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('quiz_question_id')->constrained()->onDelete('cascade');
             $table->string('option_text');
             $table->boolean('is_correct')->default(false); 
+            $table->integer('order')->nullable();
             $table->timestamps();
         });
 
