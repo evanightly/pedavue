@@ -3,9 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Data\Course\CourseData;
+use App\Data\User\UserData;
 use App\Models\Course;
+use App\Models\Enrollment;
+use App\Models\User;
 use App\QueryFilters\DateRangeFilter;
 use App\QueryFilters\MultiColumnSearchFilter;
+use App\Support\Enums\PermissionEnum;
+use App\Support\Enums\RoleEnum;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -14,6 +19,8 @@ use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\QueryBuilder\AllowedFilter;
+use Spatie\QueryBuilder\AllowedSort;
+use Spatie\QueryBuilder\QueryBuilder;
 
 class CourseController extends BaseResourceController {
     use AuthorizesRequests;
@@ -66,6 +73,13 @@ class CourseController extends BaseResourceController {
 
         $query = $this->buildIndexQuery($request);
 
+        $user = $request->user();
+        if ($user && $user->hasRole(RoleEnum::Student->value) && !$user->hasPermissionTo(PermissionEnum::ReadCourse)) {
+            $query->whereHas('students', static function ($relation) use ($user): void {
+                $relation->where('users.id', $user->getKey());
+            });
+        }
+
         $items = $query
             ->paginate($request->input('per_page'))
             ->appends($request->query());
@@ -84,9 +98,14 @@ class CourseController extends BaseResourceController {
         return Inertia::render('course/create');
     }
 
-    public function show(Course $course): Response {
+    public function show(Request $request, Course $course): Response {
+        $course->load('course_instructors');
+
         return Inertia::render('course/show', [
-            'record' => CourseData::fromModel($course->load('course_instructors'))->toArray(),
+            'record' => CourseData::fromModel($course)->toArray(),
+            'abilities' => [
+                'assign_students' => $request->user()?->can('assignStudents', $course) ?? false,
+            ],
         ]);
     }
 
@@ -212,6 +231,154 @@ class CourseController extends BaseResourceController {
         return redirect()
             ->route('courses.show', $course)
             ->with('flash.success', 'Instruktur berhasil dihapus.');
+    }
+
+    public function students(Request $request, Course $course): Response|JsonResponse {
+        $this->authorize('assignStudents', $course);
+
+        $rawFilter = $request->input('filter', []);
+        $normalizedFilter = [];
+
+        if (is_string($rawFilter)) {
+            $normalizedFilter['search'] = trim($rawFilter);
+        } elseif (is_array($rawFilter)) {
+            foreach ($rawFilter as $key => $value) {
+                if (is_string($value)) {
+                    $normalizedFilter[$key] = trim($value);
+                }
+            }
+        }
+
+        $request->merge([
+            'filter' => array_filter($normalizedFilter, static fn ($value) => $value !== ''),
+        ]);
+
+        $perPage = (int) $request->input('per_page', 15);
+        if ($perPage < 1 || $perPage > 100) {
+            $perPage = 15;
+        }
+
+        $studentsPaginator = QueryBuilder::for(
+            User::query()
+                ->role(RoleEnum::Student->value)
+                ->whereDoesntHave('enrollments', static function ($relation) use ($course): void {
+                    $relation->where('course_id', $course->getKey());
+                }),
+            $request,
+        )
+            ->allowedFilters([
+                AllowedFilter::callback('search', static function ($query, $value): void {
+                    $term = is_string($value) ? trim($value) : null;
+
+                    if ($term === null || $term === '') {
+                        return;
+                    }
+
+                    $query->where(static function ($relation) use ($term): void {
+                        $relation
+                            ->where('name', 'like', '%' . $term . '%')
+                            ->orWhere('email', 'like', '%' . $term . '%');
+                    });
+                }),
+                AllowedFilter::partial('name'),
+                AllowedFilter::partial('email'),
+            ])
+            ->allowedSorts([
+                AllowedSort::field('name'),
+                AllowedSort::field('email'),
+                AllowedSort::field('created_at'),
+                AllowedSort::field('updated_at'),
+            ])
+            ->defaultSort('name')
+            ->paginate($perPage)
+            ->appends($request->query());
+
+        $students = UserData::collect($studentsPaginator);
+
+        $course->load('course_instructors');
+
+        return $this->respond($request, 'course/assign-students', [
+            'course' => CourseData::fromModel($course)->toArray(),
+            'students' => $students,
+            'filters' => [
+                'search' => $request->input('filter.search', ''),
+                'name' => $request->input('filter.name'),
+                'email' => $request->input('filter.email'),
+            ],
+            'filteredData' => null,
+            'sort' => $request->query('sort'),
+            'abilities' => [
+                'assign_students' => true,
+            ],
+        ]);
+    }
+
+    public function assignStudents(Request $request, Course $course): RedirectResponse|JsonResponse {
+        $this->authorize('assignStudents', $course);
+
+        $payload = $request->validate([
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer'],
+        ]);
+
+        $userIds = collect($payload['user_ids'] ?? [])
+            ->filter(static fn ($id) => $id !== null && $id !== '')
+            ->map(static fn ($id) => (int) $id)
+            ->filter(static fn ($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($userIds->isEmpty()) {
+            return $this->assignmentResponse($request, $course, 0, 0);
+        }
+
+        $students = User::query()
+            ->whereIn('id', $userIds->all())
+            ->role(RoleEnum::Student->value)
+            ->whereDoesntHave('enrollments', static function ($relation) use ($course): void {
+                $relation->where('course_id', $course->getKey());
+            })
+            ->get();
+
+        $created = 0;
+        foreach ($students as $student) {
+            $enrollment = Enrollment::firstOrCreate(
+                [
+                    'user_id' => $student->getKey(),
+                    'course_id' => $course->getKey(),
+                ],
+                [
+                    'progress' => 0,
+                    'completed_at' => null,
+                ],
+            );
+
+            if ($enrollment->wasRecentlyCreated) {
+                $created++;
+            }
+        }
+
+        return $this->assignmentResponse($request, $course, $created, $students->count());
+    }
+
+    private function assignmentResponse(Request $request, Course $course, int $createdCount, int $attemptedCount): RedirectResponse|JsonResponse {
+        $message = $createdCount > 0
+            ? sprintf('%d siswa berhasil ditambahkan ke kursus.', $createdCount)
+            : 'Tidak ada siswa baru yang ditambahkan.';
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => $message,
+                'created_count' => $createdCount,
+                'processed_count' => $attemptedCount,
+            ]);
+        }
+
+        $flashKey = $createdCount > 0 ? 'flash.success' : 'flash.info';
+
+        return redirect()
+            ->route('courses.students.index', $course)
+            ->with($flashKey, $message);
     }
 
     private function sanitizeCertificateSettings(array $data): array {

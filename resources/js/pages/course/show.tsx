@@ -6,7 +6,7 @@ import type { PaginationMeta } from '@/components/ui/data-table-types';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import axios from 'axios';
-import { ArrowLeft, Award, BookOpen, Calendar, Clock, Trash2, User } from 'lucide-react';
+import { ArrowLeft, Award, BookOpen, Calendar, Clock, Trash2, User, UserPlus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 export type CourseRecord = App.Data.Course.CourseData;
@@ -17,10 +17,14 @@ export type CourseCollection = PaginationMeta & {
 
 interface CourseShowProps {
     record: CourseRecord;
+    abilities?: {
+        assign_students?: boolean;
+    } | null;
 }
 
-export default function CourseShow({ record }: CourseShowProps) {
+export default function CourseShow({ record, abilities = null }: CourseShowProps) {
     const courseSlug = typeof record.slug === 'string' ? record.slug : String(record.slug ?? '');
+    const canAssignStudents = Boolean(abilities?.assign_students);
     const instructors = useMemo(() => (Array.isArray(record.course_instructors) ? record.course_instructors : []), [record.course_instructors]);
     const instructorIds = useMemo(() => {
         if (!Array.isArray(record.instructor_ids)) {
@@ -160,6 +164,16 @@ export default function CourseShow({ record }: CourseShowProps) {
                         </Link>
                     </Button>
                 </div>
+                {canAssignStudents ? (
+                    <div className='absolute top-8 right-8 z-20'>
+                        <Button variant='default' size='sm' asChild className='gap-2 shadow-lg backdrop-blur-sm'>
+                            <Link href={CourseController.students.url({ course: courseSlug })}>
+                                <UserPlus className='h-4 w-4' />
+                                Kelola peserta
+                            </Link>
+                        </Button>
+                    </div>
+                ) : null}
             </div>
 
             {/* Main Content */}

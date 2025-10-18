@@ -35,6 +35,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - The frontend ui texts/labels must use indonesian localization whereas the project logic like backend frontend logic and database should use english localization.
 - Do not heavy code the frontend code, for example, when formatting the time duration, do it in the backend and just display the formatted result in the frontend, serve it using Data class
 - Spatie Data can be use as a validation, but initially it will be used as a resource/transformer, in some cases it can be used as a request validation, for example the user model has phone number as a Data, but in the other hand we might use phoneIds as a validation in the request, in that case we can mark phoneIds with comment to indicate that it's a validation only property.
+- Relation name is using lowercase with underscore, for example enrolled_courses, course_instructors, etc.
 
 ## Verification Scripts
 

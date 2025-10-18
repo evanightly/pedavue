@@ -20,6 +20,13 @@ class Enrollment extends Model {
     ];
 
     /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'progress' => 0,
+    ];
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array {

@@ -78,10 +78,15 @@ class Course extends Model {
     //     return $this->hasMany(Quiz::class);
     // }
 
-    // public function Enrollments(): HasMany
-    // {
-    //     return $this->hasMany(Enrollment::class);
-    // }
+    public function enrollments(): HasMany {
+        return $this->hasMany(Enrollment::class);
+    }
+
+    public function students(): BelongsToMany {
+        return $this->belongsToMany(User::class, 'enrollments', 'course_id', 'user_id')
+            ->withPivot(['progress', 'completed_at'])
+            ->withTimestamps();
+    }
 
     // public function Certificates(): HasMany
     // {

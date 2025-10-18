@@ -21,6 +21,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('courses', CourseController::class);
     Route::post('courses/{course}/instructors', [CourseController::class, 'attachInstructor'])->name('courses.instructors.attach');
     Route::delete('courses/{course}/instructors/{instructor}', [CourseController::class, 'detachInstructor'])->name('courses.instructors.detach');
+    Route::get('courses/{course}/students', [CourseController::class, 'students'])->name('courses.students.index');
+    Route::post('courses/{course}/students', [CourseController::class, 'assignStudents'])->name('courses.students.store');
     Route::resource('course-instructors', CourseInstructorController::class);
     Route::resource('enrollments', EnrollmentController::class);
 });

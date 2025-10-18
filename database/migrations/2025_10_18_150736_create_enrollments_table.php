@@ -11,8 +11,8 @@ return new class extends Migration {
     public function up(): void {
         Schema::create('enrollments', function (Blueprint $table) {
             $table->id();
-            $table->integer('progress');
-            $table->dateTime('completed_at');
+            $table->integer('progress')->default(0);
+            $table->dateTime('completed_at')->nullable();
             $table->foreignId('user_id')->constrained('users');
             $table->foreignId('course_id')->constrained('courses');
             $table->timestamps();

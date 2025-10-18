@@ -13,5 +13,16 @@ class RolePermissionSeeder extends Seeder {
      */
     public function run(): void {
         Role::whereName(RoleEnum::SuperAdmin)->first()->givePermissionTo(PermissionEnum::toArray());
+
+        Role::whereName(RoleEnum::Instructor)->first()->givePermissionTo([
+            PermissionEnum::ReadCourse,
+            PermissionEnum::CreateCourse,
+            PermissionEnum::UpdateCourse,
+            PermissionEnum::DeleteCourse,
+            PermissionEnum::ReadEnrollment,
+            PermissionEnum::CreateEnrollment,
+            PermissionEnum::UpdateEnrollment,
+            PermissionEnum::DeleteEnrollment,
+        ]);
     }
 }
