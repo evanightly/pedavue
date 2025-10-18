@@ -15,6 +15,7 @@ class QuizQuestionOption extends Model
         'quiz_question_id',
         'option_text',
         'is_correct',
+        'order',
     ];
 
     public function quiz_question(): BelongsTo

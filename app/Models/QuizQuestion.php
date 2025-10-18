@@ -15,6 +15,8 @@ class QuizQuestion extends Model
     protected $fillable = [
         'quiz_id',
         'question',
+        'is_answer_shuffled',
+        'order',
     ];
 
     public function quiz(): BelongsTo

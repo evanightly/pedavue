@@ -18,6 +18,8 @@ class QuizQuestionData extends Data {
         public int|Optional $id,
         public ?int $quiz_id,
         public ?string $question,
+        public bool $is_answer_shuffled = false,
+        public int $order = 0,
         public ?QuizData $quiz = null,
         #[DataCollectionOf(QuizQuestionData::class)]
         #[LiteralTypeScriptType('App.Data.QuizQuestionOption.QuizQuestionOptionData[]|null')]
@@ -31,6 +33,8 @@ class QuizQuestionData extends Data {
             id: $model->getKey(),
             quiz_id: $model->quiz_id,
             question: $model->question,
+            is_answer_shuffled: $model->is_answer_shuffled,
+            order: $model->order,
             quiz: $model->relationLoaded('quiz') ? QuizData::from($model->quiz) : null,
             quiz_question_options: $model->relationLoaded('quiz_question_options')
                 ? new DataCollection(QuizQuestionOptionData::class, $model->quiz_question_options)

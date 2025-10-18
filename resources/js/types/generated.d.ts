@@ -43,6 +43,8 @@ declare namespace App.Data.Quiz {
         name: string | null;
         description: string | null;
         duration: number | null;
+        is_question_shuffled: boolean;
+        type: string | null;
         quiz_questions: App.Data.QuizQuestion.QuizQuestionData[] | null;
         created_at: string | null;
         updated_at: string | null;
@@ -53,6 +55,8 @@ declare namespace App.Data.QuizQuestion {
         id: any | number;
         quiz_id: number | null;
         question: string | null;
+        is_answer_shuffled: boolean;
+        order: number;
         quiz: App.Data.Quiz.QuizData | null;
         quiz_question_options: App.Data.QuizQuestionOption.QuizQuestionOptionData[] | null;
         created_at: string | null;
@@ -65,6 +69,7 @@ declare namespace App.Data.QuizQuestionOption {
         quiz_question_id: number | null;
         option_text: string | null;
         is_correct: boolean | null;
+        order: number;
         quiz_question: App.Data.QuizQuestion.QuizQuestionData | null;
         created_at: string | null;
         updated_at: string | null;

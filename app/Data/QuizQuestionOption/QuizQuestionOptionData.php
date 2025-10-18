@@ -15,6 +15,7 @@ class QuizQuestionOptionData extends Data {
         public ?int $quiz_question_id,
         public ?string $option_text,
         public ?bool $is_correct,
+        public int $order = 0,
         public ?QuizQuestionData $quiz_question = null,
         public ?string $created_at,
         public ?string $updated_at,
@@ -26,6 +27,7 @@ class QuizQuestionOptionData extends Data {
             quiz_question_id: $model->quiz_question_id,
             option_text: $model->option_text,
             is_correct: $model->is_correct, // TODO: hide from client
+            order: $model->order,
             quiz_question: $model->relationLoaded('quiz_question') ? QuizQuestionData::from($model->quiz_question) : null,
             created_at: $model->created_at?->toIso8601String(),
             updated_at: $model->updated_at?->toIso8601String(),
