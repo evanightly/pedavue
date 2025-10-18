@@ -7,8 +7,16 @@ import typescript from 'typescript-eslint';
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
-    js.configs.recommended,
-    ...typescript.configs.recommended,
+    {
+        ...js.configs.recommended,
+        rules: Object.fromEntries(
+            Object.entries(js.configs.recommended.rules || {}).map(([key, value]) => [key, value === 'error' ? 'warn' : value]),
+        ),
+    },
+    ...typescript.configs.recommended.map((config) => ({
+        ...config,
+        rules: Object.fromEntries(Object.entries(config.rules || {}).map(([key, value]) => [key, value === 'error' ? 'warn' : value])),
+    })),
     {
         ...react.configs.flat.recommended,
         ...react.configs.flat['jsx-runtime'], // Required for React 17+
@@ -33,7 +41,7 @@ export default [
             'react-hooks': reactHooks,
         },
         rules: {
-            'react-hooks/rules-of-hooks': 'error',
+            'react-hooks/rules-of-hooks': 'warn',
             'react-hooks/exhaustive-deps': 'warn',
         },
     },

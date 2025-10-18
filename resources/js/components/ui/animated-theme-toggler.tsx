@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { Moon, SunDim } from 'lucide-react';
 import { useRef } from 'react';
 import { flushSync } from 'react-dom';
+import { Button } from './button';
 
 type props = {
     className?: string;
@@ -45,8 +46,8 @@ export const AnimatedThemeToggler = ({ className }: props) => {
         );
     };
     return (
-        <button ref={buttonRef} onClick={changeTheme} className={cn(className)}>
+        <Button variant='ghost' ref={buttonRef} onClick={changeTheme} className={cn(className)}>
             {appearance === 'dark' ? <SunDim /> : <Moon />}
-        </button>
+        </Button>
     );
 };

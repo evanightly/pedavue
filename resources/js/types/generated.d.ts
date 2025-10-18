@@ -30,6 +30,7 @@ declare namespace App.Data.Course {
         updated_at: string | null;
         updated_at_formatted: string | null;
         course_instructors: App.Data.User.UserData[] | null;
+        students: App.Data.User.UserData[] | null;
     };
 }
 declare namespace App.Data.CourseInstructor {
@@ -57,10 +58,18 @@ declare namespace App.Data.EnrollmentRequest {
         id: any | number;
         message: string | null;
         status: string | null;
+        course_id: number | null;
+        user_id: number | null;
+        course_title: string | null;
+        user_name: string | null;
         created_at: string | null;
         updated_at: string | null;
-        user: any;
-        course: any;
+        created_at_formatted: string | null;
+        updated_at_formatted: string | null;
+        enrollment_created_at_formatted: string | null;
+        user_created_at_formatted: string | null;
+        user: App.Data.User.UserData | null;
+        course: App.Data.Course.CourseData | null;
     };
 }
 declare namespace App.Data.Permission {

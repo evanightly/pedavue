@@ -63,6 +63,9 @@ class CourseData extends Data {
         #[DataCollectionOf(UserData::class)]
         #[LiteralTypeScriptType('App.Data.User.UserData[]|null')]
         public ?DataCollection $course_instructors,
+        #[DataCollectionOf(UserData::class)]
+        #[LiteralTypeScriptType('App.Data.User.UserData[]|null')]
+        public ?DataCollection $students,
         // #[DataCollectionOf(ModuleData::class)]
         // #[LiteralTypeScriptType('App.Data.Module.ModuleData[]|null')]
         // public ?DataCollection $Modules,
@@ -134,6 +137,10 @@ class CourseData extends Data {
             ? $model->course_instructors
             : $model->course_instructors()->get();
 
+        $studentsRelation = $model->relationLoaded('students')
+            ? $model->students
+            : null;
+
         $instructorIds = $courseInstructorsRelation
             ->pluck('id')
             ->map(static fn ($id) => (int) $id)
@@ -182,6 +189,7 @@ class CourseData extends Data {
             updated_at: $model->updated_at?->toIso8601String(),
             updated_at_formatted: $updatedAtFormatted,
             course_instructors: $model->relationLoaded('course_instructors') ? new DataCollection(UserData::class, $courseInstructorsRelation) : null,
+            students: $studentsRelation ? new DataCollection(UserData::class, $studentsRelation) : null,
             // Modules: $model->relationLoaded('Modules')
             //     ? new DataCollection(ModuleData::class, $model->Modules)
             //     : new DataCollection(ModuleData::class, []),

@@ -38,6 +38,10 @@ class CoursePolicy {
             return true;
         }
 
+        if ($user->hasRole(RoleEnum::Student->value)) {
+            return true;
+        }
+
         return $this->isEnrolledStudent($user, $course);
     }
 

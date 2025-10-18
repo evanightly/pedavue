@@ -4,14 +4,17 @@ use App\Http\Controllers\CourseController;
 use App\Http\Controllers\CourseInstructorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnrollmentController;
+use App\Http\Controllers\EnrollmentRequestController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\EnrollmentRequestController;
 
 Route::inertia('/', 'welcome')->name('home');
+
+Route::get('explore-course', [CourseController::class, 'explore'])->name('courses.explore');
+Route::get('courses/{course}', [CourseController::class, 'show'])->name('courses.show');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('dashboard', DashboardController::class);
@@ -19,14 +22,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('permissions', PermissionController::class);
     Route::resource('quizzes', QuizController::class);
     Route::resource('roles', RoleController::class);
-    Route::resource('courses', CourseController::class);
+    Route::resource('courses', CourseController::class)->except(['show']);
     Route::post('courses/{course}/instructors', [CourseController::class, 'attachInstructor'])->name('courses.instructors.attach');
     Route::delete('courses/{course}/instructors/{instructor}', [CourseController::class, 'detachInstructor'])->name('courses.instructors.detach');
     Route::get('courses/{course}/students', [CourseController::class, 'students'])->name('courses.students.index');
     Route::post('courses/{course}/students', [CourseController::class, 'assignStudents'])->name('courses.students.store');
+    Route::delete('courses/{course}/students/{student}', [CourseController::class, 'unassignStudent'])->name('courses.students.destroy');
+    Route::post('courses/{course}/enrollment-request', [CourseController::class, 'requestEnrollment'])->name('courses.enrollment-request.store');
     Route::resource('course-instructors', CourseInstructorController::class);
     Route::resource('enrollments', EnrollmentController::class);
     Route::resource('enrollment-requests', EnrollmentRequestController::class);
+    Route::patch('enrollment-requests/{enrollment_request}/approve', [EnrollmentRequestController::class, 'approve'])->name('enrollment-requests.approve');
+    Route::patch('enrollment-requests/{enrollment_request}/reject', [EnrollmentRequestController::class, 'reject'])->name('enrollment-requests.reject');
 });
 Route::post('imporquiz', [QuizController::class, 'import'])->name('quiz.import');
 Route::get('csrf-token', function () {
