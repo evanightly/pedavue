@@ -1,9 +1,12 @@
 import CourseController from '@/actions/App/Http/Controllers/CourseController';
 import AppLogo from '@/components/app-logo';
 import InertiaMessenger from '@/components/inertia-messenger';
+import { AnimatedThemeSelector } from '@/components/ui/animated-theme-selector';
+import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler';
 import { Button } from '@/components/ui/button';
 import { login, register } from '@/routes';
 import { Link } from '@inertiajs/react';
+import { SwatchBook } from 'lucide-react';
 import { type PropsWithChildren } from 'react';
 
 export default function GuestLayout({ children }: PropsWithChildren) {
@@ -28,6 +31,16 @@ export default function GuestLayout({ children }: PropsWithChildren) {
                             <Button asChild className='rounded-full px-4'>
                                 <Link href={register()}>Daftar</Link>
                             </Button>
+                        </div>
+                        <div className='flex gap-2 border-l-2 pl-2'>
+                            <AnimatedThemeSelector
+                                triggerElement={
+                                    <Button size='icon' variant='ghost'>
+                                        <SwatchBook />
+                                    </Button>
+                                }
+                            />
+                            <AnimatedThemeToggler />
                         </div>
                     </nav>
                 </div>

@@ -7,14 +7,14 @@ import { useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './dropdown-menu';
 
-type Props = {
-    className?: string;
-};
+interface Props extends React.HTMLAttributes<HTMLDivElement> {
+    triggerElement?: React.ReactNode;
+}
 
 // Get themes automatically from CSS
 const themes = getAvailableThemes();
 
-export const AnimatedThemeSelector = ({ className }: Props) => {
+export const AnimatedThemeSelector = ({ className, triggerElement }: Props) => {
     const { theme: currentTheme, updateTheme } = useTheme();
     const themeButtonRef = useRef<HTMLDivElement | null>(null);
 
@@ -61,10 +61,12 @@ export const AnimatedThemeSelector = ({ className }: Props) => {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <DropdownMenuItem>
-                    <SwatchBook />
-                    Tema
-                </DropdownMenuItem>
+                {triggerElement ? triggerElement : (
+                    <DropdownMenuItem>
+                        <SwatchBook />
+                        Tema
+                    </DropdownMenuItem>
+                )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
                 {themes.map((theme) => (

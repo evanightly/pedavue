@@ -12,7 +12,7 @@ import GuestLayout from '@/layouts/guest-layout';
 import { login, register } from '@/routes';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { ArrowLeft, Award, BookOpen, Calendar, Clock, Trash2, User, UserPlus } from 'lucide-react';
+import { ArrowLeft, Award, BookOpen, Calendar, Clock, Trash2, User, UserPlus, Users } from 'lucide-react';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 export type CourseRecord = App.Data.Course.CourseData & {
@@ -314,40 +314,110 @@ export default function CourseShow({ record, abilities = null, viewer = null }: 
         <>
             <Head title={record.title || 'Detail Kursus'} />
 
-            {/* Hero Section with Thumbnail */}
-            <div className='relative'>
+            {/* Hero Section with Enhanced Thumbnail */}
+            <div className='relative overflow-hidden'>
                 {record.thumbnail ? (
-                    <div className='relative h-[400px] w-full overflow-hidden bg-gradient-to-br from-primary/20 via-primary/10 to-background'>
-                        <div className='absolute inset-0 z-10 bg-gradient-to-t from-background via-background/80 to-transparent' />
-                        <img
-                            src={record.thumbnail.startsWith('http') ? record.thumbnail : `/storage/${record.thumbnail}`}
-                            alt={record.title || 'Course Thumbnail'}
-                            className='h-full w-full object-cover opacity-40'
+                    <div className='relative h-[500px] w-full overflow-hidden lg:h-[600px]'>
+                        {/* Base Image Layer */}
+                        <div className='absolute inset-0'>
+                            <img
+                                src={record.thumbnail.startsWith('http') ? record.thumbnail : `/storage/${record.thumbnail}`}
+                                alt={record.title || 'Course Thumbnail'}
+                                className='h-full w-full object-cover'
+                            />
+                        </div>
+
+                        {/* Multi-layered Dark Gradients */}
+                        <div className='absolute inset-0 bg-gradient-to-t from-background via-background/95 to-background/40' />
+                        <div className='absolute inset-0 bg-gradient-to-br from-primary/30 via-transparent to-background/50' />
+                        <div className='absolute inset-0 bg-gradient-to-tr from-background/80 via-transparent to-background/60' />
+
+                        {/* Subtle Pattern Overlay */}
+                        <div
+                            className='absolute inset-0 opacity-5'
+                            style={{
+                                backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)',
+                                backgroundSize: '24px 24px',
+                            }}
                         />
+
+                        {/* Vignette Effect */}
+                        <div className='absolute inset-0' style={{ boxShadow: 'inset 0 0 200px rgba(0,0,0,0.5)' }} />
                     </div>
                 ) : (
-                    <div className='relative h-[300px] w-full bg-gradient-to-br from-primary/20 via-primary/10 to-background' />
+                    <div className='relative h-[400px] w-full overflow-hidden lg:h-[500px]'>
+                        <div className='absolute inset-0 bg-gradient-to-br from-primary/20 via-background to-primary/10' />
+                        <div className='absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:4rem_4rem]' />
+                        <div className='absolute inset-0 bg-gradient-to-t from-background via-background/90 to-transparent' />
+                    </div>
                 )}
 
-                {/* Back Button */}
-                <div className='absolute top-8 left-8 z-20'>
-                    <Button variant='secondary' size='sm' asChild className='gap-2 bg-background/80 shadow-lg backdrop-blur-sm'>
+                {/* Navigation Buttons */}
+                <div className='absolute top-6 right-6 left-6 z-20 flex items-center justify-between lg:top-8 lg:right-8 lg:left-8'>
+                    <Button
+                        variant='secondary'
+                        size='lg'
+                        asChild
+                        className='gap-2 rounded-xl bg-background/90 shadow-2xl backdrop-blur-md hover:bg-background'
+                    >
                         <Link href={backLink}>
                             <ArrowLeft className='h-4 w-4' />
                             Kembali
                         </Link>
                     </Button>
-                </div>
-                {canAssignStudents ? (
-                    <div className='absolute top-8 right-8 z-20'>
-                        <Button variant='default' size='sm' asChild className='gap-2 shadow-lg backdrop-blur-sm'>
+                    {canAssignStudents ? (
+                        <Button variant='default' size='lg' asChild className='gap-2 rounded-xl shadow-2xl'>
                             <Link href={CourseController.students.url({ course: courseSlug })}>
                                 <UserPlus className='h-4 w-4' />
                                 Kelola peserta
                             </Link>
                         </Button>
+                    ) : null}
+                </div>
+
+                {/* Hero Content Overlay */}
+                <div className='absolute inset-x-0 bottom-0 z-10 px-6 pb-12 lg:px-12 lg:pb-16'>
+                    <div className='mx-auto max-w-5xl'>
+                        <div className='space-y-6'>
+                            {/* Badges */}
+                            <div className='flex flex-wrap items-center gap-3'>
+                                {record.level && (
+                                    <Badge className='gap-1.5 rounded-xl bg-background/90 px-4 py-2 text-sm font-semibold text-foreground backdrop-blur-md'>
+                                        <BookOpen className='h-4 w-4' />
+                                        {record.level}
+                                    </Badge>
+                                )}
+                                {record.certification_enabled && (
+                                    <Badge className='gap-1.5 rounded-xl bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white backdrop-blur-md'>
+                                        <Award className='h-4 w-4' />
+                                        Bersertifikat
+                                    </Badge>
+                                )}
+                            </div>
+
+                            {/* Title */}
+                            <h1 className='max-w-4xl text-4xl leading-tight font-bold tracking-tight text-white drop-shadow-2xl md:text-5xl lg:text-6xl'>
+                                {record.title || 'Untitled Course'}
+                            </h1>
+
+                            {/* Meta Info */}
+                            <div className='flex flex-wrap items-center gap-6 text-white/90'>
+                                {record.duration_formatted && (
+                                    <div className='flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 backdrop-blur-md'>
+                                        <Clock className='h-4 w-4' />
+                                        <span className='text-sm font-medium'>{record.duration_formatted}</span>
+                                    </div>
+                                )}
+                                {instructors.length > 0 && (
+                                    <div className='flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 backdrop-blur-md'>
+                                        <Users className='h-4 w-4' />
+                                        <span className='text-sm font-medium'>{instructors.length} instruktur</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
-                ) : null}
+                </div>
             </div>
 
             {/* Main Content */}
