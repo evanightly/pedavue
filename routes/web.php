@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\CourseController;
+use App\Http\Controllers\CourseInstructorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\QuizController;
@@ -15,6 +17,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('permissions', PermissionController::class);
     Route::resource('quizzes', QuizController::class);
     Route::resource('roles', RoleController::class);
+    Route::resource('courses', CourseController::class);
+    Route::post('courses/{course}/instructors', [CourseController::class, 'attachInstructor'])->name('courses.instructors.attach');
+    Route::delete('courses/{course}/instructors/{instructor}', [CourseController::class, 'detachInstructor'])->name('courses.instructors.detach');
+    Route::resource('course-instructors', CourseInstructorController::class);
 });
 Route::post('imporquiz', [QuizController::class, 'import'])->name('quiz.import');
 Route::get('csrf-token', function () {

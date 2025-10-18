@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -23,6 +24,7 @@ class User extends Authenticatable {
         'name',
         'email',
         'password',
+        'avatar',
     ];
 
     /**
@@ -37,6 +39,21 @@ class User extends Authenticatable {
         'remember_token',
     ];
 
+    // append avatar_url
+    protected $appends = [
+        'avatar_url',
+    ];
+
+    public function getAvatarUrlAttribute(): ?string {
+        if ($this->avatar) {
+            return str_starts_with($this->avatar, 'http')
+                ? $this->avatar
+                : asset('storage/' . $this->avatar);
+        }
+
+        return null;
+    }
+
     /**
      * Get the attributes that should be cast.
      *
@@ -48,5 +65,10 @@ class User extends Authenticatable {
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    public function courses(): BelongsToMany {
+        return $this->belongsToMany(Course::class, 'course_instructors', 'instructor_id', 'course_id')
+            ->withTimestamps();
     }
 }

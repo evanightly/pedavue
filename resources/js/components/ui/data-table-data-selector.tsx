@@ -6,7 +6,7 @@ import { Button } from './button';
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from './command';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 
-import { ChangeEvent, memo, useEffect, useState } from 'react';
+import { ChangeEvent, memo, useEffect, useMemo, useState } from 'react';
 
 interface DataTableDataSelectorProps<T extends Resource> {
     /**
@@ -26,22 +26,25 @@ interface DataTableDataSelectorProps<T extends Resource> {
     /**
      * Function to fetch data based on filters
      * This function should accept an object with the search term
+     * and may resolve to an array of resources or a raw response
+     * that can be transformed via the dataMapper prop.
      *
      * Usage:
      * fetchData={(filters) => fetchUsers(filters)}
      * @param filters
      */
-    fetchData?: (filters: FilterOptions) => Promise<T[]>;
+    fetchData?: (filters: FilterOptions) => Promise<T[] | unknown>;
 
     /**
      * Function to set the selected data
-     * This function should accept the ID of the selected data
+     * This function should accept the identifier of the selected data
+     * (numeric or string) or null when clearing the selection.
      *
      * Usage:
      * setSelectedData={(id) => setData({ ...data, progress_id: id })}
      * @param id
      */
-    setSelectedData: (id: number | null) => void;
+    setSelectedData: (id: number | string | null) => void;
 
     /**
      * Placeholder text for the search input
@@ -56,10 +59,10 @@ interface DataTableDataSelectorProps<T extends Resource> {
     placeholder?: string;
 
     /**
-     * ID of the currently selected data
+     * ID of the currently selected data (number or string)
      * If this is set, the label for the selected data will be displayed in the button
      */
-    selectedDataId?: number | null;
+    selectedDataId?: number | string | null;
 
     /**
      * Function to render each item in the list
@@ -115,6 +118,15 @@ interface DataTableDataSelectorProps<T extends Resource> {
     customLabel?: (item: T) => string;
 
     /**
+     * Allows mapping the fetch response to the expected resource array shape
+     *
+     * Usage:
+     * dataMapper={(response) => response.data as UserResource[]}
+     * @param response
+     */
+    dataMapper?: (response: any) => T[] | undefined;
+
+    /**
      * Function to call when the search term changes
      * This function should accept the new search term
      *
@@ -149,6 +161,7 @@ const DataTableDataSelector = <T extends Resource>({
     customSearchPlaceholder,
     onSearchChange,
     disabledSearchState = true,
+    dataMapper,
 }: DataTableDataSelectorProps<T>) => {
     const [searchTerm, setSearchTerm] = useState(initialSearch ?? '');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -157,16 +170,50 @@ const DataTableDataSelector = <T extends Resource>({
     const [isFetching, setIsFetching] = useState(false);
 
     useEffect(() => {
-        if (fetchData && !data) {
-            const fetch = async () => {
-                setIsFetching(true);
-                const response = await fetchData({ search: debouncedSearchTerm });
-                setFetchedData(response);
-                setIsFetching(false);
-            };
-            void fetch();
+        if (!fetchData || data) {
+            return;
         }
-    }, [debouncedSearchTerm, fetchData, data]);
+
+        let isActive = true;
+
+        const load = async () => {
+            setIsFetching(true);
+
+            const filters: FilterOptions = {};
+            const normalizedSearch = debouncedSearchTerm.trim();
+
+            if (normalizedSearch.length > 0) {
+                filters.search = normalizedSearch;
+            }
+
+            try {
+                const response = await fetchData(filters);
+
+                if (!isActive) {
+                    return;
+                }
+
+                const mapped = dataMapper ? dataMapper(response) : response;
+                setFetchedData(Array.isArray(mapped) ? (mapped as T[]) : []);
+            } catch (error) {
+                console.error('Failed to fetch selector options', error);
+
+                if (isActive) {
+                    setFetchedData([]);
+                }
+            } finally {
+                if (isActive) {
+                    setIsFetching(false);
+                }
+            }
+        };
+
+        void load();
+
+        return () => {
+            isActive = false;
+        };
+    }, [data, dataMapper, debouncedSearchTerm, fetchData]);
 
     const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
@@ -175,7 +222,7 @@ const DataTableDataSelector = <T extends Resource>({
         }
     };
 
-    const handleSelectItem = (id: number) => {
+    const handleSelectItem = (id: number | string) => {
         setSelectedData(id);
         setOpenPopover(false);
     };
@@ -195,15 +242,31 @@ const DataTableDataSelector = <T extends Resource>({
 
     const items = data ?? fetchedData;
 
+    const selectedItem = useMemo(() => {
+        if (!selectedDataId) {
+            return undefined;
+        }
+
+        return items.find((item) => String(item.id) === String(selectedDataId));
+    }, [items, selectedDataId]);
+
+    const buttonLabel = useMemo(() => {
+        if (selectedItem) {
+            return getLabel(selectedItem);
+        }
+
+        if (selectedDataId !== undefined && selectedDataId !== null && selectedDataId !== '') {
+            return `#${selectedDataId}`;
+        }
+
+        return placeholder;
+    }, [placeholder, selectedDataId, selectedItem]);
+
     return (
         <Popover open={openPopover} onOpenChange={setOpenPopover}>
             <PopoverTrigger id={id} asChild>
                 <Button variant='outline' role='combobox' className={cn('w-full justify-between', buttonClassName)} aria-expanded={openPopover}>
-                    {selectedDataId
-                        ? items.find((item) => item.id === selectedDataId)
-                            ? getLabel(items.find((item) => item.id === selectedDataId)!)
-                            : 'Select...'
-                        : placeholder}
+                    {buttonLabel}
                     <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
                 </Button>
             </PopoverTrigger>
@@ -222,12 +285,16 @@ const DataTableDataSelector = <T extends Resource>({
                             {isFetching && <CommandItem disabled>Loading...</CommandItem>}
                             {!isFetching && items.length === 0 && <CommandItem disabled>No results found</CommandItem>}
                             {!isFetching &&
-                                items.map((item) => (
-                                    <CommandItem onSelect={() => handleSelectItem(item.id)} key={item.id}>
-                                        <Check className={cn('mr-2 h-4 w-4', selectedDataId === item.id ? 'opacity-100' : 'opacity-0')} />
-                                        {renderItem(item)}
-                                    </CommandItem>
-                                ))}
+                                items.map((item) => {
+                                    const isSelected = selectedDataId !== undefined && selectedDataId !== null && String(selectedDataId) === String(item.id);
+
+                                    return (
+                                        <CommandItem onSelect={() => handleSelectItem(item.id)} key={String(item.id)}>
+                                            <Check className={cn('mr-2 h-4 w-4', isSelected ? 'opacity-100' : 'opacity-0')} />
+                                            {renderItem(item)}
+                                        </CommandItem>
+                                    );
+                                })}
                         </CommandGroup>
                     </CommandList>
                 </Command>

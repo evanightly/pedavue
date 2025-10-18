@@ -1,3 +1,32 @@
+declare namespace App.Data.Course {
+    export type CourseData = {
+        id: any | number;
+        instructor_ids: number[] | null;
+        title: string | null;
+        slug: any | string;
+        description: string | null;
+        certification_enabled: any | boolean;
+        thumbnail: string | null;
+        thumbnail_url: string | null;
+        level: string | null;
+        duration: string | null;
+        duration_formatted: string | null;
+        created_at: string | null;
+        created_at_formatted: string | null;
+        updated_at: string | null;
+        updated_at_formatted: string | null;
+        course_instructors: App.Data.User.UserData[] | null;
+    };
+}
+declare namespace App.Data.CourseInstructor {
+    export type CourseInstructorData = {
+        id: any | number;
+        created_at: string | null;
+        updated_at: string | null;
+        instructor: any;
+        course: any;
+    };
+}
 declare namespace App.Data.Permission {
     export type PermissionData = {
         id: any | number;
@@ -58,6 +87,8 @@ declare namespace App.Data.User {
         name: string | null;
         email: string | null;
         password: string | null;
+        avatar: string | null;
+        avatar_url: string | null;
         role: string | null;
         permissions: string[] | null;
         roles: App.Data.Role.RoleData[] | null;

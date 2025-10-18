@@ -8,13 +8,11 @@ use Spatie\QueryBuilder\AllowedFilter;
  * Build a LIKE search across multiple columns using a single filter key.
  * Accepts scalar or array search terms and ignores empty values.
  */
-class MultiColumnSearchFilter
-{
+class MultiColumnSearchFilter {
     /**
-     * @param array<int, string> $columns
+     * @param  array<int, string>  $columns
      */
-    public static function make(array $columns, string $filterName = 'search'): AllowedFilter
-    {
+    public static function make(array $columns, string $filterName = 'search'): AllowedFilter {
         return AllowedFilter::callback($filterName, function ($query, $value) use ($columns): void {
             if ($value === null || $value === '') {
                 return;

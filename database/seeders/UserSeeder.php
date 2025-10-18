@@ -22,6 +22,6 @@ class UserSeeder extends Seeder {
 
         $superAdmin->assignRole(RoleEnum::SuperAdmin);
 
-        User::factory(10)->create();
+        User::factory(5)->create();
     }
 }
