@@ -5,6 +5,7 @@ use App\Http\Controllers\CourseInstructorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\QuizController;
+use App\Http\Controllers\QuizResponseAnswerController;
 use App\Http\Controllers\QuizResponseController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
@@ -18,6 +19,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('permissions', PermissionController::class);
     Route::resource('quizzes', QuizController::class);
     Route::resource('quiz_responses', QuizResponseController::class);
+    Route::resource('quiz_response_answers', QuizResponseAnswerController::class);
     Route::resource('roles', RoleController::class);
     Route::resource('courses', CourseController::class);
     Route::post('courses/{course}/instructors', [CourseController::class, 'attachInstructor'])->name('courses.instructors.attach');
