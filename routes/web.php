@@ -9,6 +9,7 @@ use App\Http\Controllers\QuizController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\EnrollmentRequestController;
 
 Route::inertia('/', 'welcome')->name('home');
 
@@ -25,6 +26,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('courses/{course}/students', [CourseController::class, 'assignStudents'])->name('courses.students.store');
     Route::resource('course-instructors', CourseInstructorController::class);
     Route::resource('enrollments', EnrollmentController::class);
+    Route::resource('enrollment-requests', EnrollmentRequestController::class);
 });
 Route::post('imporquiz', [QuizController::class, 'import'])->name('quiz.import');
 Route::get('csrf-token', function () {

@@ -52,6 +52,17 @@ declare namespace App.Data.Enrollment {
         course: any;
     };
 }
+declare namespace App.Data.EnrollmentRequest {
+    export type EnrollmentRequestData = {
+        id: any | number;
+        message: string | null;
+        status: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+        user: any;
+        course: any;
+    };
+}
 declare namespace App.Data.Permission {
     export type PermissionData = {
         id: any | number;
@@ -128,6 +139,11 @@ declare namespace App.Data.User {
     };
 }
 declare namespace App.Support.Enums {
+    export enum EnrollmentRequestEnum {
+        Pending = 'Pending',
+        Approved = 'Approved',
+        Rejected = 'Rejected',
+    }
     export enum PermissionEnum {
         ReadUser = 'ReadUser',
         CreateUser = 'CreateUser',
