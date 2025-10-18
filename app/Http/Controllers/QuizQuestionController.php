@@ -4,15 +4,39 @@ namespace App\Http\Controllers;
 
 use App\Data\QuizQuestion\QuizQuestionData;
 use App\Models\QuizQuestion;
+use Illuminate\Http\Request;
 
-class QuizQuestionController extends Controller
+class QuizQuestionController extends BaseResourceController
 {
+
+    protected string $modelClass = QuizQuestion::class;
+    protected array $allowedFilters = ['question', 'created_at', 'updated_at'];
+    protected array $allowedSorts = ['created_at', 'updated_at'];
+    protected array $allowedIncludes = [];
+    protected array $defaultIncludes = [];
+    protected array $defaultSorts = ['-created_at'];
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $filteredData = [];
+
+        $query = $this->buildIndexQuery($request);
+
+        $items = $query
+            ->paginate($request->input('per_page'))
+            ->appends($request->query());
+
+        $quizzes = QuizQuestionData::collect($items);
+
+        // return $this->respond($request, 'user/index', [
+        //     'quizzes' => $quizzes,
+        //     'filters' => $request->only($this->allowedFilters),
+        //     'filteredData' => $filteredData,
+        //     'sort' => (string) $request->query('sort', $this->defaultSorts[0] ?? '-created_at'),
+        // ]);
+        return $quizzes;
     }
 
     /**

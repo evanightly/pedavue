@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Data\Quiz\QuizData;
+use App\Exports\Quiz\QuizzesTemplateExport;
+use App\Imports\Quiz\QuizzesImport;
 use App\Models\Quiz;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class QuizController extends BaseResourceController
 {
@@ -51,6 +54,9 @@ class QuizController extends BaseResourceController
      */
     public function create()
     {
+        if (request()->has('download')) {
+            return (new QuizzesTemplateExport())->download('quiz_template.xlsx');
+        }
         //
     }
 
@@ -60,6 +66,14 @@ class QuizController extends BaseResourceController
     public function store(QuizData $quizData)
     {
         //
+    }
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => ['required', 'mimes:xlsx,xls,csv'],
+        ]);
+
+        Excel::import(new QuizzesImport(Quiz::find($request->input('quiz_id'))), $request->file('file'));
     }
 
     /**
