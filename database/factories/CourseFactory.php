@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Course;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -24,7 +25,16 @@ class CourseFactory extends Factory {
             'thumbnail' => fake()->word(),
             'level' => fake()->word(),
             'duration' => fake()->word(),
-            'instructor_id' => User::factory(),
         ];
+    }
+
+    public function configure(): static {
+        return $this->afterCreating(function (Course $course): void {
+            if ($course->course_instructors()->exists()) {
+                return;
+            }
+
+            $course->course_instructors()->attach(User::factory()->create());
+        });
     }
 }

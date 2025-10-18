@@ -126,20 +126,28 @@ export default function CourseEdit({ record }: CourseEditProps) {
     //     return response;
     // };
 
-    const [instructorId, setInstructorId] = useState<number | string | null>(() => {
-        const direct = record?.instructor_id;
-
-        if (typeof direct === 'number' || typeof direct === 'string') {
-            return direct;
+    const [instructorIds, setInstructorIds] = useState<Array<number | string>>(() => {
+        if (Array.isArray(record?.instructor_ids)) {
+            return record.instructor_ids.filter((value) => typeof value === 'number' || typeof value === 'string');
         }
 
-        const related = record?.instructor;
+        if (Array.isArray(record?.course_instructors)) {
+            return record.course_instructors
+                .map((entry) => {
+                    if (entry && typeof entry === 'object' && 'id' in entry) {
+                        return (entry as { id?: number | string }).id ?? null;
+                    }
 
-        if (related && typeof related === 'object' && 'id' in related) {
-            return (related as { id?: number | string }).id ?? null;
+                    if (typeof entry === 'number' || typeof entry === 'string') {
+                        return entry;
+                    }
+
+                    return null;
+                })
+                .filter((value): value is number | string => value !== null && value !== undefined);
         }
 
-        return null;
+        return [];
     });
 
     const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
@@ -282,18 +290,16 @@ export default function CourseEdit({ record }: CourseEditProps) {
                     const transformed: Record<string, any> = {
                         ...data,
                         _method: 'put',
-                        instructor_id: (() => {
-                            if (instructorId === null) {
-                                return null;
-                            }
+                        instructor_ids: instructorIds
+                            .map((value) => {
+                                if (typeof value === 'number') {
+                                    return value;
+                                }
 
-                            if (typeof instructorId === 'number') {
-                                return instructorId;
-                            }
-
-                            const numeric = Number.parseInt(String(instructorId), 10);
-                            return Number.isNaN(numeric) ? null : numeric;
-                        })(),
+                                const numeric = Number.parseInt(String(value), 10);
+                                return Number.isNaN(numeric) ? null : numeric;
+                            })
+                            .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0),
                     };
 
                     // Only include thumbnail if a new file was selected
@@ -374,13 +380,14 @@ export default function CourseEdit({ record }: CourseEditProps) {
                                             placeholder='Pilih instruktur'
                                             fetchData={fetchUserOptions}
                                             dataMapper={(response) => response.data.users.data}
-                                            selectedDataId={instructorId}
-                                            setSelectedData={(value) => setInstructorId(value)}
+                                            multiSelect
+                                            selectedDataIds={instructorIds}
+                                            setSelectedDataIds={setInstructorIds}
                                             renderItem={(item) =>
                                                 String((item as any).name ?? (item as any).title ?? (item as any).email ?? (item as any).id)
                                             }
                                         />
-                                        <InputError message={errors.instructor_id} />
+                                        <InputError message={errors.instructor_ids} />
                                     </div>
                                 </div>
                             </div>

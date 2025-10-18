@@ -143,7 +143,7 @@ export default function CourseCreate() {
     //     return response;
     // };
 
-    const [instructorId, setInstructorId] = useState<number | string | null>(null);
+    const [instructorIds, setInstructorIds] = useState<Array<number | string>>([]);
     const [modulesIds, setModulesIds] = useState<Array<number | string>>([]);
     const [quizzesIds, setQuizzesIds] = useState<Array<number | string>>([]);
     const [enrollmentsIds, setEnrollmentsIds] = useState<Array<number | string>>([]);
@@ -182,18 +182,16 @@ export default function CourseCreate() {
                 transform={(data) => ({
                     ...data,
                     thumbnail: thumbnailFile || data.thumbnail,
-                    instructor_id: (() => {
-                        if (instructorId === null) {
-                            return null;
-                        }
+                    instructor_ids: instructorIds
+                        .map((value) => {
+                            if (typeof value === 'number') {
+                                return value;
+                            }
 
-                        if (typeof instructorId === 'number') {
-                            return instructorId;
-                        }
-
-                        const numeric = Number.parseInt(String(instructorId), 10);
-                        return Number.isNaN(numeric) ? null : numeric;
-                    })(),
+                            const numeric = Number.parseInt(String(value), 10);
+                            return Number.isNaN(numeric) ? null : numeric;
+                        })
+                        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0),
                 })}
                 options={{ preserveScroll: true }}
                 className='p-8'
@@ -253,13 +251,14 @@ export default function CourseCreate() {
                                             placeholder='Pilih instruktur'
                                             fetchData={fetchUserOptions}
                                             dataMapper={mapInstructorSelectorResponse}
-                                            selectedDataId={instructorId}
-                                            setSelectedData={(value) => setInstructorId(value)}
+                                            multiSelect
+                                            selectedDataIds={instructorIds}
+                                            setSelectedDataIds={setInstructorIds}
                                             renderItem={(item) =>
                                                 String((item as any).name ?? (item as any).title ?? (item as any).email ?? (item as any).id)
                                             }
                                         />
-                                        <InputError message={errors.instructor_id} />
+                                        <InputError message={errors.instructor_ids} />
                                     </div>
                                 </div>
                             </div>

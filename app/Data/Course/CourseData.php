@@ -2,10 +2,6 @@
 
 namespace App\Data\Course;
 
-use App\Data\Certificate\CertificateData;
-use App\Data\Enrollment\EnrollmentData;
-use App\Data\Module\ModuleData;
-use App\Data\Quiz\QuizData;
 use App\Data\User\UserData;
 use App\Models\Course;
 use Illuminate\Support\Str;
@@ -14,14 +10,18 @@ use Spatie\LaravelData\Attributes\Validation\Nullable;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\DataCollection;
 use Spatie\LaravelData\Optional;
+use Spatie\TypeScriptTransformer\Attributes\LiteralTypeScriptType;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
-use Spatie\TypeScriptTransformer\Attributes\TypeScriptType;
 
 #[TypeScript]
 class CourseData extends Data {
+    /**
+     * @param  array<int, int>|Optional  $instructor_ids
+     */
     public function __construct(
         public int|Optional $id,
-        public int|Optional $instructor_id,
+        #[LiteralTypeScriptType('number[]|null')]
+        public array|Optional $instructor_ids,
         // public ?array $module_ids,
         // public ?array $quiz_ids,
         // public ?array $enrollment_ids,
@@ -40,24 +40,27 @@ class CourseData extends Data {
         public ?string $created_at_formatted,
         public ?string $updated_at,
         public ?string $updated_at_formatted,
-        #[TypeScriptType('App.Data.User.UserData | null')]
-        public ?UserData $instructor,
+        #[DataCollectionOf(UserData::class)]
+        #[LiteralTypeScriptType('App.Data.User.UserData[]|null')]
+        public ?DataCollection $course_instructors,
         // #[DataCollectionOf(ModuleData::class)]
-        // #[TypeScriptType('App.Data.Module.ModuleData[]')]
+        // #[LiteralTypeScriptType('App.Data.Module.ModuleData[]|null')]
         // public ?DataCollection $Modules,
         // #[DataCollectionOf(QuizData::class)]
-        // #[TypeScriptType('App.Data.Quiz.QuizData[]')]
+        // #[LiteralTypeScriptType('App.Data.Quiz.QuizData[]|null')]
         // public ?DataCollection $Quizzes,
         // #[DataCollectionOf(EnrollmentData::class)]
-        // #[TypeScriptType('App.Data.Enrollment.EnrollmentData[]')]
+        // #[LiteralTypeScriptType('App.Data.Enrollment.EnrollmentData[]|null')]
         // public ?DataCollection $Enrollments,
         // #[DataCollectionOf(CertificateData::class)]
-        // #[TypeScriptType('App.Data.Certificate.CertificateData[]')]
+        // #[LiteralTypeScriptType('App.Data.Certificate.CertificateData[]|null')]
         // public ?DataCollection $Certificates,
     ) {}
 
     public static function rules(): array {
         return [
+            'instructor_ids' => ['required', 'array', 'min:1'],
+            'instructor_ids.*' => ['integer', 'exists:users,id'],
             'thumbnail' => ['nullable', 'file', 'image', 'mimes:jpeg,jpg,png', 'max:2048'],
         ];
     }
@@ -89,9 +92,24 @@ class CourseData extends Data {
             $updatedAtFormatted = $model->updated_at->locale('id')->translatedFormat('j F Y');
         }
 
+        $thumbnail = $model->thumbnail;
+        $thumbnailUrl = null;
+        if ($thumbnail) {
+            $thumbnailUrl = Str::startsWith($thumbnail, 'http') ? $thumbnail : asset('storage/' . $thumbnail);
+        }
+
+        $courseInstructorsRelation = $model->relationLoaded('course_instructors')
+            ? $model->course_instructors
+            : $model->course_instructors()->get();
+
+        $instructorIds = $courseInstructorsRelation
+            ->pluck('id')
+            ->map(static fn ($id) => (int) $id)
+            ->all();
+
         return new self(
             id: $model->getKey(),
-            instructor_id: $model->instructor_id,
+            instructor_ids: $instructorIds,
             // module_ids: $model->relationLoaded('Modules')
             //     ? $model->Modules->pluck('id')->map(static fn ($id) => (int) $id)->all()
             //     : $model->Modules()->pluck('Modules.id')->map(static fn ($id) => (int) $id)->all(),
@@ -109,7 +127,7 @@ class CourseData extends Data {
             description: $model->description,
             certification_enabled: $model->certification_enabled,
             thumbnail: $model->thumbnail,
-            thumbnail_url: Str::startsWith($model->thumbnail, 'http') ? $model->thumbnail : '/storage/' . $model->thumbnail,
+            thumbnail_url: $thumbnailUrl,
             level: $model->level,
             duration: $model->duration,
             duration_formatted: $durationFormatted,
@@ -117,9 +135,7 @@ class CourseData extends Data {
             created_at_formatted: $createdAtFormatted,
             updated_at: $model->updated_at?->toIso8601String(),
             updated_at_formatted: $updatedAtFormatted,
-            instructor: $model->relationLoaded('instructor') && $model->instructor
-                ? UserData::fromModel($model->instructor)
-                : null,
+            course_instructors: $model->relationLoaded('course_instructors') ? new DataCollection(UserData::class, $courseInstructorsRelation) : null,
             // Modules: $model->relationLoaded('Modules')
             //     ? new DataCollection(ModuleData::class, $model->Modules)
             //     : new DataCollection(ModuleData::class, []),

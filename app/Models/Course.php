@@ -6,7 +6,7 @@ use App\Observers\CourseObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[ObservedBy(CourseObserver::class)]
@@ -23,7 +23,6 @@ class Course extends Model {
         'thumbnail',
         'level',
         'duration',
-        'instructor_id',
     ];
 
     /**
@@ -35,9 +34,14 @@ class Course extends Model {
         ];
     }
 
-    public function instructor(): BelongsTo {
-        return $this->belongsTo(User::class);
+    public function course_instructors(): BelongsToMany {
+        return $this->belongsToMany(User::class, 'course_instructors', 'course_id', 'instructor_id')
+            ->withTimestamps();
     }
+
+    // public function course_instructors(): HasMany {
+    //     return $this->hasMany(CourseInstructor::class);
+    // }
 
     /**
      * Use the slug column for route model binding instead of the id.

@@ -1,9 +1,13 @@
 import CourseController from '@/actions/App/Http/Controllers/CourseController';
+import UserController from '@/actions/App/Http/Controllers/UserController';
+import GenericDataSelector from '@/components/generic-data-selector';
 import { Button } from '@/components/ui/button';
 import type { PaginationMeta } from '@/components/ui/data-table-types';
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, Award, BookOpen, Calendar, Clock, User } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import axios from 'axios';
+import { ArrowLeft, Award, BookOpen, Calendar, Clock, Trash2, User } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 export type CourseRecord = App.Data.Course.CourseData;
 
@@ -16,6 +20,96 @@ interface CourseShowProps {
 }
 
 export default function CourseShow({ record }: CourseShowProps) {
+    const courseSlug = typeof record.slug === 'string' ? record.slug : String(record.slug ?? '');
+    const instructors = useMemo(() => (Array.isArray(record.course_instructors) ? record.course_instructors : []), [record.course_instructors]);
+    const instructorIds = useMemo(() => {
+        if (!Array.isArray(record.instructor_ids)) {
+            return [] as number[];
+        }
+
+        return record.instructor_ids
+            .map((value) => {
+                if (typeof value === 'number') {
+                    return value;
+                }
+
+                const parsed = Number.parseInt(String(value), 10);
+                return Number.isNaN(parsed) ? null : parsed;
+            })
+            .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+    }, [record.instructor_ids]);
+
+    const [pendingInstructorId, setPendingInstructorId] = useState<number | string | null>(null);
+    const [isAttaching, setIsAttaching] = useState(false);
+    const [removingInstructorId, setRemovingInstructorId] = useState<number | null>(null);
+
+    const fetchUserOptions = async ({ search }: { search?: string }) => {
+        const params: Record<string, unknown> = {};
+
+        if (search && search.trim().length > 0) {
+            params['filter[search]'] = search.trim();
+        }
+
+        const response = await axios.get(UserController.index().url, { params });
+
+        return response;
+    };
+
+    const handleAttachInstructor = (value: number | string | null) => {
+        if (value === null) {
+            setPendingInstructorId(null);
+            return;
+        }
+
+        const numeric = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
+
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+            setPendingInstructorId(null);
+            return;
+        }
+
+        if (instructorIds.includes(numeric)) {
+            setPendingInstructorId(null);
+            return;
+        }
+
+        setPendingInstructorId(numeric);
+        setIsAttaching(true);
+
+        router.post(
+            CourseController.attachInstructor.url(courseSlug),
+            { instructor_id: numeric },
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    setIsAttaching(false);
+                    setPendingInstructorId(null);
+                },
+            },
+        );
+    };
+
+    const handleDetachInstructor = (value: number | string) => {
+        if (instructors.length <= 1) {
+            return;
+        }
+
+        const numeric = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
+
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+            return;
+        }
+
+        setRemovingInstructorId(numeric);
+
+        router.delete(CourseController.detachInstructor.url({ course: courseSlug, instructor: numeric }), {
+            preserveScroll: true,
+            onFinish: () => {
+                setRemovingInstructorId(null);
+            },
+        });
+    };
+
     return (
         <AppLayout>
             <Head title={record.title || 'Detail Kursus'} />
@@ -75,23 +169,38 @@ export default function CourseShow({ record }: CourseShowProps) {
 
                             {/* Meta Information */}
                             <div className='flex flex-wrap items-center gap-6 pt-2'>
-                                {record.instructor && (
-                                    <div className='flex items-center gap-2.5'>
-                                        {record.instructor.avatar_url ? (
-                                            <img
-                                                src={record.instructor.avatar_url}
-                                                alt={record.instructor.name || 'Instructor'}
-                                                className='h-8 w-8 rounded-full object-cover ring-2 ring-primary/10'
-                                            />
-                                        ) : (
-                                            <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 ring-2 ring-primary/10'>
-                                                <User className='h-4 w-4 text-primary' />
-                                            </div>
-                                        )}
+                                {instructors.length > 0 && (
+                                    <div className='flex items-center gap-3'>
+                                        <div className='flex -space-x-2'>
+                                            {instructors.slice(0, 3).map((instructor) =>
+                                                instructor && typeof instructor === 'object' && 'id' in instructor ? (
+                                                    instructor.avatar_url ? (
+                                                        <img
+                                                            key={`instructor-avatar-${String(instructor.id)}`}
+                                                            src={String(instructor.avatar_url)}
+                                                            alt={String(instructor.name ?? 'Instruktur')}
+                                                            className='h-8 w-8 rounded-full border-2 border-background object-cover shadow-sm'
+                                                        />
+                                                    ) : (
+                                                        <div
+                                                            key={`instructor-avatar-${String(instructor.id)}`}
+                                                            className='flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-primary/10 text-primary shadow-sm'
+                                                        >
+                                                            <User className='h-4 w-4' />
+                                                        </div>
+                                                    )
+                                                ) : null,
+                                            )}
+                                            {instructors.length > 3 ? (
+                                                <div className='flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium text-foreground shadow-sm'>
+                                                    +{instructors.length - 3}
+                                                </div>
+                                            ) : null}
+                                        </div>
                                         <span className='text-sm font-medium text-foreground'>
-                                            {typeof record.instructor === 'object' && 'name' in record.instructor
-                                                ? record.instructor.name
-                                                : 'Instruktur'}
+                                            {instructors.length === 1
+                                                ? String((instructors[0] as { name?: string }).name ?? 'Instruktur')
+                                                : `${instructors.length} instruktur`}
                                         </span>
                                     </div>
                                 )}
@@ -171,6 +280,79 @@ export default function CourseShow({ record }: CourseShowProps) {
                                 )}
                             </dl>
                         </div>
+                    </div>
+
+                    {/* Instructors Management */}
+                    <div className='rounded-2xl border bg-card p-6 shadow-lg'>
+                        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                            <div>
+                                <h3 className='text-lg font-semibold'>Instruktur</h3>
+                                <p className='text-sm text-muted-foreground'>Kelola instruktur yang mengajar kursus ini.</p>
+                            </div>
+                            <GenericDataSelector<App.Data.User.UserData>
+                                id='attach-instructor-selector'
+                                placeholder={isAttaching ? 'Menambahkan…' : 'Tambah instruktur'}
+                                fetchData={fetchUserOptions}
+                                dataMapper={(response) => response.data.users.data}
+                                selectedDataId={pendingInstructorId}
+                                setSelectedData={handleAttachInstructor}
+                                buttonClassName={`w-full sm:w-auto ${isAttaching ? 'pointer-events-none opacity-60' : ''}`}
+                                renderItem={(item) => String((item as any).name ?? (item as any).title ?? (item as any).email ?? (item as any).id)}
+                                disabledSearchState={isAttaching}
+                            />
+                        </div>
+                        <ul className='mt-6 space-y-3'>
+                            {instructors.length === 0 ? (
+                                <li className='rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground'>
+                                    Belum ada instruktur yang terdaftar.
+                                </li>
+                            ) : (
+                                instructors.map((instructor) => {
+                                    if (!instructor || typeof instructor !== 'object') {
+                                        return null;
+                                    }
+
+                                    const identifier = 'id' in instructor ? Number(instructor.id) : null;
+                                    const displayName = 'name' in instructor ? String(instructor.name ?? 'Instruktur') : 'Instruktur';
+                                    const email = 'email' in instructor ? String(instructor.email ?? '') : '';
+                                    const avatarUrl = 'avatar_url' in instructor ? String(instructor.avatar_url ?? '') : '';
+
+                                    return (
+                                        <li
+                                            key={`course-instructor-${String(identifier ?? displayName)}`}
+                                            className='flex items-center justify-between gap-3 rounded-lg border border-border/60 px-4 py-3 shadow-sm'
+                                        >
+                                            <div className='flex items-center gap-3'>
+                                                {avatarUrl ? (
+                                                    <img src={avatarUrl} alt={displayName} className='h-9 w-9 rounded-full object-cover' />
+                                                ) : (
+                                                    <div className='flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary'>
+                                                        <User className='h-4 w-4' />
+                                                    </div>
+                                                )}
+                                                <div className='flex flex-col'>
+                                                    <span className='text-sm font-medium text-foreground'>{displayName}</span>
+                                                    {email ? <span className='text-xs text-muted-foreground'>{email}</span> : null}
+                                                </div>
+                                            </div>
+                                            {identifier ? (
+                                                <Button
+                                                    type='button'
+                                                    variant='ghost'
+                                                    size='sm'
+                                                    className='gap-2 text-destructive hover:text-destructive'
+                                                    onClick={() => handleDetachInstructor(identifier)}
+                                                    disabled={removingInstructorId === identifier || instructors.length <= 1}
+                                                >
+                                                    <Trash2 className='h-4 w-4' />
+                                                    Hapus
+                                                </Button>
+                                            ) : null}
+                                        </li>
+                                    );
+                                })
+                            )}
+                        </ul>
                     </div>
                 </div>
             </div>

@@ -18,7 +18,6 @@ return new class extends Migration {
             $table->string('thumbnail')->nullable();
             $table->string('level')->nullable();
             $table->string('duration')->comment('minute')->nullable();
-            $table->foreignId('instructor_id')->constrained('users');
             $table->timestamps();
         });
     }

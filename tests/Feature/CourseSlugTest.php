@@ -16,8 +16,9 @@ it('generates a slug from the title when creating a course', function () {
         'thumbnail' => null,
         'level' => null,
         'duration' => null,
-        'instructor_id' => $instructor->id,
     ]);
+
+    $course->course_instructors()->attach($instructor);
 
     expect($course->slug)->toBe('laravel-basics');
 });
@@ -32,8 +33,9 @@ it('updates the slug when the title changes', function () {
         'thumbnail' => null,
         'level' => null,
         'duration' => null,
-        'instructor_id' => $instructor->id,
     ]);
+
+    $course->course_instructors()->attach($instructor);
 
     $course->update([
         'title' => 'Advanced Laravel',
@@ -52,8 +54,9 @@ it('ensures slugs remain unique', function () {
         'thumbnail' => null,
         'level' => null,
         'duration' => null,
-        'instructor_id' => $instructor->id,
     ]);
+
+    $first->course_instructors()->attach($instructor);
 
     $second = Course::query()->create([
         'title' => 'Laravel Basics',
@@ -62,8 +65,9 @@ it('ensures slugs remain unique', function () {
         'thumbnail' => null,
         'level' => null,
         'duration' => null,
-        'instructor_id' => $instructor->id,
     ]);
+
+    $second->course_instructors()->attach($instructor);
 
     expect($first->slug)->toBe('laravel-basics')
         ->and($second->slug)->toBe('laravel-basics-2');
@@ -79,8 +83,9 @@ it('generates unique slugs when titles are identical', function () {
         'thumbnail' => null,
         'level' => null,
         'duration' => null,
-        'instructor_id' => $instructor->id,
     ]);
+
+    $first->course_instructors()->attach($instructor);
 
     $second = Course::query()->create([
         'title' => 'Laravel Basics',
@@ -89,8 +94,9 @@ it('generates unique slugs when titles are identical', function () {
         'thumbnail' => null,
         'level' => null,
         'duration' => null,
-        'instructor_id' => $instructor->id,
     ]);
+
+    $second->course_instructors()->attach($instructor);
 
     $third = Course::query()->create([
         'title' => 'Laravel Basics',
@@ -99,8 +105,9 @@ it('generates unique slugs when titles are identical', function () {
         'thumbnail' => null,
         'level' => null,
         'duration' => null,
-        'instructor_id' => $instructor->id,
     ]);
+
+    $third->course_instructors()->attach($instructor);
 
     expect($first->slug)->toBe('laravel-basics')
         ->and($second->slug)->toBe('laravel-basics-2')

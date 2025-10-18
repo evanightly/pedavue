@@ -193,15 +193,15 @@ export default function CourseIndex({ courses, filters = null, sort = null, filt
                 filter: { type: 'daterange', placeholder: 'Filter by updated at...' },
             },
             {
-                id: 'instructor_id',
-                accessorKey: 'instructor',
-                header: 'Instructor',
+                id: 'instructors',
+                accessorKey: 'instructors',
+                header: 'Instruktur',
                 enableSorting: false,
                 enableFiltering: true,
                 filter: {
                     type: 'selector',
                     placeholder: 'Filter by instructor...',
-                    searchPlaceholder: 'Search instructor...',
+                    searchPlaceholder: 'Cari instruktur...',
                     fetchDataUrl: UserController.index().url,
                     valueMapKey: 'instructorOptions',
                     idField: 'id',
@@ -210,9 +210,28 @@ export default function CourseIndex({ courses, filters = null, sort = null, filt
                         return response.users.data;
                     },
                 },
-                cell(props) {
-                    const value = props.getValue() as App.Data.User.UserData;
-                    return value.name;
+                cell: ({ row }) => {
+                    const instructors = Array.isArray(row.original.course_instructors) ? row.original.course_instructors : [];
+
+                    if (instructors.length === 0) {
+                        return <span className='text-sm text-muted-foreground'>—</span>;
+                    }
+
+                    const names = instructors
+                        .map((entry) => {
+                            if (entry && typeof entry === 'object' && 'name' in entry) {
+                                return String(entry.name ?? '');
+                            }
+
+                            if (typeof entry === 'string' || typeof entry === 'number') {
+                                return String(entry);
+                            }
+
+                            return null;
+                        })
+                        .filter((value): value is string => Boolean(value));
+
+                    return <span className='text-sm font-medium text-foreground'>{names.join(', ')}</span>;
                 },
             },
             {
