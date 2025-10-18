@@ -14,7 +14,7 @@ class QuizResponseController extends BaseResourceController
     protected string $modelClass = QuizResponse::class;
     protected array $allowedFilters = ['quiz_id', 'user_id', 'attempt', 'score', 'started_at', 'finished_at', 'created_at', 'updated_at'];
     protected array $allowedSorts = ['score', 'started_at', 'finished_at', 'created_at', 'updated_at'];
-    protected array $allowedIncludes = ['quiz'];
+    protected array $allowedIncludes = ['quiz', 'quiz_response_answers'];
     protected array $defaultIncludes = [];
     protected array $defaultSorts = ['-created_at'];
 
