@@ -88,6 +88,10 @@ class Course extends Model {
             ->withTimestamps();
     }
 
+    public function enrollment_requests(): HasMany {
+        return $this->hasMany(EnrollmentRequest::class);
+    }
+
     // public function Certificates(): HasMany
     // {
     //     return $this->hasMany(Certificate::class);

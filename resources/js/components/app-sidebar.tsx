@@ -1,5 +1,6 @@
 import CourseController from '@/actions/App/Http/Controllers/CourseController';
 import DashboardController from '@/actions/App/Http/Controllers/DashboardController';
+import EnrollmentRequestController from '@/actions/App/Http/Controllers/EnrollmentRequestController';
 import PermissionController from '@/actions/App/Http/Controllers/PermissionController';
 import RoleController from '@/actions/App/Http/Controllers/RoleController';
 import UserController from '@/actions/App/Http/Controllers/UserController';
@@ -8,7 +9,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavGroup } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookA, Key, LayoutGrid, Lock, User } from 'lucide-react';
+import { BookA, BookDashed, Compass, Key, LayoutGrid, Lock, User } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const navGroups: NavGroup[] = [
@@ -41,9 +42,20 @@ const navGroups: NavGroup[] = [
         title: 'Academics',
         menu: [
             {
+                title: 'Eksplor Kursus',
+                href: CourseController.explore(),
+                icon: Compass,
+                // permissions: ['Student'],
+            },
+            {
                 title: 'Courses',
                 href: CourseController.index(),
                 icon: BookA,
+            },
+            {
+                title: 'Enrollment Request',
+                href: EnrollmentRequestController.index(),
+                icon: BookDashed,
             },
         ],
     },
