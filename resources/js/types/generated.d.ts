@@ -75,6 +75,21 @@ declare namespace App.Data.QuizQuestionOption {
         updated_at: string | null;
     };
 }
+declare namespace App.Data.QuizResponse {
+    export type QuizResponseData = {
+        id: any | number;
+        quiz_id: number | null;
+        user_id: number | null;
+        attempt: number | null;
+        score: number | null;
+        started_at: string | null;
+        finished_at: string | null;
+        quiz: App.Data.Quiz.QuizData | null;
+        user: App.Data.User.UserData | null;
+        created_at: string | null;
+        updated_at: string | null;
+    };
+}
 declare namespace App.Data.Role {
     export type RoleData = {
         id: any | number;

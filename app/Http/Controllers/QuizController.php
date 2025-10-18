@@ -15,9 +15,9 @@ class QuizController extends BaseResourceController
     use AuthorizesRequests;
 
     protected string $modelClass = Quiz::class;
-    protected array $allowedFilters = ['name', 'description', 'duration', 'created_at', 'updated_at'];
+    protected array $allowedFilters = ['name', 'description', 'duration', 'is_question_shuffled', 'type', 'created_at', 'updated_at'];
     protected array $allowedSorts = ['duration', 'created_at', 'updated_at'];
-    protected array $allowedIncludes = [];
+    protected array $allowedIncludes = ['quiz_questions'];
     protected array $defaultIncludes = [];
     protected array $defaultSorts = ['-created_at'];
 

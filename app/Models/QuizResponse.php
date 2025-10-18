@@ -20,6 +20,11 @@ class QuizResponse extends Model
         'finished_at',
     ];
 
+    protected $casts = [
+        'started_at' => 'datetime',
+        'finished_at' => 'datetime',
+    ];
+
     public function quiz(): BelongsTo
     {
         return $this->belongsTo(Quiz::class);

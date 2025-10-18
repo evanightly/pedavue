@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Data\QuizQuestion;
+namespace App\Data\QuizResponse;
 
 use App\Data\Quiz\QuizData;
 use App\Data\User\UserData;
-use App\Models\QuizQuestion;
+use App\Models\QuizResponse;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\Optional;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
@@ -25,7 +25,7 @@ class QuizResponseData extends Data {
         public ?string $updated_at,
     ) {}
 
-    public static function fromModel(QuizQuestion $model): self {
+    public static function fromModel(QuizResponse $model): self {
         return new self(
             id: $model->getKey(),
             quiz_id: $model->quiz_id,
