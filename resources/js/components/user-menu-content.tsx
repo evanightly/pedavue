@@ -6,6 +6,7 @@ import { edit } from '@/routes/profile';
 import { type User } from '@/types';
 import { Link, router } from '@inertiajs/react';
 import { LogOut, Settings } from 'lucide-react';
+import { AnimatedThemeSelector } from './ui/animated-theme-selector';
 import { AnimatedThemeToggler } from './ui/animated-theme-toggler';
 import { buttonVariants } from './ui/button';
 
@@ -38,16 +39,17 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
             <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
                     <Link className='block w-full' href={edit()} as='button' prefetch onClick={cleanup}>
-                        <Settings className='mr-2' />
-                        Settings
+                        <Settings />
+                        Pengaturan
                     </Link>
                 </DropdownMenuItem>
+                <AnimatedThemeSelector />
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
                 <Link className='block w-full' href={logout()} as='button' onClick={handleLogout} data-test='logout-button'>
-                    <LogOut className='mr-2' />
-                    Log out
+                    <LogOut />
+                    Keluar
                 </Link>
             </DropdownMenuItem>
         </>
