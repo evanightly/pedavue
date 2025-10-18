@@ -7,8 +7,8 @@ use App\Data\User\UserData;
 use App\Models\EnrollmentRequest;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\Optional;
+use Spatie\TypeScriptTransformer\Attributes\LiteralTypeScriptType;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
-use Spatie\TypeScriptTransformer\Attributes\TypeScriptType;
 
 #[TypeScript]
 class EnrollmentRequestData extends Data {
@@ -16,9 +16,9 @@ class EnrollmentRequestData extends Data {
         public int|Optional $id,
         public ?string $message,
         public ?string $status,
-        #[TypeScriptType('number|null')]
+        #[LiteralTypeScriptType('number|null')]
         public int|Optional $course_id,
-        #[TypeScriptType('number|null')]
+        #[LiteralTypeScriptType('number|null')]
         public int|Optional $user_id,
         public ?string $course_title,
         public ?string $user_name,
@@ -28,9 +28,9 @@ class EnrollmentRequestData extends Data {
         public ?string $updated_at_formatted,
         public ?string $enrollment_created_at_formatted,
         public ?string $user_created_at_formatted,
-        #[TypeScriptType('App.Data.User.UserData | null')]
+        #[LiteralTypeScriptType('App.Data.User.UserData | null')]
         public ?UserData $user,
-        #[TypeScriptType('App.Data.Course.CourseData | null')]
+        #[LiteralTypeScriptType('App.Data.Course.CourseData | null')]
         public ?CourseData $course,
     ) {}
 

@@ -90,7 +90,7 @@ class EnrollmentRequestController extends BaseResourceController {
 
     public function show(EnrollmentRequest $enrollmentRequest): Response {
         return Inertia::render('enrollment-request/show', [
-            'record' => EnrollmentRequestData::fromModel($enrollmentRequest)->toArray(),
+            'record' => EnrollmentRequestData::fromModel($enrollmentRequest->load(['user', 'course']))->toArray(),
         ]);
     }
 

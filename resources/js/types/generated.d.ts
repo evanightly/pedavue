@@ -58,8 +58,8 @@ declare namespace App.Data.EnrollmentRequest {
         id: any | number;
         message: string | null;
         status: string | null;
-        course_id: any | null;
-        user_id: any | null;
+        course_id: number | null;
+        user_id: number | null;
         course_title: string | null;
         user_name: string | null;
         created_at: string | null;
@@ -68,8 +68,8 @@ declare namespace App.Data.EnrollmentRequest {
         updated_at_formatted: string | null;
         enrollment_created_at_formatted: string | null;
         user_created_at_formatted: string | null;
-        user: any;
-        course: any;
+        user: App.Data.User.UserData | null;
+        course: App.Data.Course.CourseData | null;
     };
 }
 declare namespace App.Data.Permission {
