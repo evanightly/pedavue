@@ -20,6 +20,8 @@ class QuizFactory extends Factory
             'name' => fake()->sentence(),
             'description' => fake()->paragraph(),
             'duration' => round(fake()->numberBetween(30, 120) / 5) * 5,
+            'is_question_shuffled' => fake()->boolean(),
+            'type' => fake()->randomElement(['pre-test', 'post-test', 'exercise']),
         ];
     }
 }

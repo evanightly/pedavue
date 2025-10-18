@@ -15,6 +15,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('quiz_id')->constrained()->onDelete('cascade');
             $table->text('question');
+            $table->boolean('is_answer_shuffled')->default(false);
+            $table->integer('order')->nullable();
             $table->timestamps();
         });
 

@@ -17,6 +17,8 @@ return new class extends Migration
             $table->string('name');
             $table->text('description')->nullable();
             $table->integer('duration')->nullable();
+            $table->boolean('is_question_shuffled')->default(false);
+            $table->enum('type', ['pre-test', 'post-test', 'exercise'])->default('exercise');
             $table->timestamps();
         });
         if (app()->isLocal()) {
