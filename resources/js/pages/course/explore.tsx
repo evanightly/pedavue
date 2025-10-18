@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { type PaginationMeta } from '@/components/ui/data-table-types';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
+import GuestLayout from '@/layouts/guest-layout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Clock, Compass, GraduationCap, Users } from 'lucide-react';
 import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
@@ -82,8 +83,8 @@ export default function ExploreCourses({ courses, filters = null }: ExploreCours
 
     const cards = useMemo(() => courses.data ?? [], [courses.data]);
 
-    return (
-        <AppLayout>
+    const content = (
+        <>
             <Head title='Eksplor Kursus' />
             <div className='container mx-auto flex flex-col gap-8 py-8'>
                 <header className='flex flex-col gap-6 rounded-3xl border bg-card/90 px-6 py-8 shadow-2xl backdrop-blur sm:px-10'>
@@ -228,6 +229,12 @@ export default function ExploreCourses({ courses, filters = null }: ExploreCours
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
+
+    if (isGuest) {
+        return <GuestLayout>{content}</GuestLayout>;
+    }
+
+    return <AppLayout>{content}</AppLayout>;
 }
