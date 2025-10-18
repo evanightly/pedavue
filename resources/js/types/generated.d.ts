@@ -86,6 +86,22 @@ declare namespace App.Data.QuizResponse {
         finished_at: string | null;
         quiz: App.Data.Quiz.QuizData | null;
         user: App.Data.User.UserData | null;
+        quiz_response_answers: App.Data.QuizResponseAnswer.QuizResponseAnswerData[] | null;
+        created_at: string | null;
+        updated_at: string | null;
+    };
+}
+declare namespace App.Data.QuizResponseAnswer {
+    export type QuizResponseAnswerData = {
+        id: any | number;
+        quiz_response_id: number | null;
+        quiz_question_id: number | null;
+        quiz_question_option_id: number | null;
+        started_at: string | null;
+        finished_at: string | null;
+        quiz_response: App.Data.QuizResponse.QuizResponseData | null;
+        quiz_question: App.Data.QuizQuestion.QuizQuestionData | null;
+        quiz_question_option: App.Data.QuizQuestionOption.QuizQuestionOptionData | null;
         created_at: string | null;
         updated_at: string | null;
     };
