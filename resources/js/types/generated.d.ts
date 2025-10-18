@@ -37,6 +37,39 @@ declare namespace App.Data.Permission {
         updated_at: string | null;
     };
 }
+declare namespace App.Data.Quiz {
+    export type QuizData = {
+        id: any | number;
+        name: string | null;
+        description: string | null;
+        duration: number | null;
+        quiz_questions: App.Data.QuizQuestion.QuizQuestionData[] | null;
+        created_at: string | null;
+        updated_at: string | null;
+    };
+}
+declare namespace App.Data.QuizQuestion {
+    export type QuizQuestionData = {
+        id: any | number;
+        quiz_id: number | null;
+        question: string | null;
+        quiz: App.Data.Quiz.QuizData | null;
+        quiz_question_options: App.Data.QuizQuestionOption.QuizQuestionOptionData[] | null;
+        created_at: string | null;
+        updated_at: string | null;
+    };
+}
+declare namespace App.Data.QuizQuestionOption {
+    export type QuizQuestionOptionData = {
+        id: any | number;
+        quiz_question_id: number | null;
+        option_text: string | null;
+        is_correct: boolean | null;
+        quiz_question: App.Data.QuizQuestion.QuizQuestionData | null;
+        created_at: string | null;
+        updated_at: string | null;
+    };
+}
 declare namespace App.Data.Role {
     export type RoleData = {
         id: any | number;
