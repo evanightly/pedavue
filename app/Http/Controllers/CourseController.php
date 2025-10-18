@@ -107,11 +107,19 @@ class CourseController extends BaseResourceController {
 
         unset($data['instructor_ids']);
 
+        $data = $this->sanitizeCertificateSettings($data);
+
         // Handle thumbnail file upload
         if (request()->hasFile('thumbnail')) {
             $file = request()->file('thumbnail');
             $path = $file->store('courses/thumbnails', 'public');
             $data['thumbnail'] = $path;
+        }
+
+        if (request()->hasFile('certificate_template')) {
+            $file = request()->file('certificate_template');
+            $path = $file->store('courses/certificates/templates', 'public');
+            $data['certificate_template'] = $path;
         }
 
         $course = Course::create($data);
@@ -136,6 +144,8 @@ class CourseController extends BaseResourceController {
 
         unset($data['instructor_ids']);
 
+        $data = $this->sanitizeCertificateSettings($data);
+
         // Handle thumbnail file upload
         if (request()->hasFile('thumbnail')) {
             // Delete old thumbnail if exists
@@ -149,6 +159,18 @@ class CourseController extends BaseResourceController {
         } else {
             // Don't update thumbnail if no new file was uploaded
             unset($data['thumbnail']);
+        }
+
+        if (request()->hasFile('certificate_template')) {
+            if ($course->certificate_template && Storage::disk('public')->exists($course->certificate_template)) {
+                Storage::disk('public')->delete($course->certificate_template);
+            }
+
+            $file = request()->file('certificate_template');
+            $path = $file->store('courses/certificates/templates', 'public');
+            $data['certificate_template'] = $path;
+        } else {
+            unset($data['certificate_template']);
         }
 
         $course->update($data);
@@ -190,6 +212,71 @@ class CourseController extends BaseResourceController {
         return redirect()
             ->route('courses.show', $course)
             ->with('flash.success', 'Instruktur berhasil dihapus.');
+    }
+
+    private function sanitizeCertificateSettings(array $data): array {
+        $data['certification_enabled'] = (bool) ($data['certification_enabled'] ?? false);
+
+        $data['certificate_name_position_x'] = isset($data['certificate_name_position_x'])
+            ? max(0, min(100, (int) $data['certificate_name_position_x']))
+            : null;
+        $data['certificate_name_position_y'] = isset($data['certificate_name_position_y'])
+            ? max(0, min(100, (int) $data['certificate_name_position_y']))
+            : null;
+        $data['certificate_name_max_length'] = isset($data['certificate_name_max_length'])
+            ? max(1, min(255, (int) $data['certificate_name_max_length']))
+            : null;
+        $data['certificate_name_box_width'] = isset($data['certificate_name_box_width'])
+            ? max(10, min(100, (int) $data['certificate_name_box_width']))
+            : null;
+        $data['certificate_name_box_height'] = isset($data['certificate_name_box_height'])
+            ? max(10, min(100, (int) $data['certificate_name_box_height']))
+            : null;
+
+        $allowedFontFamilies = ['Poppins', 'Montserrat', 'Playfair Display', 'Roboto', 'Lora'];
+        $allowedFontWeights = ['400', '500', '600', '700', '800'];
+        $allowedAlignments = ['left', 'center', 'right'];
+
+        $fontFamily = $data['certificate_name_font_family'] ?? null;
+        $data['certificate_name_font_family'] = $fontFamily && in_array($fontFamily, $allowedFontFamilies, true)
+            ? $fontFamily
+            : null;
+
+        $fontWeight = $data['certificate_name_font_weight'] ?? null;
+        $data['certificate_name_font_weight'] = $fontWeight && in_array($fontWeight, $allowedFontWeights, true)
+            ? $fontWeight
+            : null;
+
+        $textAlign = $data['certificate_name_text_align'] ?? null;
+        $data['certificate_name_text_align'] = $textAlign && in_array($textAlign, $allowedAlignments, true)
+            ? $textAlign
+            : null;
+
+        $textColor = $data['certificate_name_text_color'] ?? null;
+        if ($textColor && is_string($textColor) && preg_match('/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/', $textColor)) {
+            $data['certificate_name_text_color'] = strtoupper($textColor);
+        } else {
+            $data['certificate_name_text_color'] = null;
+        }
+
+        $data['certificate_name_letter_spacing'] = isset($data['certificate_name_letter_spacing'])
+            ? max(-10, min(20, (int) $data['certificate_name_letter_spacing']))
+            : null;
+
+        if (!$data['certification_enabled']) {
+            $data['certificate_name_position_x'] = null;
+            $data['certificate_name_position_y'] = null;
+            $data['certificate_name_max_length'] = null;
+            $data['certificate_name_box_width'] = null;
+            $data['certificate_name_box_height'] = null;
+            $data['certificate_name_font_family'] = null;
+            $data['certificate_name_font_weight'] = null;
+            $data['certificate_name_text_align'] = null;
+            $data['certificate_name_text_color'] = null;
+            $data['certificate_name_letter_spacing'] = null;
+        }
+
+        return $data;
     }
 
     public function destroy(Course $course): RedirectResponse {

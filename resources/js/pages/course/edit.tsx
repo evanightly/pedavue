@@ -7,17 +7,23 @@ import UserController from '@/actions/App/Http/Controllers/UserController';
 import GenericDataSelector from '@/components/generic-data-selector';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { CertificateNameOverlay } from '@/components/ui/certificate-name-overlay';
 import { Combobox } from '@/components/ui/combobox';
 import type { PaginationMeta } from '@/components/ui/data-table-types';
 import { ImageDropzone } from '@/components/ui/image-dropzone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import AppLayout from '@/layouts/app-layout';
+import type { FormDataConvertible } from '@inertiajs/core';
 import { Form, Head } from '@inertiajs/react';
 import axios from 'axios';
 import { LoaderCircle } from 'lucide-react';
-import { useState } from 'react';
+import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 export type CourseRecord = App.Data.Course.CourseData;
 
@@ -30,6 +36,17 @@ interface CourseEditProps {
 }
 
 export default function CourseEdit({ record }: CourseEditProps) {
+    const extendedRecord = record as CourseRecord &
+        Partial<{
+            certificate_name_box_width: number | null;
+            certificate_name_box_height: number | null;
+            certificate_name_font_family: string | null;
+            certificate_name_font_weight: string | null;
+            certificate_name_text_align: 'left' | 'center' | 'right' | null;
+            certificate_name_text_color: string | null;
+            certificate_name_letter_spacing: number | null;
+        }>;
+
     const normalizeFieldValue = (value: unknown): string => {
         if (value === null || value === undefined) {
             return '';
@@ -66,7 +83,7 @@ export default function CourseEdit({ record }: CourseEditProps) {
     //     return response.data.certificates.data;
     // };
 
-    const fetchUserOptions = async ({ search }: { search?: string }) => {
+    const fetchUserOptions = useCallback(async ({ search }: { search?: string }) => {
         const params: Record<string, unknown> = {};
 
         if (search && search.trim().length > 0) {
@@ -76,7 +93,11 @@ export default function CourseEdit({ record }: CourseEditProps) {
         const response = await axios.get<{ data: { users: { data: App.Data.User.UserData[] } } }>(UserController.index().url, { params });
 
         return response;
-    };
+    }, []);
+
+    const mapInstructorSelectorResponse = useCallback((response: { data: { users: { data: App.Data.User.UserData[] } } }) => {
+        return response.data.users.data;
+    }, []);
 
     // const fetchModuleOptions = async ({ search }: { search?: string }) => {
     //     const params: Record<string, unknown> = {};
@@ -154,12 +175,92 @@ export default function CourseEdit({ record }: CourseEditProps) {
     const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(record?.thumbnail_url ?? null);
     const [levelValue, setLevelValue] = useState<string>(record?.level ?? '');
     const [description, setDescription] = useState<string>(record?.description ?? '');
+    const [certificateEnabled, setCertificateEnabled] = useState<boolean>(Boolean(record?.certification_enabled));
+    const [certificateTemplateFile, setCertificateTemplateFile] = useState<File | null>(null);
+    const [certificateTemplatePreview, setCertificateTemplatePreview] = useState<string | null>(record?.certificate_template_url ?? null);
+    const [certificateNamePosition, setCertificateNamePosition] = useState<{ x: number; y: number }>(() => ({
+        x: typeof record?.certificate_name_position_x === 'number' ? record.certificate_name_position_x : 50,
+        y: typeof record?.certificate_name_position_y === 'number' ? record.certificate_name_position_y : 50,
+    }));
+    const [certificateNameMaxLength, setCertificateNameMaxLength] = useState<number>(() => {
+        if (typeof record?.certificate_name_max_length === 'number' && record.certificate_name_max_length > 0) {
+            return record.certificate_name_max_length;
+        }
+
+        return 40;
+    });
+    const [certificateNameBoxSize, setCertificateNameBoxSize] = useState<{ width: number; height: number }>(() => {
+        const width = typeof extendedRecord?.certificate_name_box_width === 'number' ? extendedRecord.certificate_name_box_width : null;
+        const height = typeof extendedRecord?.certificate_name_box_height === 'number' ? extendedRecord.certificate_name_box_height : null;
+
+        return {
+            width: width && width > 0 ? Math.min(100, Math.max(10, width)) : 40,
+            height: height && height > 0 ? Math.min(100, Math.max(10, height)) : 16,
+        };
+    });
+    const allowedFontFamilies = ['sans-serif', 'serif'] as const;
+    const [certificateNameFontFamily, setCertificateNameFontFamily] = useState<string>(() => {
+        const candidate = extendedRecord?.certificate_name_font_family;
+        if (candidate && allowedFontFamilies.includes(candidate as (typeof allowedFontFamilies)[number])) {
+            return candidate;
+        }
+
+        return 'sans-serif';
+    });
+    const [certificateNameFontWeight, setCertificateNameFontWeight] = useState<string>(() => {
+        const candidate = extendedRecord?.certificate_name_font_weight;
+        if (candidate && ['400', '500', '600', '700', '800'].includes(candidate)) {
+            return candidate;
+        }
+
+        return '600';
+    });
+    const [certificateNameTextAlign, setCertificateNameTextAlign] = useState<'left' | 'center' | 'right'>(() => {
+        const candidate = extendedRecord?.certificate_name_text_align;
+        if (candidate === 'left' || candidate === 'center' || candidate === 'right') {
+            return candidate;
+        }
+
+        return 'center';
+    });
+    const [certificateNameTextColor, setCertificateNameTextColor] = useState<string>(() => extendedRecord?.certificate_name_text_color ?? '#1F2937');
+    const [certificateNameLetterSpacing, setCertificateNameLetterSpacing] = useState<number>(() => {
+        if (typeof extendedRecord?.certificate_name_letter_spacing === 'number') {
+            return Math.max(-10, Math.min(20, extendedRecord.certificate_name_letter_spacing));
+        }
+
+        return 0;
+    });
+    const [certificateSampleName, setCertificateSampleName] = useState<string>('Nama Lengkap Peserta');
+
+    const clampPositionForSize = (value: { x: number; y: number }, dimensions: { width: number; height: number }) => {
+        const halfWidth = dimensions.width / 2;
+        const halfHeight = dimensions.height / 2;
+
+        return {
+            x: Math.min(100 - halfWidth, Math.max(halfWidth, value.x)),
+            y: Math.min(100 - halfHeight, Math.max(halfHeight, value.y)),
+        };
+    };
 
     const levelOptions = [
         { value: 'Pemula', label: 'Pemula' },
         { value: 'Menengah', label: 'Menengah' },
         { value: 'Lanjutan', label: 'Lanjutan' },
         { value: 'Semua Tingkat', label: 'Semua Tingkat' },
+    ];
+
+    const fontFamilyOptions = [
+        { value: 'sans-serif', label: 'Sans Serif' },
+        { value: 'serif', label: 'Serif' },
+    ];
+
+    const fontWeightOptions = [
+        { value: '400', label: 'Reguler (400)' },
+        { value: '500', label: 'Medium (500)' },
+        { value: '600', label: 'Semi Bold (600)' },
+        { value: '700', label: 'Bold (700)' },
+        { value: '800', label: 'Extra Bold (800)' },
     ];
 
     const handleThumbnailDrop = (file: File) => {
@@ -174,6 +275,143 @@ export default function CourseEdit({ record }: CourseEditProps) {
     const removeThumbnail = () => {
         setThumbnailFile(null);
         setThumbnailPreview(null);
+    };
+
+    const truncatedSampleName = useMemo(() => {
+        const fallback = certificateSampleName.trim().length > 0 ? certificateSampleName : 'Nama Lengkap Peserta';
+
+        if (!certificateNameMaxLength || certificateNameMaxLength <= 0) {
+            return fallback;
+        }
+
+        return fallback.slice(0, certificateNameMaxLength);
+    }, [certificateNameMaxLength, certificateSampleName]);
+
+    useEffect(() => {
+        setCertificateSampleName((current) => {
+            const base = current.trim().length > 0 ? current : 'Nama Lengkap Peserta';
+
+            if (!certificateNameMaxLength || certificateNameMaxLength <= 0) {
+                return base;
+            }
+
+            const adjusted = base.slice(0, certificateNameMaxLength);
+
+            return adjusted === current ? current : adjusted;
+        });
+    }, [certificateNameMaxLength]);
+
+    const handleCertificateTemplateDrop = (file: File) => {
+        setCertificateTemplateFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setCertificateTemplatePreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+        setCertificateEnabled(true);
+    };
+
+    const removeCertificateTemplate = () => {
+        setCertificateTemplateFile(null);
+        setCertificateTemplatePreview(null);
+    };
+
+    const handleCertificateHorizontalChange = (value: number[]) => {
+        const [coordinate] = value;
+
+        if (typeof coordinate !== 'number') {
+            return;
+        }
+
+        setCertificateNamePosition((current) => ({
+            x: Math.min(100, Math.max(0, Math.round(coordinate))),
+            y: current.y,
+        }));
+    };
+
+    const handleCertificateVerticalChange = (value: number[]) => {
+        const [coordinate] = value;
+
+        if (typeof coordinate !== 'number') {
+            return;
+        }
+
+        setCertificateNamePosition((current) => ({
+            x: current.x,
+            y: Math.min(100, Math.max(0, Math.round(coordinate))),
+        }));
+    };
+
+    const handleCertificateNameLimitChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const parsed = Number.parseInt(event.target.value, 10);
+
+        if (Number.isNaN(parsed)) {
+            setCertificateNameMaxLength(0);
+            return;
+        }
+
+        setCertificateNameMaxLength(Math.min(120, Math.max(0, parsed)));
+    };
+
+    const handleCertificateBoxWidthChange = (value: number[]) => {
+        const [width] = value;
+
+        if (typeof width !== 'number') {
+            return;
+        }
+
+        const sanitizedWidth = Math.min(100, Math.max(10, Math.round(width)));
+
+        setCertificateNameBoxSize((current) => {
+            const next = { ...current, width: sanitizedWidth };
+            setCertificateNamePosition((currentPosition) => clampPositionForSize(currentPosition, next));
+            return next;
+        });
+    };
+
+    const handleCertificateBoxHeightChange = (value: number[]) => {
+        const [height] = value;
+
+        if (typeof height !== 'number') {
+            return;
+        }
+
+        const sanitizedHeight = Math.min(100, Math.max(10, Math.round(height)));
+
+        setCertificateNameBoxSize((current) => {
+            const next = { ...current, height: sanitizedHeight };
+            setCertificateNamePosition((currentPosition) => clampPositionForSize(currentPosition, next));
+            return next;
+        });
+    };
+
+    const handleCertificateSampleChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const value = event.target.value ?? '';
+
+        if (!certificateNameMaxLength || certificateNameMaxLength <= 0) {
+            setCertificateSampleName(value);
+            return;
+        }
+
+        setCertificateSampleName(value.slice(0, certificateNameMaxLength));
+    };
+
+    const handleCertificateTextColorChange = (event: ChangeEvent<HTMLInputElement>) => {
+        setCertificateNameTextColor((event.target.value ?? '#1F2937').toUpperCase());
+    };
+
+    const handleCertificateLetterSpacingChange = (value: number[]) => {
+        const [spacing] = value;
+
+        if (typeof spacing !== 'number') {
+            return;
+        }
+
+        setCertificateNameLetterSpacing(Math.max(-10, Math.min(20, Math.round(spacing))));
+    };
+
+    const handleCertificateCentering = () => {
+        setCertificateNamePosition(() => clampPositionForSize({ x: 50, y: 50 }, certificateNameBoxSize));
     };
 
     // const [modulesIds, setModulesIds] = useState<Array<number | string>>(() => {
@@ -287,7 +525,7 @@ export default function CourseEdit({ record }: CourseEditProps) {
             <Form
                 {...CourseController.update.form(record.slug)}
                 transform={(data) => {
-                    const transformed: Record<string, any> = {
+                    const transformed: Record<string, FormDataConvertible> = {
                         ...data,
                         _method: 'put',
                         instructor_ids: instructorIds
@@ -300,11 +538,28 @@ export default function CourseEdit({ record }: CourseEditProps) {
                                 return Number.isNaN(numeric) ? null : numeric;
                             })
                             .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0),
+                        certification_enabled: certificateEnabled,
+                        certificate_name_position_x: certificateEnabled ? Math.round(certificateNamePosition.x) : null,
+                        certificate_name_position_y: certificateEnabled ? Math.round(certificateNamePosition.y) : null,
+                        certificate_name_max_length: certificateEnabled && certificateNameMaxLength > 0 ? Math.round(certificateNameMaxLength) : null,
+                        certificate_name_box_width: certificateEnabled ? Math.round(certificateNameBoxSize.width) : null,
+                        certificate_name_box_height: certificateEnabled ? Math.round(certificateNameBoxSize.height) : null,
+                        certificate_name_font_family: certificateEnabled ? certificateNameFontFamily : null,
+                        certificate_name_font_weight: certificateEnabled ? certificateNameFontWeight : null,
+                        certificate_name_text_align: certificateEnabled ? certificateNameTextAlign : null,
+                        certificate_name_text_color: certificateEnabled ? certificateNameTextColor.toUpperCase() : null,
+                        certificate_name_letter_spacing: certificateEnabled ? Math.round(certificateNameLetterSpacing) : null,
                     };
 
                     // Only include thumbnail if a new file was selected
                     if (thumbnailFile) {
                         transformed.thumbnail = thumbnailFile;
+                    }
+
+                    if (certificateEnabled && certificateTemplateFile) {
+                        transformed.certificate_template = certificateTemplateFile;
+                    } else {
+                        delete transformed.certificate_template;
                     }
 
                     return transformed;
@@ -379,7 +634,7 @@ export default function CourseEdit({ record }: CourseEditProps) {
                                             id='instructor-selector'
                                             placeholder='Pilih instruktur'
                                             fetchData={fetchUserOptions}
-                                            dataMapper={(response) => response.data.users.data}
+                                            dataMapper={mapInstructorSelectorResponse}
                                             multiSelect
                                             selectedDataIds={instructorIds}
                                             setSelectedDataIds={setInstructorIds}
@@ -420,6 +675,274 @@ export default function CourseEdit({ record }: CourseEditProps) {
                                     </Label>
                                     <ImageDropzone onDrop={handleThumbnailDrop} preview={thumbnailPreview} onRemove={removeThumbnail} />
                                     <InputError message={errors.thumbnail} />
+                                </div>
+                            </div>
+
+                            {/* Certificate Section */}
+                            <div className='space-y-4'>
+                                <h3 className='text-sm font-medium text-foreground'>Sertifikat</h3>
+                                <div className='flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between'>
+                                    <div>
+                                        <p className='text-sm font-medium text-foreground'>Aktifkan Sertifikat</p>
+                                        <p className='text-xs text-muted-foreground'>Perlihatkan nama peserta pada template yang Anda unggah.</p>
+                                    </div>
+                                    <Switch checked={certificateEnabled} onCheckedChange={(value) => setCertificateEnabled(Boolean(value))} />
+                                </div>
+                                <div className='grid gap-6 rounded-lg border p-4'>
+                                    <div className='grid gap-2'>
+                                        <Label htmlFor='certificate_template'>Template Sertifikat</Label>
+                                        <ImageDropzone
+                                            onDrop={handleCertificateTemplateDrop}
+                                            preview={certificateTemplatePreview}
+                                            onRemove={removeCertificateTemplate}
+                                            disabled={!certificateEnabled}
+                                            previewOverlay={
+                                                certificateEnabled && certificateTemplatePreview ? (
+                                                    <CertificateNameOverlay
+                                                        editable={certificateEnabled}
+                                                        position={certificateNamePosition}
+                                                        size={certificateNameBoxSize}
+                                                        onPositionChange={(value) =>
+                                                            setCertificateNamePosition({
+                                                                x: Math.round(value.x * 100) / 100,
+                                                                y: Math.round(value.y * 100) / 100,
+                                                            })
+                                                        }
+                                                        onSizeChange={(value) =>
+                                                            setCertificateNameBoxSize({
+                                                                width: Math.round(value.width * 100) / 100,
+                                                                height: Math.round(value.height * 100) / 100,
+                                                            })
+                                                        }
+                                                        sampleText={truncatedSampleName}
+                                                        fontFamily={certificateNameFontFamily}
+                                                        fontWeight={certificateNameFontWeight}
+                                                        textAlign={certificateNameTextAlign}
+                                                        textColor={certificateNameTextColor}
+                                                        letterSpacing={certificateNameLetterSpacing}
+                                                        guidance='Seret kotak untuk memindahkan, tarik sudut untuk mengubah ukuran.'
+                                                    />
+                                                ) : null
+                                            }
+                                            previewOverlayClassName='absolute inset-0'
+                                        />
+                                        <p className='text-xs text-muted-foreground'>
+                                            PNG atau JPG hingga 4MB. Sertakan ruang kosong untuk nama peserta.
+                                        </p>
+                                        <InputError message={errors.certificate_template} />
+                                    </div>
+
+                                    <div className='grid gap-6 md:grid-cols-2'>
+                                        <div className='grid gap-2'>
+                                            <Label htmlFor='certificate_name_position_x'>Posisi Horizontal Nama</Label>
+                                            <Slider
+                                                id='certificate_name_position_x'
+                                                value={[certificateNamePosition.x]}
+                                                onValueChange={handleCertificateHorizontalChange}
+                                                max={100}
+                                                step={1}
+                                                disabled={!certificateEnabled}
+                                            />
+                                            <p className='text-xs text-muted-foreground'>Terletak {certificateNamePosition.x}% dari sisi kiri.</p>
+                                            <InputError message={errors.certificate_name_position_x} />
+                                        </div>
+                                        <div className='grid gap-2'>
+                                            <Label htmlFor='certificate_name_position_y'>Posisi Vertikal Nama</Label>
+                                            <Slider
+                                                id='certificate_name_position_y'
+                                                value={[certificateNamePosition.y]}
+                                                onValueChange={handleCertificateVerticalChange}
+                                                max={100}
+                                                step={1}
+                                                disabled={!certificateEnabled}
+                                            />
+                                            <p className='text-xs text-muted-foreground'>Terletak {certificateNamePosition.y}% dari sisi atas.</p>
+                                            <InputError message={errors.certificate_name_position_y} />
+                                        </div>
+                                        <div className='grid gap-2'>
+                                            <Label htmlFor='certificate_name_box_width'>Lebar Kotak Nama</Label>
+                                            <Slider
+                                                id='certificate_name_box_width'
+                                                value={[certificateNameBoxSize.width]}
+                                                onValueChange={handleCertificateBoxWidthChange}
+                                                min={10}
+                                                max={100}
+                                                step={1}
+                                                disabled={!certificateEnabled}
+                                            />
+                                            <p className='text-xs text-muted-foreground'>
+                                                Lebar {certificateNameBoxSize.width}% dari lebar sertifikat.
+                                            </p>
+                                            <InputError message={errors.certificate_name_box_width} />
+                                        </div>
+                                        <div className='grid gap-2'>
+                                            <Label htmlFor='certificate_name_box_height'>Tinggi Kotak Nama</Label>
+                                            <Slider
+                                                id='certificate_name_box_height'
+                                                value={[certificateNameBoxSize.height]}
+                                                onValueChange={handleCertificateBoxHeightChange}
+                                                min={10}
+                                                max={100}
+                                                step={1}
+                                                disabled={!certificateEnabled}
+                                            />
+                                            <p className='text-xs text-muted-foreground'>
+                                                Tinggi {certificateNameBoxSize.height}% dari tinggi sertifikat.
+                                            </p>
+                                            <InputError message={errors.certificate_name_box_height} />
+                                        </div>
+                                    </div>
+
+                                    <div className='grid gap-6 md:grid-cols-2'>
+                                        <div className='grid gap-2'>
+                                            <Label htmlFor='certificate_name_sample'>Teks Contoh Nama</Label>
+                                            <Input
+                                                id='certificate_name_sample'
+                                                type='text'
+                                                value={certificateSampleName}
+                                                onChange={handleCertificateSampleChange}
+                                                disabled={!certificateEnabled}
+                                                maxLength={certificateNameMaxLength || undefined}
+                                                placeholder='Masukkan contoh nama peserta'
+                                            />
+                                            <p className='text-xs text-muted-foreground'>Ubah teks contoh untuk melihat perkiraan hasil cetak.</p>
+                                        </div>
+                                        <div className='grid gap-2 md:max-w-xs'>
+                                            <Label htmlFor='certificate_name_max_length'>Batas Karakter Nama</Label>
+                                            <Input
+                                                id='certificate_name_max_length'
+                                                name='certificate_name_max_length'
+                                                type='number'
+                                                min='10'
+                                                max='120'
+                                                step='1'
+                                                value={certificateNameMaxLength}
+                                                onChange={handleCertificateNameLimitChange}
+                                                disabled={!certificateEnabled}
+                                            />
+                                            <p className='text-xs text-muted-foreground'>Nama contoh: {truncatedSampleName}</p>
+                                            <InputError message={errors.certificate_name_max_length} />
+                                        </div>
+                                    </div>
+
+                                    <div className='flex flex-wrap items-center gap-3'>
+                                        <Button
+                                            type='button'
+                                            variant='secondary'
+                                            size='sm'
+                                            onClick={handleCertificateCentering}
+                                            disabled={!certificateEnabled}
+                                        >
+                                            Pusatkan Kotak Nama
+                                        </Button>
+                                    </div>
+
+                                    <div className='grid gap-6 md:grid-cols-2 lg:grid-cols-3'>
+                                        <div className='grid gap-2'>
+                                            <Label>Perataan Teks</Label>
+                                            <ToggleGroup
+                                                type='single'
+                                                value={certificateNameTextAlign}
+                                                onValueChange={(value) => {
+                                                    if (value === 'left' || value === 'center' || value === 'right') {
+                                                        setCertificateNameTextAlign(value);
+                                                    }
+                                                }}
+                                                disabled={!certificateEnabled}
+                                                className='justify-start'
+                                            >
+                                                <ToggleGroupItem value='left'>Kiri</ToggleGroupItem>
+                                                <ToggleGroupItem value='center'>Tengah</ToggleGroupItem>
+                                                <ToggleGroupItem value='right'>Kanan</ToggleGroupItem>
+                                            </ToggleGroup>
+                                            <InputError message={errors.certificate_name_text_align} />
+                                        </div>
+                                        <div className='grid gap-2'>
+                                            <Label htmlFor='certificate_name_font_family'>Jenis Huruf</Label>
+                                            <Select
+                                                value={certificateNameFontFamily}
+                                                onValueChange={setCertificateNameFontFamily}
+                                                disabled={!certificateEnabled}
+                                            >
+                                                <SelectTrigger id='certificate_name_font_family'>
+                                                    <SelectValue placeholder='Pilih font' />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {fontFamilyOptions.map((option) => (
+                                                        <SelectItem key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <InputError message={errors.certificate_name_font_family} />
+                                        </div>
+                                        <div className='grid gap-2'>
+                                            <Label htmlFor='certificate_name_font_weight'>Ketebalan Tulisan</Label>
+                                            <Select
+                                                value={certificateNameFontWeight}
+                                                onValueChange={setCertificateNameFontWeight}
+                                                disabled={!certificateEnabled}
+                                            >
+                                                <SelectTrigger id='certificate_name_font_weight'>
+                                                    <SelectValue placeholder='Pilih ketebalan' />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {fontWeightOptions.map((option) => (
+                                                        <SelectItem key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <InputError message={errors.certificate_name_font_weight} />
+                                        </div>
+                                    </div>
+
+                                    <div className='grid gap-6 md:grid-cols-2'>
+                                        <div className='grid gap-2'>
+                                            <Label htmlFor='certificate_name_text_color'>Warna Teks</Label>
+                                            <div className='flex items-center gap-3'>
+                                                <input
+                                                    id='certificate_name_text_color'
+                                                    type='color'
+                                                    value={certificateNameTextColor}
+                                                    onChange={handleCertificateTextColorChange}
+                                                    disabled={!certificateEnabled}
+                                                    className='h-10 w-16 rounded border border-border bg-transparent p-1'
+                                                />
+                                                <Input
+                                                    type='text'
+                                                    value={certificateNameTextColor}
+                                                    onChange={(event) => setCertificateNameTextColor(event.target.value.toUpperCase())}
+                                                    disabled={!certificateEnabled}
+                                                    maxLength={7}
+                                                    className='max-w-[8rem] uppercase'
+                                                />
+                                            </div>
+                                            <InputError message={errors.certificate_name_text_color} />
+                                        </div>
+                                        <div className='grid gap-2'>
+                                            <Label htmlFor='certificate_name_letter_spacing'>Jarak Antar Huruf</Label>
+                                            <Slider
+                                                id='certificate_name_letter_spacing'
+                                                value={[certificateNameLetterSpacing]}
+                                                onValueChange={handleCertificateLetterSpacingChange}
+                                                min={-10}
+                                                max={20}
+                                                step={1}
+                                                disabled={!certificateEnabled}
+                                            />
+                                            <p className='text-xs text-muted-foreground'>
+                                                {certificateNameLetterSpacing > 0
+                                                    ? `Menambah ${certificateNameLetterSpacing}px spasi.`
+                                                    : certificateNameLetterSpacing < 0
+                                                      ? `Mengurangi ${Math.abs(certificateNameLetterSpacing)}px spasi.`
+                                                      : 'Menggunakan spasi huruf standar.'}
+                                            </p>
+                                            <InputError message={errors.certificate_name_letter_spacing} />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 

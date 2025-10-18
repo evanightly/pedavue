@@ -25,6 +25,9 @@ class CourseFactory extends Factory {
             'thumbnail' => fake()->word(),
             'level' => fake()->word(),
             'duration' => fake()->word(),
+            'certificate_name_position_x' => null,
+            'certificate_name_position_y' => null,
+            'certificate_name_max_length' => null,
         ];
     }
 

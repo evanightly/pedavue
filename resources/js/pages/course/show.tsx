@@ -42,6 +42,28 @@ export default function CourseShow({ record }: CourseShowProps) {
     const [pendingInstructorId, setPendingInstructorId] = useState<number | string | null>(null);
     const [isAttaching, setIsAttaching] = useState(false);
     const [removingInstructorId, setRemovingInstructorId] = useState<number | null>(null);
+    const certificatePreviewName = useMemo(() => {
+        const base = 'Nama Lengkap Peserta';
+        const limit = typeof record.certificate_name_max_length === 'number' ? record.certificate_name_max_length : null;
+
+        if (!limit || limit <= 0) {
+            return base;
+        }
+
+        return base.slice(0, limit);
+    }, [record.certificate_name_max_length]);
+    const certificatePosition = useMemo(() => {
+        const x = typeof record.certificate_name_position_x === 'number' ? record.certificate_name_position_x : null;
+        const y = typeof record.certificate_name_position_y === 'number' ? record.certificate_name_position_y : null;
+
+        return {
+            x,
+            y,
+            previewX: x ?? 50,
+            previewY: y ?? 50,
+        };
+    }, [record.certificate_name_position_x, record.certificate_name_position_y]);
+    const hasCertificateTemplate = Boolean(record.certification_enabled && record.certificate_template_url);
 
     const fetchUserOptions = async ({ search }: { search?: string }) => {
         const params: Record<string, unknown> = {};
@@ -281,6 +303,64 @@ export default function CourseShow({ record }: CourseShowProps) {
                             </dl>
                         </div>
                     </div>
+
+                    {/* Certificate Preview */}
+                    {hasCertificateTemplate ? (
+                        <div className='rounded-2xl border bg-card p-6 shadow-lg'>
+                            <div className='space-y-6'>
+                                <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                                    <div>
+                                        <h3 className='text-lg font-semibold'>Pratinjau Sertifikat</h3>
+                                        <p className='text-sm text-muted-foreground'>
+                                            Posisi nama peserta dapat disesuaikan melalui halaman edit kursus.
+                                        </p>
+                                    </div>
+                                    <span className='inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary'>
+                                        Aktif
+                                    </span>
+                                </div>
+                                <div className='relative overflow-hidden rounded-xl border border-dashed border-border/70 bg-muted/20 p-3'>
+                                    <div className='relative mx-auto w-full max-w-3xl'>
+                                        <img
+                                            src={record.certificate_template_url as string}
+                                            alt='Template Sertifikat Kursus'
+                                            className='h-full w-full rounded-lg object-contain'
+                                        />
+                                        <div
+                                            className='absolute -translate-x-1/2 -translate-y-1/2 rounded bg-black/70 px-4 py-2 text-sm font-semibold text-white shadow-lg'
+                                            style={{ left: `${certificatePosition.previewX}%`, top: `${certificatePosition.previewY}%` }}
+                                        >
+                                            {certificatePreviewName}
+                                        </div>
+                                    </div>
+                                </div>
+                                <dl className='grid gap-4 text-sm text-muted-foreground sm:grid-cols-3'>
+                                    <div>
+                                        <dt className='font-medium text-foreground'>Batas Karakter</dt>
+                                        <dd>{record.certificate_name_max_length ?? 'Tidak diatur'}</dd>
+                                    </div>
+                                    <div>
+                                        <dt className='font-medium text-foreground'>Posisi Horizontal</dt>
+                                        <dd>
+                                            {certificatePosition.x ?? 'Belum diatur'}
+                                            {certificatePosition.x !== null ? '%' : ''}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt className='font-medium text-foreground'>Posisi Vertikal</dt>
+                                        <dd>
+                                            {certificatePosition.y ?? 'Belum diatur'}
+                                            {certificatePosition.y !== null ? '%' : ''}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        </div>
+                    ) : record.certification_enabled ? (
+                        <div className='rounded-2xl border border-dashed bg-card/40 p-6 text-sm text-muted-foreground shadow-inner'>
+                            Sertifikat diaktifkan, tetapi template belum diunggah. Unggah template di halaman edit kursus untuk menampilkan pratinjau.
+                        </div>
+                    ) : null}
 
                     {/* Instructors Management */}
                     <div className='rounded-2xl border bg-card p-6 shadow-lg'>

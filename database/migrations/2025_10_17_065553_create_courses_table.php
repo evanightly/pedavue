@@ -18,6 +18,8 @@ return new class extends Migration {
             $table->string('thumbnail')->nullable();
             $table->string('level')->nullable();
             $table->string('duration')->comment('minute')->nullable();
+            $table->string('certificate_template')->nullable();
+            $table->string('certificate_example')->nullable();
             $table->timestamps();
         });
     }
