@@ -68,10 +68,11 @@ class Course extends Model {
         return 'slug';
     }
 
-    // public function Modules(): HasMany
-    // {
-    //     return $this->hasMany(Module::class);
-    // }
+    public function modules(): HasMany {
+        return $this
+            ->hasMany(Module::class)
+            ->orderBy('order');
+    }
 
     // public function Quizzes(): HasMany
     // {

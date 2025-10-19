@@ -2,9 +2,9 @@
 
 namespace App\Data\ModuleStage;
 
-use App\Data\ModuleContent\ModuleContentData;
-use App\Data\ModuleQuiz\ModuleQuizData;
 use App\Data\Module\ModuleData;
+use App\Data\ModuleContent\ModuleContentData;
+use App\Data\Quiz\QuizData;
 use App\Models\ModuleStage;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\Optional;
@@ -12,8 +12,7 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Spatie\TypeScriptTransformer\Attributes\TypeScriptType;
 
 #[TypeScript]
-class ModuleStageData extends Data
-{
+class ModuleStageData extends Data {
     public function __construct(
         public int|Optional $id,
         public ?string $module_able,
@@ -24,13 +23,11 @@ class ModuleStageData extends Data
         public ?ModuleData $module,
         #[TypeScriptType('App.Data.ModuleContent.ModuleContentData | null')]
         public ?ModuleContentData $module_content,
-        #[TypeScriptType('App.Data.ModuleQuiz.ModuleQuizData | null')]
-        public ?ModuleQuizData $module_quiz,
+        #[TypeScriptType('App.Data.Quiz.QuizData | null')]
+        public ?QuizData $module_quiz,
     ) {}
 
-
-    public static function fromModel(ModuleStage $model): self
-    {
+    public static function fromModel(ModuleStage $model): self {
         return new self(
             id: $model->getKey(),
             module_able: $model->module_able,
@@ -44,7 +41,7 @@ class ModuleStageData extends Data
                 ? ModuleContentData::fromModel($model->module_content)
                 : null,
             module_quiz: $model->relationLoaded('module_quiz') && $model->module_quiz
-                ? ModuleQuizData::fromModel($model->module_quiz)
+                ? QuizData::fromModel($model->module_quiz)
                 : null,
         );
     }

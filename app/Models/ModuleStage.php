@@ -2,15 +2,11 @@
 
 namespace App\Models;
 
-use App\Models\Module;
-use App\Models\ModuleContent;
-use App\Models\ModuleQuiz;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class ModuleStage extends Model
-{
+class ModuleStage extends Model {
     use HasFactory;
 
     /**
@@ -27,25 +23,21 @@ class ModuleStage extends Model
     /**
      * @return array<string, string>
      */
-    protected function casts(): array
-    {
+    protected function casts(): array {
         return [
             'order' => 'integer',
         ];
     }
 
-    public function module(): BelongsTo
-    {
+    public function module(): BelongsTo {
         return $this->belongsTo(Module::class);
     }
 
-    public function module_content(): BelongsTo
-    {
+    public function module_content(): BelongsTo {
         return $this->belongsTo(ModuleContent::class);
     }
 
-    public function module_quiz(): BelongsTo
-    {
-        return $this->belongsTo(ModuleQuiz::class);
+    public function module_quiz(): BelongsTo {
+        return $this->belongsTo(Quiz::class, 'module_quiz_id');
     }
 }

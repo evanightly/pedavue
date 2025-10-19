@@ -2,17 +2,19 @@
 
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\CourseInstructorController;
+use App\Http\Controllers\CourseModuleContentController;
+use App\Http\Controllers\CourseModuleController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\EnrollmentRequestController;
+use App\Http\Controllers\ModuleContentController;
+use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\ModuleStageController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ModuleController;
-use App\Http\Controllers\ModuleContentController;
-use App\Http\Controllers\ModuleStageController;
 
 Route::inertia('/', 'welcome')->name('home');
 
@@ -37,6 +39,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('enrollment-requests', EnrollmentRequestController::class);
     Route::patch('enrollment-requests/{enrollment_request}/approve', [EnrollmentRequestController::class, 'approve'])->name('enrollment-requests.approve');
     Route::patch('enrollment-requests/{enrollment_request}/reject', [EnrollmentRequestController::class, 'reject'])->name('enrollment-requests.reject');
+
+    Route::scopeBindings()->group(function () {
+        Route::prefix('courses/{course}')->group(function () {
+            Route::get('modules/create', [CourseModuleController::class, 'create'])->name('courses.modules.create');
+            Route::post('modules', [CourseModuleController::class, 'store'])->name('courses.modules.store');
+            Route::get('modules/{module}/contents', [CourseModuleContentController::class, 'index'])->name('courses.modules.contents.index');
+            Route::post('modules/{module}/contents', [CourseModuleContentController::class, 'store'])->name('courses.modules.contents.store');
+            Route::patch('modules/{module}/contents/reorder', [CourseModuleContentController::class, 'reorder'])->name('courses.modules.contents.reorder');
+            Route::patch('modules/{module}/contents/{stage}', [CourseModuleContentController::class, 'update'])->name('courses.modules.contents.update');
+            Route::delete('modules/{module}/contents/{stage}', [CourseModuleContentController::class, 'destroy'])->name('courses.modules.contents.destroy');
+        });
+    });
 });
 Route::post('imporquiz', [QuizController::class, 'import'])->name('quiz.import');
 Route::get('csrf-token', function () {

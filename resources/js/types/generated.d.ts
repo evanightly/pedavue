@@ -83,6 +83,7 @@ declare namespace App.Data.Module {
         created_at: string | null;
         updated_at: string | null;
         course: any;
+        module_stages: App.Data.ModuleStage.ModuleStageData[] | null;
     };
 }
 declare namespace App.Data.ModuleContent {
@@ -92,6 +93,7 @@ declare namespace App.Data.ModuleContent {
         description: string | null;
         file_path: string | null;
         content_url: string | null;
+        file_url: string | null;
         duration: number | null;
         content_type: string | null;
         created_at: string | null;

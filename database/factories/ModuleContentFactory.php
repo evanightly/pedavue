@@ -9,13 +9,22 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 /**
  * @extends Factory<\App\Models\ModuleContent>
  */
-class ModuleContentFactory extends Factory
-{
+class ModuleContentFactory extends Factory {
+    public function configure(): static {
+        return $this->afterCreating(function (ModuleContent $moduleContent): void {
+            ModuleStage::query()
+                ->whereKey($moduleContent->module_stage_id)
+                ->update([
+                    'module_content_id' => $moduleContent->getKey(),
+                    'module_able' => 'content',
+                ]);
+        });
+    }
+
     /**
      * @return array<string, mixed>
      */
-    public function definition(): array
-    {
+    public function definition(): array {
         return [
             'title' => fake()->word(),
             'description' => fake()->sentence(),

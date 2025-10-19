@@ -2,13 +2,12 @@
 
 namespace App\Models;
 
-use App\Models\Course;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Module extends Model
-{
+class Module extends Model {
     use HasFactory;
 
     /**
@@ -26,16 +25,24 @@ class Module extends Model
     /**
      * @return array<string, string>
      */
-    protected function casts(): array
-    {
+    protected function casts(): array {
         return [
             'duration' => 'integer',
             'order' => 'integer',
         ];
     }
 
-    public function course(): BelongsTo
-    {
+    public function course(): BelongsTo {
         return $this->belongsTo(Course::class);
+    }
+
+    public function module_stages(): HasMany {
+        return $this
+            ->hasMany(ModuleStage::class)
+            ->orderBy('order');
+    }
+
+    public function stages(): HasMany {
+        return $this->module_stages();
     }
 }

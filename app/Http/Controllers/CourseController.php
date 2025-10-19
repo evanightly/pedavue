@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Data\Course\CourseData;
 use App\Data\EnrollmentRequest\EnrollmentRequestData;
+use App\Data\Module\ModuleData;
 use App\Data\User\UserData;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -154,7 +155,12 @@ class CourseController extends BaseResourceController {
     }
 
     public function show(Request $request, Course $course): Response {
-        $course->load(['course_instructors', 'students']);
+        $course->load([
+            'course_instructors',
+            'students',
+            'modules.module_stages.module_content',
+            'modules.module_stages.module_quiz',
+        ]);
 
         $user = $request->user();
         $viewer = null;
@@ -184,9 +190,11 @@ class CourseController extends BaseResourceController {
 
         return Inertia::render('course/show', [
             'record' => CourseData::fromModel($course)->toArray(),
+            'modules' => ModuleData::collect($course->modules)->toArray(),
             'abilities' => [
                 'assign_students' => $user?->can('assignStudents', $course) ?? false,
                 'unassign_students' => $user?->can('assignStudents', $course) ?? false,
+                'manage_modules' => $user?->can('update', $course) ?? false,
             ],
             'viewer' => $viewer,
         ]);
