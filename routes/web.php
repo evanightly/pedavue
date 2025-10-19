@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\Route;
 Route::inertia('/', 'welcome')->name('home');
 
 Route::get('explore-course', [CourseController::class, 'explore'])->name('courses.explore');
-Route::get('courses/{course}', [CourseController::class, 'show'])->name('courses.show');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('dashboard', DashboardController::class);
@@ -52,6 +51,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
 });
+Route::get('courses/{course}', [CourseController::class, 'show'])->name('courses.show');
 Route::post('imporquiz', [QuizController::class, 'import'])->name('quiz.import');
 Route::get('csrf-token', function () {
     return response()->json(['csrf_token' => csrf_token()]);

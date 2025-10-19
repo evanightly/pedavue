@@ -136,6 +136,217 @@ it('allows an instructor to create a module with content stages', function (): v
         ->and($stage?->module_content?->title)->toBe('Pendahuluan');
 });
 
+it('allows an instructor to create a module with an inline quiz stage', function (): void {
+    $instructor = createInstructorWithPermission();
+    $course = Course::factory()->create();
+    $course->course_instructors()->sync([$instructor->getKey()]);
+
+    $response = $this
+        ->actingAs($instructor)
+        ->post(route('courses.modules.store', $course), [
+            'title' => 'Modul Evaluasi',
+            'description' => 'Modul dengan kuis inline.',
+            'stages' => [
+                [
+                    'type' => 'quiz',
+                    'order' => 1,
+                    'quiz' => [
+                        'name' => 'Evaluasi Bab 1',
+                        'description' => 'Uji pemahaman peserta.',
+                        'duration' => 30,
+                        'is_question_shuffled' => true,
+                        'type' => 'post-test',
+                        'questions' => [
+                            [
+                                'question' => 'Apa itu PHP?',
+                                'is_answer_shuffled' => false,
+                                'options' => [
+                                    ['option_text' => 'Bahasa pemrograman', 'is_correct' => true],
+                                    ['option_text' => 'Sistem operasi', 'is_correct' => false],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+    $response->assertRedirect(route('courses.show', $course));
+
+    $module = Module::query()
+        ->where('course_id', $course->getKey())
+        ->with('module_stages.module_quiz.quiz_questions.quiz_question_options')
+        ->first();
+
+    expect($module)->not->toBeNull();
+
+    $stage = $module?->module_stages->first();
+
+    expect($stage)
+        ->not->toBeNull()
+        ->and($stage?->module_able)
+        ->toBe('quiz')
+        ->and($stage?->module_quiz)
+        ->not->toBeNull();
+
+    $quiz = $stage?->module_quiz;
+
+    expect($quiz?->name)->toBe('Evaluasi Bab 1')
+        ->and($quiz?->is_question_shuffled)->toBeTruthy();
+
+    $questions = $quiz?->quiz_questions;
+
+    expect($questions)
+        ->not->toBeNull()
+        ->and($questions)
+        ->toHaveCount(1);
+
+    $options = $questions?->first()?->quiz_question_options;
+
+    expect($options)
+        ->not->toBeNull()
+        ->and($options)
+        ->toHaveCount(2)
+        ->and($options?->first()?->is_correct)
+        ->toBeTruthy();
+});
+
+it('stores and removes quiz option images during module stage management', function (): void {
+    Storage::fake('public');
+
+    $instructor = createInstructorWithPermission();
+    $course = Course::factory()->create();
+    $course->course_instructors()->sync([$instructor->getKey()]);
+
+    $module = Module::factory()->create([
+        'course_id' => $course->getKey(),
+        'order' => 1,
+    ]);
+
+    $questionImage = UploadedFile::fake()->image('question.jpg', 800, 600);
+    $optionImage = UploadedFile::fake()->image('option-a.jpg', 600, 400);
+
+    $this
+        ->actingAs($instructor)
+        ->post(route('courses.modules.contents.store', [$course, $module]), [
+            'type' => 'quiz',
+            'quiz' => [
+                'name' => 'Kuis Gambar',
+                'questions' => [
+                    [
+                        'question' => 'Pilih gambar yang benar',
+                        'question_image' => $questionImage,
+                        'is_answer_shuffled' => false,
+                        'options' => [
+                            [
+                                'option_text' => 'Jawaban A',
+                                'is_correct' => true,
+                                'order' => 1,
+                                'option_image' => $optionImage,
+                            ],
+                            [
+                                'option_text' => 'Jawaban B',
+                                'is_correct' => false,
+                                'order' => 2,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ])
+        ->assertRedirect(route('courses.modules.contents.index', [$course, $module]));
+
+    $module->refresh();
+    $stage = $module->module_stages()
+        ->with('module_quiz.quiz_questions.quiz_question_options')
+        ->latest('id')
+        ->firstOrFail();
+
+    $createdQuestion = $stage->module_quiz?->quiz_questions?->first();
+
+    $createdOption = $stage->module_quiz
+        ?->quiz_questions
+        ?->first()
+        ?->quiz_question_options
+        ?->first();
+
+    expect($createdQuestion)
+        ->not->toBeNull()
+        ->and($createdQuestion?->question_image)
+        ->not->toBeNull();
+
+    expect($createdOption)
+        ->not->toBeNull()
+        ->and($createdOption?->option_image)
+        ->not->toBeNull();
+
+    $createdQuestionPath = $createdQuestion?->question_image;
+    $createdOptionPath = $createdOption?->option_image;
+
+    expect(Storage::disk('public')->exists($createdQuestionPath))->toBeTrue();
+    expect(Storage::disk('public')->exists($createdOptionPath))->toBeTrue();
+
+    $this
+        ->actingAs($instructor)
+        ->patch(route('courses.modules.contents.update', [$course, $module, $stage]), [
+            'type' => 'quiz',
+            'order' => $stage->order,
+            'quiz' => [
+                'name' => 'Kuis Gambar',
+                'questions' => [
+                    [
+                        'question' => 'Pilih jawaban benar',
+                        'existing_question_image' => $createdQuestionPath,
+                        'remove_question_image' => true,
+                        'is_answer_shuffled' => false,
+                        'options' => [
+                            [
+                                'option_text' => 'Jawaban A',
+                                'is_correct' => true,
+                                'order' => 1,
+                                'existing_option_image' => $createdOptionPath,
+                                'remove_option_image' => true,
+                            ],
+                            [
+                                'option_text' => 'Jawaban B',
+                                'is_correct' => false,
+                                'order' => 2,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ])
+        ->assertRedirect(route('courses.modules.contents.index', [$course, $module]));
+
+    $module->refresh();
+    $updatedStage = $module->module_stages()
+        ->with('module_quiz.quiz_questions.quiz_question_options')
+        ->find($stage->getKey());
+
+    $updatedQuestion = $updatedStage
+        ?->module_quiz
+        ?->quiz_questions
+        ?->first();
+
+    $updatedOption = $updatedQuestion
+        ?->quiz_question_options
+        ?->first();
+
+    expect($updatedQuestion)
+        ->not->toBeNull()
+        ->and($updatedQuestion?->question_image)
+        ->toBeNull();
+
+    expect($updatedOption)
+        ->not->toBeNull()
+        ->and($updatedOption?->option_image)
+        ->toBeNull();
+
+    expect(Storage::disk('public')->exists($createdQuestionPath))->toBeFalse();
+    expect(Storage::disk('public')->exists($createdOptionPath))->toBeFalse();
+});
+
 it('allows an instructor to attach a quiz stage to an existing module', function (): void {
     $instructor = createInstructorWithPermission();
     $course = Course::factory()->create();

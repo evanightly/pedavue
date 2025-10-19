@@ -141,6 +141,8 @@ declare namespace App.Data.QuizQuestion {
         id: any | number;
         quiz_id: number | null;
         question: string | null;
+        question_image: string | null;
+        question_image_url: string | null;
         is_answer_shuffled: boolean;
         order: number;
         quiz: App.Data.Quiz.QuizData | null;
@@ -155,6 +157,8 @@ declare namespace App.Data.QuizQuestionOption {
         quiz_question_id: number | null;
         option_text: string | null;
         is_correct: boolean | null;
+        option_image: string | null;
+        option_image_url: string | null;
         order: number;
         quiz_question: App.Data.QuizQuestion.QuizQuestionData | null;
         created_at: string | null;

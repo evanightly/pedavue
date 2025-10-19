@@ -8,17 +8,21 @@ use App\Models\Module;
 use App\Models\ModuleContent;
 use App\Models\ModuleStage;
 use App\Models\Quiz;
+use App\Support\QuizPayloadManager;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CourseModuleController extends Controller {
     use AuthorizesRequests;
+
+    public function __construct(private QuizPayloadManager $quizPayloadManager) {}
 
     public function create(Request $request, Course $course): Response {
         $this->authorize('update', $course);
@@ -49,13 +53,18 @@ class CourseModuleController extends Controller {
         $payload = $request->validated();
 
         $stages = collect($payload['stages'] ?? [])
-            ->map(static function (array $stage, int $index): array {
+            ->map(function (array $stage, int $index) use ($request): array {
                 $type = $stage['type'];
+
+                if ($type === 'quiz' && isset($stage['quiz']) && is_array($stage['quiz'])) {
+                    $stage['quiz'] = $this->attachQuizUploads($stage['quiz'], $request, "stages.$index.quiz");
+                }
 
                 return [
                     'type' => $type,
                     'order' => isset($stage['order']) ? (int) $stage['order'] : $index + 1,
                     'quiz_id' => $type === 'quiz' && isset($stage['quiz_id']) ? (int) $stage['quiz_id'] : null,
+                    'quiz' => $type === 'quiz' ? Arr::get($stage, 'quiz') : null,
                     'content' => $type === 'content' ? [
                         'title' => Arr::get($stage, 'content.title'),
                         'description' => Arr::get($stage, 'content.description'),
@@ -131,10 +140,24 @@ class CourseModuleController extends Controller {
                     ]);
                 }
 
-                if ($stage['type'] === 'quiz' && $stage['quiz_id'] !== null) {
+                if ($stage['type'] === 'quiz') {
+                    $quiz = null;
+
+                    if (is_array($stage['quiz'])) {
+                        $quiz = $this->quizPayloadManager->createQuiz($stage['quiz']);
+                    } elseif ($stage['quiz_id'] !== null) {
+                        $quiz = Quiz::query()->find($stage['quiz_id']);
+                    }
+
+                    if (!$quiz) {
+                        throw ValidationException::withMessages([
+                            "stages.$index.quiz" => 'Detail kuis wajib diisi.',
+                        ]);
+                    }
+
                     $moduleStage->update([
                         'module_able' => 'quiz',
-                        'module_quiz_id' => $stage['quiz_id'],
+                        'module_quiz_id' => $quiz->getKey(),
                         'module_content_id' => null,
                     ]);
                 }
@@ -169,6 +192,29 @@ class CourseModuleController extends Controller {
         }
 
         return $fallback;
+    }
+
+    private function attachQuizUploads(array $quizPayload, Request $request, string $inputPrefix): array {
+        $questions = $quizPayload['questions'] ?? [];
+
+        foreach ($questions as $questionIndex => $question) {
+            $questionFile = $request->file("$inputPrefix.questions.$questionIndex.question_image");
+            if ($questionFile instanceof UploadedFile) {
+                $quizPayload['questions'][$questionIndex]['question_image'] = $questionFile;
+            }
+
+            $options = $question['options'] ?? [];
+
+            foreach ($options as $optionIndex => $option) {
+                $file = $request->file("$inputPrefix.questions.$questionIndex.options.$optionIndex.option_image");
+
+                if ($file instanceof UploadedFile) {
+                    $quizPayload['questions'][$questionIndex]['options'][$optionIndex]['option_image'] = $file;
+                }
+            }
+        }
+
+        return $quizPayload;
     }
 
     private function normalizeContentType(?string $value): ?string {

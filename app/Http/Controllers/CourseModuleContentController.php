@@ -12,7 +12,7 @@ use App\Models\ModuleContent;
 use App\Models\ModuleStage;
 use App\Models\Quiz;
 use App\Models\QuizQuestion;
-use App\Models\QuizQuestionOption;
+use App\Support\QuizPayloadManager;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +26,8 @@ use Inertia\Response;
 
 class CourseModuleContentController extends Controller {
     use AuthorizesRequests;
+
+    public function __construct(private QuizPayloadManager $quizPayloadManager) {}
 
     public function index(Request $request, Course $course, Module $module): Response {
         $this->authorize('update', $course);
@@ -57,6 +59,10 @@ class CourseModuleContentController extends Controller {
 
         $payload = $request->validated();
         $type = $payload['type'];
+
+        if ($type === 'quiz' && isset($payload['quiz']) && is_array($payload['quiz'])) {
+            $payload['quiz'] = $this->attachQuizUploads($payload['quiz'], $request, 'quiz');
+        }
 
         $stageOrder = $payload['order'] ?? null;
         if ($stageOrder === null) {
@@ -117,7 +123,7 @@ class CourseModuleContentController extends Controller {
                 $quiz = null;
 
                 if (isset($payload['quiz']) && is_array($payload['quiz'])) {
-                    $quiz = $this->createQuizFromPayload($payload['quiz']);
+                    $quiz = $this->quizPayloadManager->createQuiz($payload['quiz']);
                 } elseif (isset($payload['quiz_id'])) {
                     $quiz = Quiz::query()->find((int) $payload['quiz_id']);
                 }
@@ -154,6 +160,10 @@ class CourseModuleContentController extends Controller {
 
         $payload = $request->validated();
         $type = $payload['type'];
+
+        if ($type === 'quiz' && isset($payload['quiz']) && is_array($payload['quiz'])) {
+            $payload['quiz'] = $this->attachQuizUploads($payload['quiz'], $request, 'quiz');
+        }
 
         DB::transaction(function () use ($request, $payload, $type, $stage, $module): void {
             $moduleStage = ModuleStage::query()
@@ -258,8 +268,8 @@ class CourseModuleContentController extends Controller {
 
                 if (isset($payload['quiz']) && is_array($payload['quiz'])) {
                     $quiz = $existingQuiz
-                        ? $this->updateQuizFromPayload($existingQuiz, $payload['quiz'])
-                        : $this->createQuizFromPayload($payload['quiz']);
+                        ? $this->quizPayloadManager->updateQuiz($existingQuiz, $payload['quiz'])
+                        : $this->quizPayloadManager->createQuiz($payload['quiz']);
                 } elseif (isset($payload['quiz_id'])) {
                     $quiz = Quiz::query()->find((int) $payload['quiz_id']);
                 }
@@ -342,80 +352,6 @@ class CourseModuleContentController extends Controller {
             ->with('flash.success', 'Urutan konten berhasil disimpan.');
     }
 
-    /**
-     * @param  array<string, mixed>  $payload
-     */
-    private function createQuizFromPayload(array $payload): Quiz {
-        $quiz = Quiz::query()->create([
-            'name' => $this->sanitizeString(Arr::get($payload, 'name'), 'Kuis'),
-            'description' => $this->sanitizeNullableString(Arr::get($payload, 'description')),
-            'duration' => $this->sanitizeNullableInt(Arr::get($payload, 'duration')),
-            'is_question_shuffled' => (bool) Arr::get($payload, 'is_question_shuffled', false),
-            'type' => $this->sanitizeNullableString(Arr::get($payload, 'type')),
-        ]);
-
-        $this->syncQuizStructure($quiz, $payload);
-
-        return $quiz->fresh(['quiz_questions.quiz_question_options']) ?? $quiz->load(['quiz_questions.quiz_question_options']);
-    }
-
-    /**
-     * @param  array<string, mixed>  $payload
-     */
-    private function updateQuizFromPayload(Quiz $quiz, array $payload): Quiz {
-        $quiz->update([
-            'name' => $this->sanitizeString(Arr::get($payload, 'name'), $quiz->name ?? 'Kuis'),
-            'description' => $this->sanitizeNullableString(Arr::get($payload, 'description')),
-            'duration' => $this->sanitizeNullableInt(Arr::get($payload, 'duration')),
-            'is_question_shuffled' => (bool) Arr::get($payload, 'is_question_shuffled', false),
-            'type' => $this->sanitizeNullableString(Arr::get($payload, 'type')),
-        ]);
-
-        $this->syncQuizStructure($quiz, $payload);
-
-        return $quiz->fresh(['quiz_questions.quiz_question_options']) ?? $quiz->load(['quiz_questions.quiz_question_options']);
-    }
-
-    /**
-     * @param  array<string, mixed>  $payload
-     */
-    private function syncQuizStructure(Quiz $quiz, array $payload): void {
-        $quiz->quiz_questions()->delete();
-
-        $questions = Arr::get($payload, 'questions', []);
-
-        foreach ($questions as $index => $questionData) {
-            if (!is_array($questionData)) {
-                continue;
-            }
-
-            $question = QuizQuestion::query()->create([
-                'quiz_id' => $quiz->getKey(),
-                'question' => $this->sanitizeString(Arr::get($questionData, 'question'), 'Pertanyaan ' . ($index + 1)),
-                'is_answer_shuffled' => (bool) Arr::get($questionData, 'is_answer_shuffled', false),
-                'order' => $this->sanitizeOrderValue(Arr::get($questionData, 'order'), $index + 1),
-            ]);
-
-            $options = Arr::get($questionData, 'options', []);
-
-            foreach ($options as $optionIndex => $optionData) {
-                if (!is_array($optionData)) {
-                    continue;
-                }
-
-                QuizQuestionOption::query()->create([
-                    'quiz_question_id' => $question->getKey(),
-                    'option_text' => $this->sanitizeString(
-                        Arr::get($optionData, 'option_text'),
-                        'Jawaban ' . ($optionIndex + 1)
-                    ),
-                    'is_correct' => (bool) Arr::get($optionData, 'is_correct', false),
-                    'order' => $this->sanitizeOrderValue(Arr::get($optionData, 'order'), $optionIndex + 1),
-                ]);
-            }
-        }
-    }
-
     private function deleteModuleQuiz(?Quiz $quiz, ?ModuleStage $excludingStage = null): void {
         if (!$quiz) {
             return;
@@ -431,50 +367,56 @@ class CourseModuleContentController extends Controller {
             return;
         }
 
+        $quiz->loadMissing('quiz_questions.quiz_question_options');
+
+        $questionImagesToDelete = collect($quiz->quiz_questions)
+            ->pluck('question_image')
+            ->filter(fn ($path) => is_string($path) && trim($path) !== '')
+            ->unique();
+
+        $optionImagesToDelete = collect($quiz->quiz_questions)
+            ->flatMap(fn (QuizQuestion $question) => collect($question->quiz_question_options)->pluck('option_image'))
+            ->filter(fn ($path) => is_string($path) && trim($path) !== '')
+            ->unique();
+
+        foreach ($questionImagesToDelete as $path) {
+            if (Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+            }
+        }
+
+        foreach ($optionImagesToDelete as $path) {
+            if (Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+            }
+        }
+
         $quiz->quiz_questions()->delete();
         $quiz->delete();
     }
 
-    private function sanitizeString(mixed $value, string $fallback): string {
-        if (!is_string($value)) {
-            return $fallback;
+    private function attachQuizUploads(array $quizPayload, Request $request, string $inputPrefix): array {
+        $questions = $quizPayload['questions'] ?? [];
+
+        foreach ($questions as $questionIndex => $question) {
+            $questionFile = $request->file("$inputPrefix.questions.$questionIndex.question_image");
+
+            if ($questionFile instanceof UploadedFile) {
+                $quizPayload['questions'][$questionIndex]['question_image'] = $questionFile;
+            }
+
+            $options = $question['options'] ?? [];
+
+            foreach ($options as $optionIndex => $option) {
+                $file = $request->file("$inputPrefix.questions.$questionIndex.options.$optionIndex.option_image");
+
+                if ($file instanceof UploadedFile) {
+                    $quizPayload['questions'][$questionIndex]['options'][$optionIndex]['option_image'] = $file;
+                }
+            }
         }
 
-        $trimmed = trim($value);
-
-        return $trimmed === '' ? $fallback : $trimmed;
-    }
-
-    private function sanitizeNullableString(mixed $value): ?string {
-        if (!is_string($value)) {
-            return null;
-        }
-
-        $trimmed = trim($value);
-
-        return $trimmed === '' ? null : $trimmed;
-    }
-
-    private function sanitizeNullableInt(mixed $value): ?int {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        if (filter_var($value, FILTER_VALIDATE_INT) === false) {
-            return null;
-        }
-
-        return (int) $value;
-    }
-
-    private function sanitizeOrderValue(mixed $value, int $fallback): int {
-        if (filter_var($value, FILTER_VALIDATE_INT) === false) {
-            return $fallback;
-        }
-
-        $order = (int) $value;
-
-        return $order < 1 ? $fallback : $order;
+        return $quizPayload;
     }
 
     private function resolveContentType(?UploadedFile $file, ?string $providedType, ?string $path = null, ?string $fallback = null): ?string {

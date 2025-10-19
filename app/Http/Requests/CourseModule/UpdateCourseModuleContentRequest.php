@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\Module;
 use App\Models\ModuleStage;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -52,10 +53,16 @@ class UpdateCourseModuleContentRequest extends FormRequest {
             'quiz.questions.*.question' => ['nullable', 'string'],
             'quiz.questions.*.is_answer_shuffled' => ['nullable', 'boolean'],
             'quiz.questions.*.order' => ['nullable', 'integer', 'min:1'],
+            'quiz.questions.*.existing_question_image' => ['nullable', 'string'],
+            'quiz.questions.*.question_image' => ['nullable', 'file', 'image', 'max:2048'],
+            'quiz.questions.*.remove_question_image' => ['nullable', 'boolean'],
             'quiz.questions.*.options' => ['nullable', 'array'],
             'quiz.questions.*.options.*.option_text' => ['nullable', 'string'],
             'quiz.questions.*.options.*.is_correct' => ['nullable', 'boolean'],
             'quiz.questions.*.options.*.order' => ['nullable', 'integer', 'min:1'],
+            'quiz.questions.*.options.*.existing_option_image' => ['nullable', 'string'],
+            'quiz.questions.*.options.*.option_image' => ['nullable', 'file', 'image', 'max:2048'],
+            'quiz.questions.*.options.*.remove_option_image' => ['nullable', 'boolean'],
             'content' => ['nullable', 'array'],
             'content.title' => ['nullable', 'string', 'max:255'],
             'content.description' => ['nullable', 'string'],
@@ -142,8 +149,15 @@ class UpdateCourseModuleContentRequest extends FormRequest {
             }
 
             $questionText = Arr::get($question, 'question');
-            if (!is_string($questionText) || trim($questionText) === '') {
-                $validator->errors()->add($questionPath . '.question', 'Isi teks pertanyaan.');
+            $existingQuestionImage = Arr::get($question, 'existing_question_image');
+            $removeQuestionImage = (bool) Arr::get($question, 'remove_question_image', false);
+
+            $questionImageUpload = $this->file('quiz.questions.' . $index . '.question_image');
+            $hasUploadedQuestionImage = $questionImageUpload instanceof UploadedFile && $questionImageUpload->isValid();
+            $hasExistingQuestionImage = is_string($existingQuestionImage) && trim($existingQuestionImage) !== '' && !$removeQuestionImage;
+
+            if ((!is_string($questionText) || trim($questionText) === '') && !$hasUploadedQuestionImage && !$hasExistingQuestionImage) {
+                $validator->errors()->add($questionPath . '.question', 'Isi teks pertanyaan atau unggah gambar.');
             }
 
             $options = Arr::get($question, 'options');
@@ -155,17 +169,24 @@ class UpdateCourseModuleContentRequest extends FormRequest {
 
             $hasCorrect = false;
             foreach ($options as $optionIndex => $option) {
-                $optionPath = $questionPath . '.options.' . $optionIndex . '.option_text';
+                $optionTextPath = $questionPath . '.options.' . $optionIndex . '.option_text';
 
                 if (!is_array($option)) {
-                    $validator->errors()->add($optionPath, 'Jawaban tidak valid.');
+                    $validator->errors()->add($optionTextPath, 'Jawaban tidak valid.');
 
                     continue;
                 }
 
                 $optionText = Arr::get($option, 'option_text');
-                if (!is_string($optionText) || trim($optionText) === '') {
-                    $validator->errors()->add($optionPath, 'Isi teks jawaban.');
+                $existingImage = Arr::get($option, 'existing_option_image');
+                $removeImage = (bool) Arr::get($option, 'remove_option_image', false);
+
+                $optionImageUpload = $this->file('quiz.questions.' . $index . '.options.' . $optionIndex . '.option_image');
+                $hasUploadedImage = $optionImageUpload instanceof UploadedFile && $optionImageUpload->isValid();
+                $hasExistingImage = is_string($existingImage) && trim($existingImage) !== '' && !$removeImage;
+
+                if ((!is_string($optionText) || trim($optionText) === '') && !$hasUploadedImage && !$hasExistingImage) {
+                    $validator->errors()->add($optionTextPath, 'Isi teks jawaban atau unggah gambar.');
                 }
 
                 if ((bool) Arr::get($option, 'is_correct', false)) {

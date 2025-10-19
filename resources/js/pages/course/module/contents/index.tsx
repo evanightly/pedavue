@@ -35,11 +35,19 @@ type QuizQuestionOptionRecord = App.Data.QuizQuestionOption.QuizQuestionOptionDa
 interface QuizOptionState {
     option_text: string;
     is_correct: boolean;
+    option_image: File | null;
+    existing_option_image: string | null;
+    option_image_url: string | null;
+    remove_option_image: boolean;
 }
 
 interface QuizQuestionState {
     question: string;
     is_answer_shuffled: boolean;
+    question_image: File | null;
+    existing_question_image: string | null;
+    question_image_url: string | null;
+    remove_question_image: boolean;
     options: QuizOptionState[];
 }
 
@@ -55,11 +63,19 @@ interface QuizFormState {
 const buildEmptyOption = (isFirst = false): QuizOptionState => ({
     option_text: '',
     is_correct: isFirst,
+    option_image: null,
+    existing_option_image: null,
+    option_image_url: null,
+    remove_option_image: false,
 });
 
 const buildEmptyQuestion = (): QuizQuestionState => ({
     question: '',
     is_answer_shuffled: false,
+    question_image: null,
+    existing_question_image: null,
+    question_image_url: null,
+    remove_question_image: false,
     options: [buildEmptyOption(true), buildEmptyOption()],
 });
 
@@ -80,12 +96,18 @@ const mapQuizStateToPayload = (quiz: QuizFormState) => ({
     type: quiz.type.trim() === '' ? null : quiz.type,
     questions: quiz.questions.map((question, questionIndex) => ({
         question: question.question,
+        question_image: question.question_image,
+        existing_question_image: question.existing_question_image,
+        remove_question_image: question.remove_question_image,
         is_answer_shuffled: question.is_answer_shuffled,
         order: questionIndex + 1,
         options: question.options.map((option, optionIndex) => ({
             option_text: option.option_text,
             is_correct: option.is_correct,
             order: optionIndex + 1,
+            option_image: option.option_image,
+            existing_option_image: option.existing_option_image,
+            remove_option_image: option.remove_option_image,
         })),
     })),
 });
@@ -100,6 +122,10 @@ const mapQuizRecordToState = (quiz: QuizRecord | null): QuizFormState => {
             (optionRecord, index) => ({
                 option_text: optionRecord.option_text ?? '',
                 is_correct: optionRecord.is_correct ?? index === 0,
+                option_image: null,
+                existing_option_image: optionRecord.option_image ?? null,
+                option_image_url: optionRecord.option_image_url ?? null,
+                remove_option_image: false,
             }),
         );
 
@@ -115,6 +141,10 @@ const mapQuizRecordToState = (quiz: QuizRecord | null): QuizFormState => {
 
         return {
             question: questionRecord.question ?? '',
+            question_image: null,
+            existing_question_image: questionRecord.question_image ?? null,
+            question_image_url: questionRecord.question_image_url ?? null,
+            remove_question_image: false,
             is_answer_shuffled: questionRecord.is_answer_shuffled ?? false,
             options: ensuredOptions,
         } satisfies QuizQuestionState;
@@ -287,6 +317,38 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
         );
     };
 
+    const handleQuizQuestionImageChange = (questionIndex: number, event: ChangeEvent<HTMLInputElement>) => {
+        const [file] = event.target.files ?? [];
+
+        updateQuizQuestions((questions) =>
+            questions.map((question, currentIndex) =>
+                currentIndex === questionIndex
+                    ? {
+                          ...question,
+                          question_image: file ?? null,
+                          remove_question_image: false,
+                      }
+                    : question,
+            ),
+        );
+    };
+
+    const handleQuizQuestionImageRemove = (questionIndex: number) => {
+        updateQuizQuestions((questions) =>
+            questions.map((question, currentIndex) =>
+                currentIndex === questionIndex
+                    ? {
+                          ...question,
+                          question_image: null,
+                          existing_question_image: null,
+                          question_image_url: null,
+                          remove_question_image: true,
+                      }
+                    : question,
+            ),
+        );
+    };
+
     const updateQuizQuestionOptions = (questionIndex: number, updater: (options: QuizOptionState[]) => QuizOptionState[]) => {
         updateQuizQuestions((questions) =>
             questions.map((question, currentIndex) =>
@@ -298,6 +360,38 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
     const setQuizOptionField = <K extends keyof QuizOptionState>(questionIndex: number, optionIndex: number, field: K, value: QuizOptionState[K]) => {
         updateQuizQuestionOptions(questionIndex, (options) =>
             options.map((option, currentIndex) => (currentIndex === optionIndex ? { ...option, [field]: value } : option)),
+        );
+    };
+
+    const handleQuizOptionImageChange = (questionIndex: number, optionIndex: number, event: ChangeEvent<HTMLInputElement>) => {
+        const [file] = event.target.files ?? [];
+
+        updateQuizQuestionOptions(questionIndex, (options) =>
+            options.map((option, currentIndex) =>
+                currentIndex === optionIndex
+                    ? {
+                          ...option,
+                          option_image: file ?? null,
+                          remove_option_image: false,
+                      }
+                    : option,
+            ),
+        );
+    };
+
+    const handleQuizOptionImageRemove = (questionIndex: number, optionIndex: number) => {
+        updateQuizQuestionOptions(questionIndex, (options) =>
+            options.map((option, currentIndex) =>
+                currentIndex === optionIndex
+                    ? {
+                          ...option,
+                          option_image: null,
+                          existing_option_image: null,
+                          option_image_url: null,
+                          remove_option_image: true,
+                      }
+                    : option,
+            ),
         );
     };
 
@@ -490,6 +584,38 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
         );
     };
 
+    const handleEditQuizQuestionImageChange = (questionIndex: number, event: ChangeEvent<HTMLInputElement>) => {
+        const [file] = event.target.files ?? [];
+
+        updateEditQuizQuestions((questions) =>
+            questions.map((question, currentIndex) =>
+                currentIndex === questionIndex
+                    ? {
+                          ...question,
+                          question_image: file ?? null,
+                          remove_question_image: false,
+                      }
+                    : question,
+            ),
+        );
+    };
+
+    const handleEditQuizQuestionImageRemove = (questionIndex: number) => {
+        updateEditQuizQuestions((questions) =>
+            questions.map((question, currentIndex) =>
+                currentIndex === questionIndex
+                    ? {
+                          ...question,
+                          question_image: null,
+                          existing_question_image: null,
+                          question_image_url: null,
+                          remove_question_image: true,
+                      }
+                    : question,
+            ),
+        );
+    };
+
     const updateEditQuizQuestionOptions = (questionIndex: number, updater: (options: QuizOptionState[]) => QuizOptionState[]) => {
         updateEditQuizQuestions((questions) =>
             questions.map((question, currentIndex) =>
@@ -506,6 +632,38 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
     ) => {
         updateEditQuizQuestionOptions(questionIndex, (options) =>
             options.map((option, currentIndex) => (currentIndex === optionIndex ? { ...option, [field]: value } : option)),
+        );
+    };
+
+    const handleEditQuizOptionImageChange = (questionIndex: number, optionIndex: number, event: ChangeEvent<HTMLInputElement>) => {
+        const [file] = event.target.files ?? [];
+
+        updateEditQuizQuestionOptions(questionIndex, (options) =>
+            options.map((option, currentIndex) =>
+                currentIndex === optionIndex
+                    ? {
+                          ...option,
+                          option_image: file ?? null,
+                          remove_option_image: false,
+                      }
+                    : option,
+            ),
+        );
+    };
+
+    const handleEditQuizOptionImageRemove = (questionIndex: number, optionIndex: number) => {
+        updateEditQuizQuestionOptions(questionIndex, (options) =>
+            options.map((option, currentIndex) =>
+                currentIndex === optionIndex
+                    ? {
+                          ...option,
+                          option_image: null,
+                          existing_option_image: null,
+                          option_image_url: null,
+                          remove_option_image: true,
+                      }
+                    : option,
+            ),
         );
     };
 
@@ -1024,7 +1182,7 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                                 className='space-y-4 rounded-xl border border-border/60 p-4 shadow-sm'
                                             >
                                                 <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-                                                    <div className='flex-1 space-y-2'>
+                                                    <div className='flex-1 space-y-3'>
                                                         <Label htmlFor={`quiz-question-${questionIndex}`}>Pertanyaan {questionIndex + 1}</Label>
                                                         <Textarea
                                                             id={`quiz-question-${questionIndex}`}
@@ -1035,6 +1193,48 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                                             disabled={form.processing}
                                                         />
                                                         <InputError message={getError(`quiz.questions.${questionIndex}.question`)} />
+                                                        <div className='space-y-2 rounded-lg border border-dashed border-border/60 p-3'>
+                                                            <Label className='text-xs font-medium text-muted-foreground'>
+                                                                Gambar pertanyaan (opsional)
+                                                            </Label>
+                                                            <Input
+                                                                type='file'
+                                                                accept='image/*'
+                                                                onChange={(event) => handleQuizQuestionImageChange(questionIndex, event)}
+                                                                disabled={form.processing}
+                                                            />
+                                                            <InputError message={getError(`quiz.questions.${questionIndex}.question_image`)} />
+                                                            {question.question_image ? (
+                                                                <p className='text-xs text-muted-foreground'>
+                                                                    Berkas terpilih: {question.question_image.name}
+                                                                </p>
+                                                            ) : question.question_image_url ? (
+                                                                <div className='flex flex-col gap-2'>
+                                                                    <img
+                                                                        src={question.question_image_url}
+                                                                        alt={`Pratinjau pertanyaan ${questionIndex + 1}`}
+                                                                        className='h-28 w-28 rounded-md border border-border/60 object-cover'
+                                                                    />
+                                                                    <p className='text-xs text-muted-foreground'>Gambar saat ini digunakan.</p>
+                                                                </div>
+                                                            ) : (
+                                                                <p className='text-xs text-muted-foreground'>
+                                                                    Format JPG, PNG, atau WEBP. Maksimal 2 MB.
+                                                                </p>
+                                                            )}
+                                                            {(question.question_image || question.question_image_url) && (
+                                                                <Button
+                                                                    type='button'
+                                                                    variant='ghost'
+                                                                    size='sm'
+                                                                    className='text-destructive hover:text-destructive'
+                                                                    onClick={() => handleQuizQuestionImageRemove(questionIndex)}
+                                                                    disabled={form.processing}
+                                                                >
+                                                                    Hapus gambar
+                                                                </Button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <Button
                                                         type='button'
@@ -1087,25 +1287,77 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                                                 />
                                                                 <span className='text-xs text-muted-foreground'>Jawaban benar</span>
                                                             </div>
-                                                            <div className='flex-1 space-y-2'>
-                                                                <Input
-                                                                    value={option.option_text}
-                                                                    onChange={(event) =>
-                                                                        setQuizOptionField(
-                                                                            questionIndex,
-                                                                            optionIndex,
-                                                                            'option_text',
-                                                                            event.target.value,
-                                                                        )
-                                                                    }
-                                                                    placeholder={`Jawaban ${optionIndex + 1}`}
-                                                                    disabled={form.processing}
-                                                                />
-                                                                <InputError
-                                                                    message={getError(
-                                                                        `quiz.questions.${questionIndex}.options.${optionIndex}.option_text`,
+                                                            <div className='flex-1 space-y-3'>
+                                                                <div className='space-y-2'>
+                                                                    <Input
+                                                                        value={option.option_text}
+                                                                        onChange={(event) =>
+                                                                            setQuizOptionField(
+                                                                                questionIndex,
+                                                                                optionIndex,
+                                                                                'option_text',
+                                                                                event.target.value,
+                                                                            )
+                                                                        }
+                                                                        placeholder={`Jawaban ${optionIndex + 1}`}
+                                                                        disabled={form.processing}
+                                                                    />
+                                                                    <InputError
+                                                                        message={getError(
+                                                                            `quiz.questions.${questionIndex}.options.${optionIndex}.option_text`,
+                                                                        )}
+                                                                    />
+                                                                </div>
+                                                                <div className='space-y-2'>
+                                                                    <Label className='text-xs font-medium text-muted-foreground'>
+                                                                        Gambar pendukung (opsional)
+                                                                    </Label>
+                                                                    <Input
+                                                                        type='file'
+                                                                        accept='image/*'
+                                                                        onChange={(event) =>
+                                                                            handleQuizOptionImageChange(questionIndex, optionIndex, event)
+                                                                        }
+                                                                        disabled={form.processing}
+                                                                    />
+                                                                    <InputError
+                                                                        message={getError(
+                                                                            `quiz.questions.${questionIndex}.options.${optionIndex}.option_image`,
+                                                                        )}
+                                                                    />
+                                                                    {option.option_image ? (
+                                                                        <p className='text-xs text-muted-foreground'>
+                                                                            Berkas terpilih: {option.option_image.name}
+                                                                        </p>
+                                                                    ) : option.option_image_url ? (
+                                                                        <div className='flex flex-col gap-2'>
+                                                                            <img
+                                                                                src={option.option_image_url}
+                                                                                alt={`Pratinjau jawaban ${optionIndex + 1}`}
+                                                                                className='h-24 w-24 rounded-md border border-border/60 object-cover'
+                                                                            />
+                                                                            <p className='text-xs text-muted-foreground'>
+                                                                                Gambar saat ini digunakan.
+                                                                            </p>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <p className='text-xs text-muted-foreground'>
+                                                                            Format JPG, PNG, atau WEBP. Maksimal 2 MB.
+                                                                        </p>
                                                                     )}
-                                                                />
+                                                                    {(option.option_image || option.option_image_url) && (
+                                                                        <Button
+                                                                            type='button'
+                                                                            variant='ghost'
+                                                                            size='sm'
+                                                                            className='self-start text-destructive hover:text-destructive'
+                                                                            onClick={() => handleQuizOptionImageRemove(questionIndex, optionIndex)}
+                                                                            disabled={form.processing}
+                                                                        >
+                                                                            Hapus gambar
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                             <Button
                                                                 type='button'
@@ -1333,7 +1585,7 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                             className='space-y-4 rounded-xl border border-border/60 p-4 shadow-sm'
                                         >
                                             <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-                                                <div className='flex-1 space-y-2'>
+                                                <div className='flex-1 space-y-3'>
                                                     <Label htmlFor={`edit-quiz-question-${questionIndex}`}>Pertanyaan {questionIndex + 1}</Label>
                                                     <Textarea
                                                         id={`edit-quiz-question-${questionIndex}`}
@@ -1343,6 +1595,48 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                                         disabled={editForm.processing}
                                                     />
                                                     <InputError message={getEditError(`quiz.questions.${questionIndex}.question`)} />
+                                                    <div className='space-y-2 rounded-lg border border-dashed border-border/60 p-3'>
+                                                        <Label className='text-xs font-medium text-muted-foreground'>
+                                                            Gambar pertanyaan (opsional)
+                                                        </Label>
+                                                        <Input
+                                                            type='file'
+                                                            accept='image/*'
+                                                            onChange={(event) => handleEditQuizQuestionImageChange(questionIndex, event)}
+                                                            disabled={editForm.processing}
+                                                        />
+                                                        <InputError message={getEditError(`quiz.questions.${questionIndex}.question_image`)} />
+                                                        {question.question_image ? (
+                                                            <p className='text-xs text-muted-foreground'>
+                                                                Berkas terpilih: {question.question_image.name}
+                                                            </p>
+                                                        ) : question.question_image_url ? (
+                                                            <div className='flex flex-col gap-2'>
+                                                                <img
+                                                                    src={question.question_image_url}
+                                                                    alt={`Pratinjau pertanyaan ${questionIndex + 1}`}
+                                                                    className='h-28 w-28 rounded-md border border-border/60 object-cover'
+                                                                />
+                                                                <p className='text-xs text-muted-foreground'>Gambar saat ini digunakan.</p>
+                                                            </div>
+                                                        ) : (
+                                                            <p className='text-xs text-muted-foreground'>
+                                                                Format JPG, PNG, atau WEBP. Maksimal 2 MB.
+                                                            </p>
+                                                        )}
+                                                        {(question.question_image || question.question_image_url) && (
+                                                            <Button
+                                                                type='button'
+                                                                variant='ghost'
+                                                                size='sm'
+                                                                className='text-destructive hover:text-destructive'
+                                                                onClick={() => handleEditQuizQuestionImageRemove(questionIndex)}
+                                                                disabled={editForm.processing}
+                                                            >
+                                                                Hapus gambar
+                                                            </Button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <Button
                                                     type='button'
@@ -1395,24 +1689,74 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                                             />
                                                             <span className='text-xs text-muted-foreground'>Jawaban benar</span>
                                                         </div>
-                                                        <div className='flex-1 space-y-2'>
-                                                            <Input
-                                                                value={option.option_text}
-                                                                onChange={(event) =>
-                                                                    setEditQuizOptionField(
-                                                                        questionIndex,
-                                                                        optionIndex,
-                                                                        'option_text',
-                                                                        event.target.value,
-                                                                    )
-                                                                }
-                                                                disabled={editForm.processing}
-                                                            />
-                                                            <InputError
-                                                                message={getEditError(
-                                                                    `quiz.questions.${questionIndex}.options.${optionIndex}.option_text`,
+                                                        <div className='flex-1 space-y-3'>
+                                                            <div className='space-y-2'>
+                                                                <Input
+                                                                    value={option.option_text}
+                                                                    onChange={(event) =>
+                                                                        setEditQuizOptionField(
+                                                                            questionIndex,
+                                                                            optionIndex,
+                                                                            'option_text',
+                                                                            event.target.value,
+                                                                        )
+                                                                    }
+                                                                    disabled={editForm.processing}
+                                                                />
+                                                                <InputError
+                                                                    message={getEditError(
+                                                                        `quiz.questions.${questionIndex}.options.${optionIndex}.option_text`,
+                                                                    )}
+                                                                />
+                                                            </div>
+                                                            <div className='space-y-2'>
+                                                                <Label className='text-xs font-medium text-muted-foreground'>
+                                                                    Gambar pendukung (opsional)
+                                                                </Label>
+                                                                <Input
+                                                                    type='file'
+                                                                    accept='image/*'
+                                                                    onChange={(event) =>
+                                                                        handleEditQuizOptionImageChange(questionIndex, optionIndex, event)
+                                                                    }
+                                                                    disabled={editForm.processing}
+                                                                />
+                                                                <InputError
+                                                                    message={getEditError(
+                                                                        `quiz.questions.${questionIndex}.options.${optionIndex}.option_image`,
+                                                                    )}
+                                                                />
+                                                                {option.option_image ? (
+                                                                    <p className='text-xs text-muted-foreground'>
+                                                                        Berkas terpilih: {option.option_image.name}
+                                                                    </p>
+                                                                ) : option.option_image_url ? (
+                                                                    <div className='flex flex-col gap-2'>
+                                                                        <img
+                                                                            src={option.option_image_url}
+                                                                            alt={`Pratinjau jawaban ${optionIndex + 1}`}
+                                                                            className='h-24 w-24 rounded-md border border-border/60 object-cover'
+                                                                        />
+                                                                        <p className='text-xs text-muted-foreground'>Gambar saat ini digunakan.</p>
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className='text-xs text-muted-foreground'>
+                                                                        Format JPG, PNG, atau WEBP. Maksimal 2 MB.
+                                                                    </p>
                                                                 )}
-                                                            />
+                                                                {(option.option_image || option.option_image_url) && (
+                                                                    <Button
+                                                                        type='button'
+                                                                        variant='ghost'
+                                                                        size='sm'
+                                                                        className='self-start text-destructive hover:text-destructive'
+                                                                        onClick={() => handleEditQuizOptionImageRemove(questionIndex, optionIndex)}
+                                                                        disabled={editForm.processing}
+                                                                    >
+                                                                        Hapus gambar
+                                                                    </Button>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                         <Button
                                                             type='button'
