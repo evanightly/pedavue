@@ -1,5 +1,10 @@
 <?php
 
+use App\Models\Permission;
+use App\Models\Role;
+use App\Support\Enums\PermissionEnum;
+use App\Support\Enums\RoleEnum;
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -41,6 +46,20 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something() {
-    // ..
+if (!function_exists('createPermissionEnumRecord')) {
+    function createPermissionEnumRecord(PermissionEnum $permission): Permission {
+        return Permission::query()->firstOrCreate([
+            'name' => $permission->value,
+            'guard_name' => config('auth.defaults.guard', 'web'),
+        ]);
+    }
+}
+
+if (!function_exists('ensureRoleExists')) {
+    function ensureRoleExists(RoleEnum $role): Role {
+        return Role::query()->firstOrCreate([
+            'name' => $role->value,
+            'guard_name' => config('auth.defaults.guard', 'web'),
+        ]);
+    }
 }
