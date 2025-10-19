@@ -53,6 +53,11 @@ return [
     'output_file' => resource_path('js/types/generated.d.ts'),
 
     /*
+     * The package will write the generated TypeScript enums to this file.
+     */
+    'enum_output_file' => resource_path('js/types/enums.generated.ts'),
+
+    /*
      * When the package is writing types to the output file, a writer is used to
      * determine the format. By default, this is the `TypeDefinitionWriter`.
      * But you can also use the `ModuleWriter` or implement your own.
