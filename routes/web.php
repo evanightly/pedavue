@@ -18,6 +18,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('permissions', PermissionController::class);
     Route::resource('quizzes', QuizController::class);
+    Route::post('quizzes/{quiz}/import-questions', [QuizController::class, 'importQuestions'])->name('quizzes.import.questions');
     Route::resource('quiz_responses', QuizResponseController::class);
     Route::resource('quiz_response_answers', QuizResponseAnswerController::class);
     Route::resource('roles', RoleController::class);
@@ -26,7 +27,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('courses/{course}/instructors/{instructor}', [CourseController::class, 'detachInstructor'])->name('courses.instructors.detach');
     Route::resource('course-instructors', CourseInstructorController::class);
 });
-Route::post('imporquiz', [QuizController::class, 'import'])->name('quiz.import');
 Route::get('csrf-token', function () {
     return response()->json(['csrf_token' => csrf_token()]);
 });

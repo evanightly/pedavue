@@ -43,7 +43,7 @@ declare namespace App.Data.Quiz {
         name: string | null;
         description: string | null;
         duration: number | null;
-        is_question_shuffled: boolean;
+        is_question_shuffled: any | boolean;
         type: string | null;
         quiz_questions: App.Data.QuizQuestion.QuizQuestionData[] | null;
         created_at: string | null;

@@ -8,6 +8,7 @@ use App\Imports\Quiz\QuizzesImport;
 use App\Models\Quiz;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 
 class QuizController extends BaseResourceController
@@ -40,13 +41,13 @@ class QuizController extends BaseResourceController
 
         $quizzes = QuizData::collect($items);
 
-        // return $this->respond($request, 'user/index', [
-        //     'quizzes' => $quizzes,
-        //     'filters' => $request->only($this->allowedFilters),
-        //     'filteredData' => $filteredData,
-        //     'sort' => (string) $request->query('sort', $this->defaultSorts[0] ?? '-created_at'),
-        // ]);
-        return $quizzes;
+        return $this->respond($request, 'quiz/index', [
+            'quizzes' => $quizzes,
+            'filters' => $request->only($this->allowedFilters),
+            'filteredData' => $filteredData,
+            'sort' => (string) $request->query('sort', $this->defaultSorts[0] ?? '-created_at'),
+        ]);
+        // return $quizzes;
     }
 
     /**
@@ -57,7 +58,8 @@ class QuizController extends BaseResourceController
         if (request()->has('download')) {
             return (new QuizzesTemplateExport())->download('quiz_template.xlsx');
         }
-        //
+        return Inertia::render('quiz/create');
+        
     }
 
     /**
@@ -65,15 +67,21 @@ class QuizController extends BaseResourceController
      */
     public function store(QuizData $quizData)
     {
-        //
+        $data = $quizData->toArray();
+        if (!filled($data['type'] ?? null)) {
+            unset($data['type']);
+        }
+        $quiz = Quiz::create($data);
+        if (request()->hasFile('import')) {
+            $file = request()->file('import');
+            Excel::import(new QuizzesImport($quiz), $file);
+        }
+        return $quiz;
     }
-    public function import(Request $request)
+    public function importQuestions(QuizData $quizData, Quiz $quiz)
     {
-        $request->validate([
-            'file' => ['required', 'mimes:xlsx,xls,csv'],
-        ]);
-
-        Excel::import(new QuizzesImport(Quiz::find($request->input('quiz_id'))), $request->file('file'));
+        $data = $quizData->toArray();
+        Excel::import(new QuizzesImport($quiz), $data['file']);
     }
 
     /**

@@ -10,6 +10,7 @@ import { type NavGroup } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { BookA, Key, LayoutGrid, Lock, User } from 'lucide-react';
 import AppLogo from './app-logo';
+import QuizController from '@/actions/App/Http/Controllers/QuizController';
 
 const navGroups: NavGroup[] = [
     {
@@ -43,6 +44,11 @@ const navGroups: NavGroup[] = [
             {
                 title: 'Courses',
                 href: CourseController.index(),
+                icon: BookA,
+            },
+            {
+                title: 'Quizzes',
+                href: QuizController.index(),
                 icon: BookA,
             },
         ],
