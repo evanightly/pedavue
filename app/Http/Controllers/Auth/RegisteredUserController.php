@@ -138,6 +138,6 @@ class RegisteredUserController extends Controller {
             return redirect($redirectTo);
         }
 
-        return redirect()->intended(route('dashboard.index', absolute: false));
+        return redirect()->intended(route('dashboard', absolute: false));
     }
 }
