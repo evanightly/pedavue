@@ -10,6 +10,9 @@ use App\Http\Controllers\QuizController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\ModuleContentController;
+use App\Http\Controllers\ModuleStageController;
 
 Route::inertia('/', 'welcome')->name('home');
 
@@ -39,6 +42,12 @@ Route::post('imporquiz', [QuizController::class, 'import'])->name('quiz.import')
 Route::get('csrf-token', function () {
     return response()->json(['csrf_token' => csrf_token()]);
 });
+
+Route::resource('modules', ModuleController::class);
+
+Route::resource('module-contents', ModuleContentController::class);
+
+Route::resource('module-stages', ModuleStageController::class);
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';

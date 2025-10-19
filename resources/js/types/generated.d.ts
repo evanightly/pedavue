@@ -72,6 +72,45 @@ declare namespace App.Data.EnrollmentRequest {
         course: App.Data.Course.CourseData | null;
     };
 }
+declare namespace App.Data.Module {
+    export type ModuleData = {
+        id: any | number;
+        title: string | null;
+        description: string | null;
+        thumbnail: string | null;
+        duration: number | null;
+        order: number | null;
+        created_at: string | null;
+        updated_at: string | null;
+        course: any;
+    };
+}
+declare namespace App.Data.ModuleContent {
+    export type ModuleContentData = {
+        id: any | number;
+        title: string | null;
+        description: string | null;
+        file_path: string | null;
+        content_url: string | null;
+        duration: number | null;
+        content_type: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+        module_stage: any;
+    };
+}
+declare namespace App.Data.ModuleStage {
+    export type ModuleStageData = {
+        id: any | number;
+        module_able: string | null;
+        order: number | null;
+        created_at: string | null;
+        updated_at: string | null;
+        module: any;
+        module_content: any;
+        module_quiz: any;
+    };
+}
 declare namespace App.Data.Permission {
     export type PermissionData = {
         id: any | number;
