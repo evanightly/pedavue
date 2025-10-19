@@ -12,6 +12,7 @@ use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\ModuleStageController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\QuizController;
+use App\Http\Controllers\QuizImportController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('permissions', PermissionController::class);
     Route::resource('quizzes', QuizController::class);
+    Route::get('quizzes/import/template', [QuizImportController::class, 'template'])->name('quizzes.import.template');
+    Route::get('quizzes/{quiz}/import', [QuizImportController::class, 'show'])->name('quizzes.import.show');
+    Route::match(['get', 'post'], 'quizzes/{quiz}/import/preview', [QuizImportController::class, 'preview'])->name('quizzes.import.preview');
+    Route::post('quizzes/{quiz}/import/confirm', [QuizImportController::class, 'confirm'])->name('quizzes.import.confirm');
     Route::resource('roles', RoleController::class);
     Route::resource('courses', CourseController::class)->except(['show']);
     Route::post('courses/{course}/instructors', [CourseController::class, 'attachInstructor'])->name('courses.instructors.attach');
@@ -52,7 +57,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 Route::get('courses/{course}', [CourseController::class, 'show'])->name('courses.show');
-Route::post('imporquiz', [QuizController::class, 'import'])->name('quiz.import');
 Route::get('csrf-token', function () {
     return response()->json(['csrf_token' => csrf_token()]);
 });

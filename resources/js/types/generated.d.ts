@@ -136,6 +136,31 @@ declare namespace App.Data.Quiz {
         updated_at: string | null;
     };
 }
+declare namespace App.Data.QuizImport {
+    export type QuizImportOptionPreviewData = {
+        label: any | string;
+        option_text: string | null;
+        is_correct: boolean;
+        has_image: boolean;
+        image_preview: string | null;
+    };
+    export type QuizImportPreviewData = {
+        token: string;
+        imported_count: number;
+        existing_count: number;
+        incomingQuestions: App.Data.QuizImport.QuizImportQuestionPreviewData[];
+        existingQuestions: App.Data.QuizImport.QuizImportQuestionPreviewData[] | null;
+        warnings: Array<any>;
+        quiz: App.Data.Quiz.QuizData;
+    };
+    export type QuizImportQuestionPreviewData = {
+        label: string;
+        question: string | null;
+        has_image: boolean;
+        image_preview: string | null;
+        options: any;
+    };
+}
 declare namespace App.Data.QuizQuestion {
     export type QuizQuestionData = {
         id: any | number;

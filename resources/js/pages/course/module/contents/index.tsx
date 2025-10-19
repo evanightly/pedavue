@@ -1,4 +1,5 @@
 import CourseModuleContentController from '@/actions/App/Http/Controllers/CourseModuleContentController';
+import QuizImportController from '@/actions/App/Http/Controllers/QuizImportController';
 import InputError from '@/components/input-error';
 import ModuleStagePreview from '@/components/module-stage-preview';
 import {
@@ -492,7 +493,24 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
         return Number.isFinite(value) && value > 0 ? value : null;
     };
 
+    const resolveQuizId = (quiz: QuizRecord | null | undefined): number | null => {
+        const raw = quiz?.id ?? null;
+        const value = typeof raw === 'number' ? raw : Number.parseInt(String(raw ?? ''), 10);
+        return Number.isFinite(value) && value > 0 ? value : null;
+    };
+
     const editingStageId = useMemo(() => resolveStageId(editingStage), [editingStage]);
+    const editingQuizId = useMemo(() => resolveQuizId((editingStage?.module_quiz as QuizRecord | null) ?? null), [editingStage]);
+    const hasEditingQuiz = typeof editingQuizId === 'number' && Number.isFinite(editingQuizId) && editingQuizId > 0;
+    const editingTemplateUrl = useMemo(() => {
+        if (!hasEditingQuiz || !editingQuizId) {
+            return QuizImportController.template.url();
+        }
+
+        return QuizImportController.template.url({
+            query: { quiz: editingQuizId },
+        });
+    }, [editingQuizId, hasEditingQuiz]);
     const deletingStageResolvedId = useMemo(() => resolveStageId(deleteStage), [deleteStage]);
 
     const openEditDialog = useCallback(
@@ -1124,6 +1142,30 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                         />
                                         <InputError message={getError('quiz.description')} />
                                     </div>
+                                    <div className='flex flex-col gap-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between'>
+                                        <div className='space-y-1'>
+                                            <p className='text-sm font-semibold text-foreground'>Gunakan impor Excel</p>
+                                            <p className='text-xs text-muted-foreground'>
+                                                Simpan kuis setelah membuatnya untuk mengimpor pertanyaan secara massal menggunakan template Excel.
+                                            </p>
+                                        </div>
+                                        <div className='flex flex-wrap items-center gap-2'>
+                                            <Button asChild variant='outline' size='sm'>
+                                                <Link href={QuizImportController.template.url()} target='_blank' rel='noreferrer'>
+                                                    Unduh template
+                                                </Link>
+                                            </Button>
+                                            <Button
+                                                type='button'
+                                                variant='secondary'
+                                                size='sm'
+                                                disabled
+                                                title='Simpan kuis terlebih dahulu untuk menggunakan fitur impor.'
+                                            >
+                                                Impor pertanyaan
+                                            </Button>
+                                        </div>
+                                    </div>
                                     <div className='grid gap-4 sm:grid-cols-3'>
                                         <div className='grid gap-2'>
                                             <Label>Durasi (menit)</Label>
@@ -1528,6 +1570,40 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                         disabled={editForm.processing}
                                     />
                                     <InputError message={getEditError('quiz.description')} />
+                                </div>
+                                <div className='flex flex-col gap-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between'>
+                                    <div className='space-y-1'>
+                                        <p className='text-sm font-semibold text-foreground'>Gunakan impor Excel</p>
+                                        <p className='text-xs text-muted-foreground'>
+                                            Impor pertanyaan baru atau ganti seluruh pertanyaan menggunakan berkas Excel. Template yang diunduh dari
+                                            sini akan otomatis memuat pertanyaan yang sudah ada sehingga Anda bisa menyuntingnya secara massal.
+                                        </p>
+                                    </div>
+                                    <div className='flex flex-wrap items-center gap-2'>
+                                        <Button asChild variant='outline' size='sm'>
+                                            <a href={editingTemplateUrl} target='_blank' rel='noreferrer'>
+                                                Unduh template
+                                            </a>
+                                        </Button>
+                                        <Button
+                                            type='button'
+                                            variant='secondary'
+                                            size='sm'
+                                            disabled={!hasEditingQuiz}
+                                            onClick={() => {
+                                                if (hasEditingQuiz && editingQuizId) {
+                                                    const url = QuizImportController.show.url({ quiz: editingQuizId });
+                                                    if (typeof window !== 'undefined') {
+                                                        window.open(url, '_blank', 'noopener,noreferrer');
+                                                    } else {
+                                                        router.visit(url, { preserveScroll: true });
+                                                    }
+                                                }
+                                            }}
+                                        >
+                                            Impor pertanyaan
+                                        </Button>
+                                    </div>
                                 </div>
                                 <div className='grid gap-4 sm:grid-cols-3'>
                                     <div className='grid gap-2'>
