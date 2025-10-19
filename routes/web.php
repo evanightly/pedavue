@@ -16,6 +16,8 @@ use App\Http\Controllers\QuizImportController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\QuizResultController;
+use App\Http\Controllers\QuizResultAnswerController;
 
 Route::inertia('/', 'welcome')->name('home');
 
@@ -66,6 +68,10 @@ Route::resource('modules', ModuleController::class);
 Route::resource('module-contents', ModuleContentController::class);
 
 Route::resource('module-stages', ModuleStageController::class);
+
+Route::resource('quiz-results', QuizResultController::class);
+
+Route::resource('quiz-result-answers', QuizResultAnswerController::class);
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';

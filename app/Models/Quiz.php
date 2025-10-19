@@ -14,7 +14,7 @@ class Quiz extends Model
     protected $fillable = [
         'name',
         'description',
-        'duration',
+        'duration', // act as a time limit in minutes
         'is_question_shuffled',
         'type',
     ];

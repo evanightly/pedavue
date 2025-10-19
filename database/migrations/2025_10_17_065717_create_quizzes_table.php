@@ -13,7 +13,7 @@ return new class extends Migration {
             $table->id();
             $table->string('name');
             $table->text('description')->nullable();
-            $table->integer('duration')->nullable();
+            $table->integer('duration')->comment('minutes')->nullable();
             $table->boolean('is_question_shuffled')->default(false);
             $table->string('type')->nullable();
             $table->timestamps();

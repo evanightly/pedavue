@@ -190,6 +190,32 @@ declare namespace App.Data.QuizQuestionOption {
         updated_at: string | null;
     };
 }
+declare namespace App.Data.QuizResult {
+    export type QuizResultData = {
+        id: any | number;
+        score: number | null;
+        attempt: number | null;
+        started_at: string | null;
+        finished_at: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+        user: any;
+        quiz: any;
+    };
+}
+declare namespace App.Data.QuizResultAnswer {
+    export type QuizResultAnswerData = {
+        id: any | number;
+        user_answer_text: string | null;
+        started_at: string | null;
+        finished_at: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+        quiz_result: any;
+        question: any;
+        answer: any;
+    };
+}
 declare namespace App.Data.Role {
     export type RoleData = {
         id: any | number;
