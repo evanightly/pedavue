@@ -1,7 +1,7 @@
 import AppLayout from '@/layouts/app-layout';
 import ModuleContentController from '@/actions/App/Http/Controllers/ModuleContentController';
 import ModuleController from '@/actions/App/Http/Controllers/ModuleController';
-import ModuleQuizController from '@/actions/App/Http/Controllers/ModuleQuizController';
+// import ModuleQuizController from '@/actions/App/Http/Controllers/ModuleQuizController';
 import ModuleStageController from '@/actions/App/Http/Controllers/ModuleStageController';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { ColumnFilterMeta } from '@/components/ui/data-table-types';
@@ -169,15 +169,15 @@ export default function ModuleStageIndex({ moduleStages, filters = null, sort = 
       enableSorting: false,
       enableFiltering: true,
       filterOnly: true,
-      filter: {
-        type: 'selector',
-        placeholder: 'Filter by module quiz...',
-        searchPlaceholder: 'Search module quiz...',
-        fetchDataUrl: ModuleQuizController.index().url,
-        valueMapKey: 'moduleQuizOptions',
-        idField: 'id',
-        labelField: 'name',
-      },
+      // filter: {
+      //   type: 'selector',
+      //   placeholder: 'Filter by module quiz...',
+      //   searchPlaceholder: 'Search module quiz...',
+      //   fetchDataUrl: ModuleQuizController.index().url,
+      //   valueMapKey: 'moduleQuizOptions',
+      //   idField: 'id',
+      //   labelField: 'name',
+      // },
     },
     {
       id: 'actions',

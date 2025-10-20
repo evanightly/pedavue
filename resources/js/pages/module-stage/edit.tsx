@@ -3,7 +3,7 @@ import GenericDataSelector from '@/components/generic-data-selector';
 import InputError from '@/components/input-error';
 import ModuleContentController from '@/actions/App/Http/Controllers/ModuleContentController';
 import ModuleController from '@/actions/App/Http/Controllers/ModuleController';
-import ModuleQuizController from '@/actions/App/Http/Controllers/ModuleQuizController';
+// import ModuleQuizController from '@/actions/App/Http/Controllers/ModuleQuizController';
 import ModuleStageController from '@/actions/App/Http/Controllers/ModuleStageController';
 import axios from 'axios';
 import type { PaginationMeta } from '@/components/ui/data-table-types';
@@ -167,17 +167,17 @@ export default function ModuleStageEdit({ record }: ModuleStageEditProps) {
     return response;
   };
 
-  const fetchModuleQuizOptions = async ({ search }: { search?: string }) => {
-    const params: Record<string, unknown> = {};
+  // const fetchModuleQuizOptions = async ({ search }: { search?: string }) => {
+  //   const params: Record<string, unknown> = {};
 
-    if (search && search.trim().length > 0) {
-      params['filter[search]'] = search.trim();
-    }
+  //   if (search && search.trim().length > 0) {
+  //     params['filter[search]'] = search.trim();
+  //   }
 
-    const response = await axios.get(ModuleQuizController.index().url, { params });
+  //   const response = await axios.get(ModuleQuizController.index().url, { params });
 
-    return response;
-  };
+  //   return response;
+  // };
 
   const [moduleId, setModuleId] = useState<number | string | null>(() => {
     const direct = record?.module_id;
