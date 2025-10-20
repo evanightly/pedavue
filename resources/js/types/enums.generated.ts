@@ -3,6 +3,11 @@ export enum EnrollmentRequestEnum {
     Approved = 'Approved',
     Rejected = 'Rejected',
 }
+export enum ModuleStageProgressStatus {
+    Pending = 'pending',
+    InProgress = 'in_progress',
+    Completed = 'completed',
+}
 export enum PermissionEnum {
     ReadUser = 'ReadUser',
     CreateUser = 'CreateUser',

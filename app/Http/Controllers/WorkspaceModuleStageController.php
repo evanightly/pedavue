@@ -1,0 +1,666 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\Workspace\CompleteStageRequest;
+use App\Http\Requests\Workspace\SaveStageQuizProgressRequest;
+use App\Http\Requests\Workspace\SubmitStageQuizRequest;
+use App\Models\Course;
+use App\Models\Enrollment;
+use App\Models\Module;
+use App\Models\ModuleStage;
+use App\Models\ModuleStageProgress;
+use App\Models\Quiz;
+use App\Models\QuizQuestion;
+use App\Models\QuizQuestionOption;
+use App\Models\QuizResult;
+use App\Support\Enums\ModuleStageProgressStatus;
+use App\Support\WorkspaceProgressManager;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+
+class WorkspaceModuleStageController extends Controller {
+    use AuthorizesRequests;
+
+    public function __construct(private WorkspaceProgressManager $progressManager) {}
+
+    public function show(Request $request, Course $course, Module $module, ModuleStage $moduleStage): JsonResponse {
+        $this->authorize('accessWorkspace', $course);
+        $this->ensureHierarchy($course, $module, $moduleStage);
+
+        $enrollment = $this->progressManager->getEnrollmentFor($request->user(), $course);
+
+        $overview = $this->progressManager->buildOverview($enrollment);
+        $stageSummary = $overview['stage_summaries'][$moduleStage->getKey()] ?? null;
+        $modulesPayload = null;
+        $statsPayload = null;
+        $currentStageId = $overview['current_stage_id'];
+        $enrollmentPayload = $this->formatEnrollmentData($enrollment);
+
+        if ($stageSummary === null) {
+            abort(404);
+        }
+
+        if ($stageSummary['locked'] === true) {
+            abort(403, 'Tahap ini masih terkunci.');
+        }
+
+        $moduleStage->loadMissing(['module_content', 'module_quiz.quiz_questions.quiz_question_options']);
+
+        if ($moduleStage->module_able === 'quiz') {
+            $progress = $this->initializeQuizProgress($enrollment, $moduleStage);
+
+            if ($this->quizHasExpired($moduleStage, $progress)) {
+                [$progress, $result] = $this->finalizeQuizAttempt(
+                    $enrollment,
+                    $moduleStage,
+                    $progress,
+                    $this->extractAnswersFromState($progress),
+                    true,
+                );
+
+                $this->progressManager->forgetOverview($enrollment);
+                $overview = $this->progressManager->buildOverview($enrollment);
+                $stageSummary = $overview['stage_summaries'][$moduleStage->getKey()] ?? $stageSummary;
+                $this->progressManager->syncEnrollmentProgress($enrollment, $overview);
+                $enrollment->refresh();
+                $modulesPayload = $overview['modules'];
+                $statsPayload = $overview['stats'];
+                $currentStageId = $overview['current_stage_id'];
+                $enrollmentPayload = $this->formatEnrollmentData($enrollment);
+            }
+
+            $payload = $this->buildQuizPayload($moduleStage, $progress);
+
+            return response()->json([
+                'stage' => $stageSummary,
+                'quiz' => $payload['quiz'],
+                'progress' => $payload['progress'],
+                'modules' => $modulesPayload,
+                'stats' => $statsPayload,
+                'currentStageId' => $currentStageId,
+                'enrollment' => $enrollmentPayload,
+            ]);
+        }
+
+        $progress = $enrollment
+            ->module_stage_progresses()
+            ->where('module_stage_id', $moduleStage->getKey())
+            ->first();
+
+        return response()->json([
+            'stage' => $stageSummary,
+            'progress' => $progress ? [
+                'status' => $progress->status,
+                'started_at' => $progress->started_at?->toIso8601String(),
+                'completed_at' => $progress->completed_at?->toIso8601String(),
+            ] : null,
+            'modules' => $modulesPayload,
+            'stats' => $statsPayload,
+            'currentStageId' => $currentStageId,
+            'enrollment' => $enrollmentPayload,
+        ]);
+    }
+
+    public function complete(CompleteStageRequest $request, Course $course, Module $module, ModuleStage $moduleStage): JsonResponse {
+        $this->authorize('accessWorkspace', $course);
+        $this->ensureHierarchy($course, $module, $moduleStage);
+
+        $enrollment = $request->enrollment();
+
+        DB::transaction(function () use ($enrollment, $moduleStage): void {
+            $progress = ModuleStageProgress::query()
+                ->where('enrollment_id', $enrollment->getKey())
+                ->where('module_stage_id', $moduleStage->getKey())
+                ->lockForUpdate()
+                ->first();
+
+            if (!$progress) {
+                ModuleStageProgress::query()->create([
+                    'enrollment_id' => $enrollment->getKey(),
+                    'module_stage_id' => $moduleStage->getKey(),
+                    'status' => ModuleStageProgressStatus::Completed->value,
+                    'started_at' => now(),
+                    'completed_at' => now(),
+                ]);
+
+                return;
+            }
+
+            $this->completeProgress($progress);
+        });
+
+        $this->progressManager->forgetOverview($enrollment);
+        $overview = $this->progressManager->buildOverview($enrollment);
+        $this->progressManager->syncEnrollmentProgress($enrollment, $overview);
+        $enrollment->refresh();
+
+        return response()->json([
+            'modules' => $overview['modules'],
+            'stats' => $overview['stats'],
+            'currentStageId' => $overview['current_stage_id'],
+            'stage' => $overview['stage_summaries'][$moduleStage->getKey()] ?? null,
+            'enrollment' => $this->formatEnrollmentData($enrollment),
+        ]);
+    }
+
+    public function saveQuizProgress(SaveStageQuizProgressRequest $request, Course $course, Module $module, ModuleStage $moduleStage): JsonResponse {
+        $this->authorize('accessWorkspace', $course);
+        $this->ensureHierarchy($course, $module, $moduleStage);
+
+        $enrollment = $request->enrollment();
+        $moduleStage->loadMissing(['module_quiz.quiz_questions.quiz_question_options']);
+
+        $progress = $this->initializeQuizProgress($enrollment, $moduleStage);
+
+        $answers = $this->sanitizeAnswers($request->sanitizedAnswers(), $moduleStage);
+
+        DB::transaction(function () use ($enrollment, $moduleStage, $answers): void {
+            $progressRecord = ModuleStageProgress::query()
+                ->where('enrollment_id', $enrollment->getKey())
+                ->where('module_stage_id', $moduleStage->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $state = $progressRecord->state ?? [];
+            $state['answers'] = $answers;
+
+            if ($progressRecord->status === ModuleStageProgressStatus::Pending->value) {
+                $progressRecord->status = ModuleStageProgressStatus::InProgress->value;
+            }
+
+            if ($progressRecord->started_at === null) {
+                $progressRecord->started_at = now();
+            }
+
+            $progressRecord->state = $state;
+            $progressRecord->save();
+        });
+
+        return response()->json([
+            'message' => 'Jawaban sementara tersimpan.',
+        ]);
+    }
+
+    public function submitQuiz(SubmitStageQuizRequest $request, Course $course, Module $module, ModuleStage $moduleStage): JsonResponse {
+        $this->authorize('accessWorkspace', $course);
+        $this->ensureHierarchy($course, $module, $moduleStage);
+
+        $enrollment = $request->enrollment();
+        $moduleStage->loadMissing(['module_quiz.quiz_questions.quiz_question_options']);
+
+        $progress = $this->initializeQuizProgress($enrollment, $moduleStage);
+        $answers = $request->sanitizedAnswers();
+
+        if (empty($answers)) {
+            $answers = $this->extractAnswersFromState($progress);
+        }
+
+        [$progress, $result] = $this->finalizeQuizAttempt(
+            $enrollment,
+            $moduleStage,
+            $progress,
+            $answers,
+            $request->isAutoSubmission(),
+        );
+
+        $this->progressManager->forgetOverview($enrollment);
+        $overview = $this->progressManager->buildOverview($enrollment);
+        $this->progressManager->syncEnrollmentProgress($enrollment, $overview);
+        $enrollment->refresh();
+
+        $payload = $this->buildQuizPayload($moduleStage, $progress);
+
+        return response()->json([
+            'modules' => $overview['modules'],
+            'stats' => $overview['stats'],
+            'currentStageId' => $overview['current_stage_id'],
+            'stage' => $overview['stage_summaries'][$moduleStage->getKey()] ?? null,
+            'quiz' => $payload['quiz'],
+            'result' => $result,
+            'progress' => $payload['progress'],
+            'enrollment' => $this->formatEnrollmentData($enrollment),
+        ]);
+    }
+
+    private function ensureHierarchy(Course $course, Module $module, ModuleStage $moduleStage): void {
+        abort_unless($module->course_id === $course->getKey(), 404);
+        abort_unless($moduleStage->module_id === $module->getKey(), 404);
+    }
+
+    private function initializeQuizProgress(Enrollment $enrollment, ModuleStage $stage): ModuleStageProgress {
+        return DB::transaction(function () use ($enrollment, $stage): ModuleStageProgress {
+            $progress = ModuleStageProgress::query()
+                ->where('enrollment_id', $enrollment->getKey())
+                ->where('module_stage_id', $stage->getKey())
+                ->lockForUpdate()
+                ->first();
+
+            if (!$progress) {
+                $progress = ModuleStageProgress::query()->create([
+                    'enrollment_id' => $enrollment->getKey(),
+                    'module_stage_id' => $stage->getKey(),
+                    'status' => ModuleStageProgressStatus::InProgress->value,
+                    'started_at' => now(),
+                    'state' => [],
+                ]);
+            } elseif ($progress->status === ModuleStageProgressStatus::Pending->value) {
+                $progress->status = ModuleStageProgressStatus::InProgress->value;
+                if ($progress->started_at === null) {
+                    $progress->started_at = now();
+                }
+                $progress->save();
+            }
+
+            $progress = $this->ensureQuizState($progress, $stage);
+
+            return $progress->fresh(['quiz_result']);
+        });
+    }
+
+    private function ensureQuizState(ModuleStageProgress $progress, ModuleStage $stage): ModuleStageProgress {
+        $state = $progress->state ?? [];
+        $quiz = $stage->module_quiz;
+
+        if (!$quiz instanceof Quiz) {
+            return $progress;
+        }
+
+        $quiz->loadMissing('quiz_questions.quiz_question_options');
+
+        $questionOrder = $state['question_order'] ?? null;
+        if (!is_array($questionOrder) || count($questionOrder) === 0) {
+            $questionOrder = $quiz->quiz_questions->pluck('id')->all();
+            if ($quiz->is_question_shuffled) {
+                $questionOrder = $this->shuffleIds($questionOrder);
+            }
+        }
+
+        $optionOrder = $state['option_order'] ?? [];
+        $optionOrder = is_array($optionOrder) ? $optionOrder : [];
+
+        foreach ($quiz->quiz_questions as $question) {
+            $options = $question->quiz_question_options->pluck('id')->all();
+            if ($question->is_answer_shuffled) {
+                $options = $this->shuffleIds($options);
+            }
+
+            if (!isset($optionOrder[$question->getKey()]) || !is_array($optionOrder[$question->getKey()]) || count($optionOrder[$question->getKey()]) === 0) {
+                $optionOrder[$question->getKey()] = $options;
+            }
+        }
+
+        $state['question_order'] = $questionOrder;
+        $state['option_order'] = $optionOrder;
+
+        $progress->state = $state;
+        $progress->save();
+
+        return $progress;
+    }
+
+    private function completeProgress(ModuleStageProgress $progress): void {
+        if ($progress->status !== ModuleStageProgressStatus::Completed->value) {
+            if ($progress->started_at === null) {
+                $progress->started_at = now();
+            }
+
+            $progress->status = ModuleStageProgressStatus::Completed->value;
+        }
+
+        $progress->completed_at = now();
+        $progress->save();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildQuizPayload(ModuleStage $stage, ModuleStageProgress $progress): array {
+        $quiz = $stage->module_quiz;
+
+        if (!$quiz instanceof Quiz) {
+            abort(422, 'Tahap ini tidak memiliki kuis.');
+        }
+
+        $quiz->loadMissing('quiz_questions.quiz_question_options');
+
+        $state = $progress->state ?? [];
+        $answers = $this->extractAnswersFromState($progress);
+        $questionOrder = Arr::get($state, 'question_order', []);
+        $optionOrder = Arr::get($state, 'option_order', []);
+
+        $questions = [];
+        $questionMap = $quiz->quiz_questions->keyBy(static fn (QuizQuestion $question) => $question->getKey());
+
+        foreach ($questionOrder as $questionId) {
+            /** @var QuizQuestion|null $question */
+            $question = $questionMap->get((int) $questionId);
+            if (!$question) {
+                continue;
+            }
+
+            $options = [];
+            $optionIds = $optionOrder[$question->getKey()] ?? $question->quiz_question_options->pluck('id')->all();
+            $optionMap = $question->quiz_question_options->keyBy(static fn (QuizQuestionOption $option) => $option->getKey());
+
+            foreach ($optionIds as $optionId) {
+                /** @var QuizQuestionOption|null $option */
+                $option = $optionMap->get((int) $optionId);
+                if (!$option) {
+                    continue;
+                }
+
+                $options[] = [
+                    'id' => $option->getKey(),
+                    'text' => $option->option_text,
+                    'image_url' => $this->resolveOptionImageUrl($option->option_image),
+                ];
+            }
+
+            $questions[] = [
+                'id' => $question->getKey(),
+                'question' => $question->question,
+                'question_image_url' => $this->resolveQuestionImageUrl($question->question_image),
+                'selection_mode' => $this->determineSelectionMode($question),
+                'options' => $options,
+            ];
+        }
+
+        $deadline = $this->calculateDeadline($stage, $progress);
+
+        return [
+            'quiz' => [
+                'id' => $quiz->getKey(),
+                'name' => $quiz->name,
+                'description' => $quiz->description,
+                'duration_minutes' => $quiz->duration,
+                'duration_label' => $this->formatDuration($quiz->duration),
+                'questions' => $questions,
+            ],
+            'progress' => [
+                'status' => $progress->status,
+                'started_at' => $progress->started_at?->toIso8601String(),
+                'completed_at' => $progress->completed_at?->toIso8601String(),
+                'deadline_at' => $deadline?->toIso8601String(),
+                'server_now' => now()->toIso8601String(),
+                'answers' => $answers,
+                'score' => $progress->quiz_result?->score,
+                'attempt' => $progress->quiz_result?->attempt,
+                'read_only' => $progress->status === ModuleStageProgressStatus::Completed->value,
+                'result' => Arr::get($progress->state, 'result'),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<int, array<int>>
+     */
+    private function extractAnswersFromState(ModuleStageProgress $progress): array {
+        $state = $progress->state ?? [];
+        $answers = Arr::get($state, 'answers', []);
+
+        if (!is_array($answers)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($answers as $questionId => $optionIds) {
+            $normalized[(int) $questionId] = collect($optionIds)
+                ->map(static fn ($value) => (int) $value)
+                ->filter(static fn (int $value) => $value > 0)
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        return $normalized;
+    }
+
+    private function quizHasExpired(ModuleStage $stage, ModuleStageProgress $progress): bool {
+        $deadline = $this->calculateDeadline($stage, $progress);
+
+        if ($deadline === null) {
+            return false;
+        }
+
+        return $progress->status !== ModuleStageProgressStatus::Completed->value && now()->greaterThan($deadline);
+    }
+
+    private function calculateDeadline(ModuleStage $stage, ModuleStageProgress $progress): ?Carbon {
+        if ($stage->module_able !== 'quiz') {
+            return null;
+        }
+
+        $duration = $stage->module_quiz?->duration;
+
+        if ($duration === null || $duration <= 0) {
+            return null;
+        }
+
+        if ($progress->started_at === null) {
+            return null;
+        }
+
+        return $progress->started_at->copy()->addMinutes($duration);
+    }
+
+    /**
+     * @return array{0: ModuleStageProgress, 1: array<string, int>}
+     */
+    private function finalizeQuizAttempt(Enrollment $enrollment, ModuleStage $stage, ModuleStageProgress $progress, array $answers, bool $autoSubmission): array {
+        return DB::transaction(function () use ($enrollment, $stage, $progress, $answers, $autoSubmission): array {
+            $lockedProgress = ModuleStageProgress::query()
+                ->whereKey($progress->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $stage->loadMissing('module_quiz.quiz_questions.quiz_question_options');
+            $sanitizedAnswers = $this->sanitizeAnswers($answers, $stage);
+            $result = $this->gradeQuiz($stage, $sanitizedAnswers);
+
+            $quizResult = $lockedProgress->quiz_result;
+
+            if (!$quizResult instanceof QuizResult) {
+                $quizResult = new QuizResult;
+                $quizResult->user_id = $enrollment->user_id;
+                $quizResult->quiz_id = $stage->module_quiz_id;
+                $quizResult->attempt = 1;
+            }
+
+            $quizResult->score = $result['score'];
+            $quizResult->started_at = $lockedProgress->started_at ?? now();
+            $quizResult->finished_at = now();
+            $quizResult->save();
+
+            $lockedProgress->quiz_result_id = $quizResult->getKey();
+            $lockedProgress->status = ModuleStageProgressStatus::Completed->value;
+            $lockedProgress->completed_at = now();
+
+            if ($lockedProgress->started_at === null) {
+                $lockedProgress->started_at = $quizResult->started_at;
+            }
+
+            $state = $lockedProgress->state ?? [];
+            $state['answers'] = $sanitizedAnswers;
+            $state['result'] = [
+                'score' => $result['score'],
+                'correct' => $result['correct_answers'],
+                'total' => $result['total_questions'],
+                'auto_submitted' => $autoSubmission,
+            ];
+
+            $lockedProgress->state = $state;
+            $lockedProgress->save();
+
+            return [$lockedProgress->fresh(['quiz_result']), $result];
+        });
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function gradeQuiz(ModuleStage $stage, array $answers): array {
+        $quiz = $stage->module_quiz;
+
+        if (!$quiz instanceof Quiz) {
+            return [
+                'score' => 0,
+                'total_questions' => 0,
+                'correct_answers' => 0,
+            ];
+        }
+
+        $quiz->loadMissing('quiz_questions.quiz_question_options');
+
+        $totalQuestions = $quiz->quiz_questions->count();
+        $correct = 0;
+
+        foreach ($quiz->quiz_questions as $question) {
+            $correctOptionIds = $question->quiz_question_options
+                ->filter(static fn (QuizQuestionOption $option) => $option->is_correct)
+                ->pluck('id')
+                ->sort()
+                ->values()
+                ->all();
+
+            $selected = collect($answers[$question->getKey()] ?? [])
+                ->map(static fn ($value) => (int) $value)
+                ->filter(static fn (int $value) => $question->quiz_question_options->contains('id', $value))
+                ->sort()
+                ->values()
+                ->all();
+
+            if ($selected === $correctOptionIds) {
+                $correct++;
+            }
+        }
+
+        $score = $totalQuestions === 0 ? 0 : (int) round(($correct / $totalQuestions) * 100);
+
+        return [
+            'score' => $score,
+            'total_questions' => $totalQuestions,
+            'correct_answers' => $correct,
+        ];
+    }
+
+    /**
+     * @return array<int, array<int>>
+     */
+    private function sanitizeAnswers(array $answers, ModuleStage $stage): array {
+        $quiz = $stage->module_quiz;
+
+        if (!$quiz instanceof Quiz) {
+            return [];
+        }
+
+        $quiz->loadMissing('quiz_questions.quiz_question_options');
+        $questionMap = $quiz->quiz_questions->keyBy(static fn (QuizQuestion $question) => $question->getKey());
+
+        $sanitized = [];
+
+        foreach ($answers as $questionId => $optionIds) {
+            /** @var QuizQuestion|null $question */
+            $question = $questionMap->get((int) $questionId);
+            if (!$question) {
+                continue;
+            }
+
+            $availableOptions = $question->quiz_question_options->pluck('id')->all();
+
+            $sanitized[(int) $questionId] = collect($optionIds)
+                ->map(static fn ($value) => (int) $value)
+                ->filter(static fn (int $value) => in_array($value, $availableOptions, true))
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        return $sanitized;
+    }
+
+    private function determineSelectionMode(QuizQuestion $question): string {
+        $correctCount = $question->quiz_question_options
+            ->filter(static fn (QuizQuestionOption $option) => $option->is_correct)
+            ->count();
+
+        return $correctCount > 1 ? 'multiple' : 'single';
+    }
+
+    private function resolveQuestionImageUrl(?string $path): ?string {
+        if ($path === null || trim($path) === '') {
+            return null;
+        }
+
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+
+        if (!$disk->exists($path)) {
+            return null;
+        }
+
+        return $disk->url($path);
+    }
+
+    private function resolveOptionImageUrl(?string $path): ?string {
+        if ($path === null || trim($path) === '') {
+            return null;
+        }
+
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+
+        if (!$disk->exists($path)) {
+            return null;
+        }
+
+        return $disk->url($path);
+    }
+
+    private function formatDuration(?int $minutes): ?string {
+        if ($minutes === null || $minutes <= 0) {
+            return null;
+        }
+
+        $hours = intdiv($minutes, 60);
+        $remaining = $minutes % 60;
+
+        if ($hours > 0 && $remaining > 0) {
+            return sprintf('%d jam %d menit', $hours, $remaining);
+        }
+
+        if ($hours > 0) {
+            return sprintf('%d jam', $hours);
+        }
+
+        return sprintf('%d menit', $remaining);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatEnrollmentData(Enrollment $enrollment): array {
+        return [
+            'id' => $enrollment->getKey(),
+            'progress' => $enrollment->progress,
+            'progress_label' => sprintf('%d%%', $enrollment->progress),
+            'completed_at' => $enrollment->completed_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @param  array<int>  $ids
+     * @return array<int>
+     */
+    private function shuffleIds(array $ids): array {
+        shuffle($ids);
+
+        return array_values($ids);
+    }
+}

@@ -2,14 +2,12 @@
 
 namespace App\Models;
 
-use App\Models\Quiz;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
-class QuizResult extends Model
-{
+class QuizResult extends Model {
     use HasFactory;
 
     /**
@@ -27,8 +25,7 @@ class QuizResult extends Model
     /**
      * @return array<string, string>
      */
-    protected function casts(): array
-    {
+    protected function casts(): array {
         return [
             'score' => 'integer',
             'attempt' => 'integer',
@@ -37,13 +34,15 @@ class QuizResult extends Model
         ];
     }
 
-    public function user(): BelongsTo
-    {
+    public function user(): BelongsTo {
         return $this->belongsTo(User::class);
     }
 
-    public function quiz(): BelongsTo
-    {
+    public function quiz(): BelongsTo {
         return $this->belongsTo(Quiz::class);
+    }
+
+    public function module_stage_progress(): HasOne {
+        return $this->hasOne(ModuleStageProgress::class);
     }
 }

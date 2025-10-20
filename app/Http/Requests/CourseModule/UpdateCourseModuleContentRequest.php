@@ -18,7 +18,11 @@ class UpdateCourseModuleContentRequest extends FormRequest {
     public function authorize(): bool {
         $course = $this->route('course');
         $module = $this->route('module');
-        $stage = $this->route('stage');
+        $stage = $this->route('module_stage');
+
+        if (!$stage instanceof ModuleStage) {
+            $stage = $this->route('stage');
+        }
 
         if (!$course instanceof Course || !$module instanceof Module || !$stage instanceof ModuleStage) {
             return false;
@@ -76,7 +80,10 @@ class UpdateCourseModuleContentRequest extends FormRequest {
 
     public function withValidator(Validator $validator): void {
         $validator->after(function (Validator $validator): void {
-            $stage = $this->route('stage');
+            $stage = $this->route('module_stage');
+            if (!$stage instanceof ModuleStage) {
+                $stage = $this->route('stage');
+            }
             if (!$stage instanceof ModuleStage) {
                 return;
             }

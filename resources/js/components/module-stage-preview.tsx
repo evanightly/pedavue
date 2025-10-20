@@ -17,7 +17,15 @@ import { cn } from '@/lib/utils';
 import { Download, ExternalLink } from 'lucide-react';
 import { useMemo } from 'react';
 
-type ModuleContentRecord = App.Data.ModuleContent.ModuleContentData;
+type ModuleContentRecord = Partial<App.Data.ModuleContent.ModuleContentData> & {
+    id?: number | null;
+    title?: string | null;
+    description?: string | null;
+    file_path?: string | null;
+    content_url?: string | null;
+    file_url?: string | null;
+    content_type?: string | null;
+};
 
 type PreviewType = 'video' | 'audio' | 'image' | 'pdf' | 'file' | 'embed';
 

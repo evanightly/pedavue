@@ -1,5 +1,6 @@
 import CourseController from '@/actions/App/Http/Controllers/CourseController';
 import CourseModuleController from '@/actions/App/Http/Controllers/CourseModuleController';
+import CourseWorkspaceController from '@/actions/App/Http/Controllers/CourseWorkspaceController';
 import EnrollmentRequestController from '@/actions/App/Http/Controllers/EnrollmentRequestController';
 import UserController from '@/actions/App/Http/Controllers/UserController';
 import GenericDataSelector from '@/components/generic-data-selector';
@@ -129,6 +130,7 @@ export default function CourseShow({ record, modules: modulesProp = null, abilit
     }, [enrollmentRedirectPath, record.id]);
     const loginUrl = useMemo(() => login({ query: { redirect_to: enrollmentRedirectPath } }).url, [enrollmentRedirectPath]);
     const moduleCreateUrl = useMemo(() => CourseModuleController.create.url({ course: courseSlug }), [courseSlug]);
+    const workspaceUrl = useMemo(() => CourseWorkspaceController.show.url({ course: courseSlug }), [courseSlug]);
     const moduleContentsUrl = useCallback((moduleId: number | string): string => `/courses/${courseSlug}/modules/${moduleId}/contents`, [courseSlug]);
     const formatMinutes = useCallback((value: unknown): string | null => {
         const raw = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
@@ -497,6 +499,11 @@ export default function CourseShow({ record, modules: modulesProp = null, abilit
                                     {latestRequestMessage ? <p className='text-sm text-muted-foreground italic'>“{latestRequestMessage}”</p> : null}
                                 </div>
                                 <div className='flex w-full flex-col gap-2 sm:w-auto sm:items-end'>
+                                    {isEnrolledViewer ? (
+                                        <Button asChild className='w-full sm:w-auto'>
+                                            <Link href={workspaceUrl}>Masuk ke ruang belajar</Link>
+                                        </Button>
+                                    ) : null}
                                     {enrollmentStatusLinkVisible ? (
                                         <Button variant='outline' asChild className='w-full sm:w-auto'>
                                             <Link href={EnrollmentRequestController.index().url}>Lihat permintaan</Link>

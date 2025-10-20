@@ -42,7 +42,11 @@ class Module extends Model {
             ->orderBy('order');
     }
 
-    public function stages(): HasMany {
+    public function moduleStages(): HasMany { // Route binding compatibility for workspace
+        return $this->module_stages();
+    }
+
+    public function stages(): HasMany { // Route binding compatibility for quiz
         return $this->module_stages();
     }
 }

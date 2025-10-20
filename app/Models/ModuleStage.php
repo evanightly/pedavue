@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ModuleStage extends Model {
     use HasFactory;
@@ -39,5 +40,9 @@ class ModuleStage extends Model {
 
     public function module_quiz(): BelongsTo {
         return $this->belongsTo(Quiz::class, 'module_quiz_id');
+    }
+
+    public function module_stage_progresses(): HasMany {
+        return $this->hasMany(ModuleStageProgress::class);
     }
 }

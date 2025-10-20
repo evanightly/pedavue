@@ -4,6 +4,7 @@ use App\Http\Controllers\CourseController;
 use App\Http\Controllers\CourseInstructorController;
 use App\Http\Controllers\CourseModuleContentController;
 use App\Http\Controllers\CourseModuleController;
+use App\Http\Controllers\CourseWorkspaceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\EnrollmentRequestController;
@@ -13,11 +14,12 @@ use App\Http\Controllers\ModuleStageController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\QuizImportController;
+use App\Http\Controllers\QuizResultAnswerController;
+use App\Http\Controllers\QuizResultController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WorkspaceModuleStageController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\QuizResultController;
-use App\Http\Controllers\QuizResultAnswerController;
 
 Route::inertia('/', 'welcome')->name('home');
 
@@ -55,6 +57,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::patch('modules/{module}/contents/reorder', [CourseModuleContentController::class, 'reorder'])->name('courses.modules.contents.reorder');
             Route::patch('modules/{module}/contents/{stage}', [CourseModuleContentController::class, 'update'])->name('courses.modules.contents.update');
             Route::delete('modules/{module}/contents/{stage}', [CourseModuleContentController::class, 'destroy'])->name('courses.modules.contents.destroy');
+
+            Route::get('workspace', [CourseWorkspaceController::class, 'show'])->name('courses.workspace.show');
+
+            Route::prefix('workspace')->group(function () {
+                Route::get('modules/{module}/stages/{module_stage}', [WorkspaceModuleStageController::class, 'show'])->name('courses.workspace.stages.show');
+                Route::post('modules/{module}/stages/{module_stage}/complete', [WorkspaceModuleStageController::class, 'complete'])->name('courses.workspace.stages.complete');
+                Route::post('modules/{module}/stages/{module_stage}/quiz/progress', [WorkspaceModuleStageController::class, 'saveQuizProgress'])->name('courses.workspace.stages.quiz.progress');
+                Route::post('modules/{module}/stages/{module_stage}/quiz/submit', [WorkspaceModuleStageController::class, 'submitQuiz'])->name('courses.workspace.stages.quiz.submit');
+            });
         });
     });
 });
