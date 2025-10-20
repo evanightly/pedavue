@@ -1,9 +1,12 @@
 import CourseController from '@/actions/App/Http/Controllers/CourseController';
+import CourseModuleController from '@/actions/App/Http/Controllers/CourseModuleController';
+import CourseWorkspaceController from '@/actions/App/Http/Controllers/CourseWorkspaceController';
 import EnrollmentRequestController from '@/actions/App/Http/Controllers/EnrollmentRequestController';
 import UserController from '@/actions/App/Http/Controllers/UserController';
 import GenericDataSelector from '@/components/generic-data-selector';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CertificateTemplateOverlay } from '@/components/ui/certificate-template-overlay';
 import type { PaginationMeta } from '@/components/ui/data-table-types';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,7 +15,7 @@ import GuestLayout from '@/layouts/guest-layout';
 import { login, register } from '@/routes';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { ArrowLeft, Award, BookOpen, Calendar, Clock, Trash2, User, UserPlus, Users } from 'lucide-react';
+import { ArrowLeft, Award, BookOpen, Calendar, Clock, FileText, Layers, Plus, Trash2, User, UserPlus, Users } from 'lucide-react';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 export type CourseRecord = App.Data.Course.CourseData & {
@@ -23,11 +26,45 @@ export type CourseCollection = PaginationMeta & {
     data: App.Data.Course.CourseData[];
 };
 
+type ModuleRecord = App.Data.Module.ModuleData;
+type ModuleStageRecord = App.Data.ModuleStage.ModuleStageData;
+type ModuleContentRecord = App.Data.ModuleContent.ModuleContentData;
+type QuizRecord = App.Data.Quiz.QuizData;
+
+const DEFAULT_NAME_POSITION = { x: 50, y: 50 } as const;
+const DEFAULT_NAME_BOX = { width: 40, height: 16 } as const;
+const DEFAULT_QR_POSITION = { x: 84, y: 78 } as const;
+const DEFAULT_QR_SIZE = { width: 18, height: 18 } as const;
+const DEFAULT_OVERLAY_POSITION = { x: 50, y: 50 } as const;
+const DEFAULT_OVERLAY_SIZE = { width: 18, height: 18 } as const;
+const DEFAULT_FONT_FAMILY = 'Poppins';
+const DEFAULT_FONT_WEIGHT = '600';
+const DEFAULT_TEXT_ALIGN: 'left' | 'center' | 'right' = 'center';
+const DEFAULT_TEXT_COLOR = '#1F2937';
+
+function normalizeDataCollection<T>(value: unknown): T[] {
+    if (Array.isArray(value)) {
+        return value as T[];
+    }
+
+    if (value && typeof value === 'object') {
+        const data = (value as { data?: unknown }).data;
+
+        if (Array.isArray(data)) {
+            return data as T[];
+        }
+    }
+
+    return [];
+}
+
 interface CourseShowProps {
     record: CourseRecord;
+    modules?: ModuleRecord[] | null;
     abilities?: {
         assign_students?: boolean;
         unassign_students?: boolean;
+        manage_modules?: boolean;
     } | null;
     viewer?: {
         is_student?: boolean;
@@ -37,12 +74,13 @@ interface CourseShowProps {
     } | null;
 }
 
-export default function CourseShow({ record, abilities = null, viewer = null }: CourseShowProps) {
+export default function CourseShow({ record, modules: modulesProp = null, abilities = null, viewer = null }: CourseShowProps) {
     const page = usePage<{ auth: { user: App.Data.User.UserData | null } }>();
     const authUser = page.props.auth?.user ?? null;
     const courseSlug = typeof record.slug === 'string' ? record.slug : String(record.slug ?? '');
     const canAssignStudents = Boolean(abilities?.assign_students);
     const canUnassignStudents = Boolean(abilities?.unassign_students);
+    const canManageModules = Boolean(abilities?.manage_modules);
     const viewerState = viewer ?? null;
     const isStudentViewer = Boolean(viewerState?.is_student);
     const isGuestViewer = authUser === null;
@@ -74,6 +112,14 @@ export default function CourseShow({ record, abilities = null, viewer = null }: 
             .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
     }, [record.instructor_ids]);
 
+    const modules = useMemo<ModuleRecord[]>(() => {
+        if (Array.isArray(modulesProp)) {
+            return modulesProp;
+        }
+
+        return normalizeDataCollection<ModuleRecord>(modulesProp);
+    }, [modulesProp]);
+
     const [pendingInstructorId, setPendingInstructorId] = useState<number | string | null>(null);
     const [isAttaching, setIsAttaching] = useState(false);
     const [removingInstructorId, setRemovingInstructorId] = useState<number | null>(null);
@@ -95,6 +141,29 @@ export default function CourseShow({ record, abilities = null, viewer = null }: 
         }).url;
     }, [enrollmentRedirectPath, record.id]);
     const loginUrl = useMemo(() => login({ query: { redirect_to: enrollmentRedirectPath } }).url, [enrollmentRedirectPath]);
+    const moduleCreateUrl = useMemo(() => CourseModuleController.create.url({ course: courseSlug }), [courseSlug]);
+    const workspaceUrl = useMemo(() => CourseWorkspaceController.show.url({ course: courseSlug }), [courseSlug]);
+    const moduleContentsUrl = useCallback((moduleId: number | string): string => `/courses/${courseSlug}/modules/${moduleId}/contents`, [courseSlug]);
+    const formatMinutes = useCallback((value: unknown): string | null => {
+        const raw = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+
+        if (!Number.isFinite(raw) || raw <= 0) {
+            return null;
+        }
+
+        const hours = Math.floor(raw / 60);
+        const minutes = raw % 60;
+
+        if (hours > 0 && minutes > 0) {
+            return `${hours} jam ${minutes} menit`;
+        }
+
+        if (hours > 0) {
+            return `${hours} jam`;
+        }
+
+        return `${minutes} menit`;
+    }, []);
     const certificatePreviewName = useMemo(() => {
         const base = 'Nama Lengkap Peserta';
         const limit = typeof record.certificate_name_max_length === 'number' ? record.certificate_name_max_length : null;
@@ -105,17 +174,118 @@ export default function CourseShow({ record, abilities = null, viewer = null }: 
 
         return base.slice(0, limit);
     }, [record.certificate_name_max_length]);
-    const certificatePosition = useMemo(() => {
-        const x = typeof record.certificate_name_position_x === 'number' ? record.certificate_name_position_x : null;
-        const y = typeof record.certificate_name_position_y === 'number' ? record.certificate_name_position_y : null;
+    const certificateNamePosition = useMemo(() => {
+        const x = typeof record.certificate_name_position_x === 'number' ? record.certificate_name_position_x : DEFAULT_NAME_POSITION.x;
+        const y = typeof record.certificate_name_position_y === 'number' ? record.certificate_name_position_y : DEFAULT_NAME_POSITION.y;
 
-        return {
-            x,
-            y,
-            previewX: x ?? 50,
-            previewY: y ?? 50,
-        };
+        return { x, y };
     }, [record.certificate_name_position_x, record.certificate_name_position_y]);
+    const certificateNameBoxSize = useMemo(() => {
+        const width =
+            typeof record.certificate_name_box_width === 'number' && record.certificate_name_box_width > 0
+                ? record.certificate_name_box_width
+                : DEFAULT_NAME_BOX.width;
+        const height =
+            typeof record.certificate_name_box_height === 'number' && record.certificate_name_box_height > 0
+                ? record.certificate_name_box_height
+                : DEFAULT_NAME_BOX.height;
+
+        return { width, height };
+    }, [record.certificate_name_box_width, record.certificate_name_box_height]);
+    const certificateNameFontFamily = useMemo(() => {
+        if (typeof record.certificate_name_font_family === 'string' && record.certificate_name_font_family.trim() !== '') {
+            return record.certificate_name_font_family;
+        }
+
+        return DEFAULT_FONT_FAMILY;
+    }, [record.certificate_name_font_family]);
+    const certificateNameFontWeight = useMemo(() => {
+        if (
+            typeof record.certificate_name_font_weight === 'string' &&
+            ['400', '500', '600', '700', '800'].includes(record.certificate_name_font_weight)
+        ) {
+            return record.certificate_name_font_weight;
+        }
+
+        return DEFAULT_FONT_WEIGHT;
+    }, [record.certificate_name_font_weight]);
+    const certificateNameTextAlign = useMemo(() => {
+        if (
+            record.certificate_name_text_align === 'left' ||
+            record.certificate_name_text_align === 'center' ||
+            record.certificate_name_text_align === 'right'
+        ) {
+            return record.certificate_name_text_align;
+        }
+
+        return DEFAULT_TEXT_ALIGN;
+    }, [record.certificate_name_text_align]);
+    const certificateNameTextColor = useMemo(() => {
+        if (typeof record.certificate_name_text_color === 'string' && record.certificate_name_text_color.trim() !== '') {
+            return record.certificate_name_text_color;
+        }
+
+        return DEFAULT_TEXT_COLOR;
+    }, [record.certificate_name_text_color]);
+    const certificateNameLetterSpacing = useMemo(() => {
+        if (typeof record.certificate_name_letter_spacing === 'number') {
+            return record.certificate_name_letter_spacing;
+        }
+
+        return 0;
+    }, [record.certificate_name_letter_spacing]);
+    const certificateQrOverlay = useMemo(() => {
+        const position = {
+            x: typeof record.certificate_qr_position_x === 'number' ? record.certificate_qr_position_x : DEFAULT_QR_POSITION.x,
+            y: typeof record.certificate_qr_position_y === 'number' ? record.certificate_qr_position_y : DEFAULT_QR_POSITION.y,
+        };
+        const size = {
+            width: typeof record.certificate_qr_box_width === 'number' ? record.certificate_qr_box_width : DEFAULT_QR_SIZE.width,
+            height: typeof record.certificate_qr_box_height === 'number' ? record.certificate_qr_box_height : DEFAULT_QR_SIZE.height,
+        };
+
+        return { position, size };
+    }, [record.certificate_qr_box_height, record.certificate_qr_box_width, record.certificate_qr_position_x, record.certificate_qr_position_y]);
+    const certificateImageOverlays = useMemo(() => {
+        if (!Array.isArray(record.certificate_images) || record.certificate_images.length === 0) {
+            return [] as Array<{
+                key: string;
+                position: { x: number; y: number };
+                size: { width: number; height: number };
+                imageUrl: string | null;
+                label: string | null;
+                zIndex: number;
+            }>;
+        }
+
+        return record.certificate_images
+            .filter((value): value is App.Data.Course.CourseCertificateImageData => Boolean(value) && typeof value === 'object')
+            .map((overlay, index) => ({
+                key: `overlay-${overlay.id ?? index}`,
+                position: {
+                    x: typeof overlay.position_x === 'number' ? overlay.position_x : DEFAULT_OVERLAY_POSITION.x,
+                    y: typeof overlay.position_y === 'number' ? overlay.position_y : DEFAULT_OVERLAY_POSITION.y,
+                },
+                size: {
+                    width: typeof overlay.width === 'number' ? overlay.width : DEFAULT_OVERLAY_SIZE.width,
+                    height: typeof overlay.height === 'number' ? overlay.height : DEFAULT_OVERLAY_SIZE.height,
+                },
+                imageUrl: typeof overlay.file_url === 'string' ? overlay.file_url : null,
+                label: typeof overlay.label === 'string' ? overlay.label : null,
+                zIndex: typeof overlay.z_index === 'number' ? overlay.z_index : 0,
+            }))
+            .sort((a, b) => a.zIndex - b.zIndex);
+    }, [record.certificate_images]);
+    const certificatePosition = useMemo(() => {
+        return {
+            x: certificateNamePosition.x,
+            y: certificateNamePosition.y,
+            previewX: certificateNamePosition.x,
+            previewY: certificateNamePosition.y,
+        };
+    }, [certificateNamePosition]);
+    const noopPositionChange = useCallback((_: { x: number; y: number }) => undefined, []);
+    const noopSizeChange = useCallback((_: { width: number; height: number }) => undefined, []);
     const hasCertificateTemplate = Boolean(record.certification_enabled && record.certificate_template_url);
     let enrollmentTitle = 'Belum Terdaftar';
     let enrollmentDescription = 'Kirim permintaan pendaftaran untuk mengikuti kursus ini.';
@@ -442,6 +612,11 @@ export default function CourseShow({ record, abilities = null, viewer = null }: 
                                     {latestRequestMessage ? <p className='text-sm text-muted-foreground italic'>“{latestRequestMessage}”</p> : null}
                                 </div>
                                 <div className='flex w-full flex-col gap-2 sm:w-auto sm:items-end'>
+                                    {isEnrolledViewer ? (
+                                        <Button asChild className='w-full sm:w-auto'>
+                                            <Link href={workspaceUrl}>Masuk ke ruang belajar</Link>
+                                        </Button>
+                                    ) : null}
                                     {enrollmentStatusLinkVisible ? (
                                         <Button variant='outline' asChild className='w-full sm:w-auto'>
                                             <Link href={EnrollmentRequestController.index().url}>Lihat permintaan</Link>
@@ -647,12 +822,39 @@ export default function CourseShow({ record, abilities = null, viewer = null }: 
                                             alt='Template Sertifikat Kursus'
                                             className='h-full w-full rounded-lg object-contain'
                                         />
-                                        <div
-                                            className='absolute -translate-x-1/2 -translate-y-1/2 rounded bg-black/70 px-4 py-2 text-sm font-semibold text-white shadow-lg'
-                                            style={{ left: `${certificatePosition.previewX}%`, top: `${certificatePosition.previewY}%` }}
-                                        >
-                                            {certificatePreviewName}
-                                        </div>
+                                        <CertificateTemplateOverlay
+                                            enabled={hasCertificateTemplate}
+                                            nameOverlay={{
+                                                editable: false,
+                                                position: certificateNamePosition,
+                                                size: certificateNameBoxSize,
+                                                onPositionChange: noopPositionChange,
+                                                onSizeChange: noopSizeChange,
+                                                sampleText: certificatePreviewName,
+                                                fontFamily: certificateNameFontFamily,
+                                                fontWeight: certificateNameFontWeight,
+                                                textAlign: certificateNameTextAlign,
+                                                textColor: certificateNameTextColor,
+                                                letterSpacing: certificateNameLetterSpacing,
+                                            }}
+                                            qrOverlay={{
+                                                editable: false,
+                                                position: certificateQrOverlay.position,
+                                                size: certificateQrOverlay.size,
+                                                onPositionChange: noopPositionChange,
+                                                onSizeChange: noopSizeChange,
+                                            }}
+                                            imageOverlays={certificateImageOverlays.map((overlay) => ({
+                                                key: overlay.key,
+                                                editable: false,
+                                                position: overlay.position,
+                                                size: overlay.size,
+                                                onPositionChange: noopPositionChange,
+                                                onSizeChange: noopSizeChange,
+                                                imageUrl: overlay.imageUrl,
+                                                label: overlay.label,
+                                            }))}
+                                        />
                                     </div>
                                 </div>
                                 <dl className='grid gap-4 text-sm text-muted-foreground sm:grid-cols-3'>
@@ -682,6 +884,180 @@ export default function CourseShow({ record, abilities = null, viewer = null }: 
                             Sertifikat diaktifkan, tetapi template belum diunggah. Unggah template di halaman edit kursus untuk menampilkan pratinjau.
                         </div>
                     ) : null}
+
+                    {/* Modules Section */}
+                    <div className='rounded-2xl border bg-card p-6 shadow-lg'>
+                        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                            <div>
+                                <h3 className='text-lg font-semibold'>Modul Pembelajaran</h3>
+                                <p className='text-sm text-muted-foreground'>Urutan materi dan evaluasi yang perlu diselesaikan peserta.</p>
+                            </div>
+                            {canManageModules ? (
+                                <Button asChild size='sm' className='gap-2'>
+                                    <Link href={moduleCreateUrl} preserveScroll>
+                                        <Plus className='h-4 w-4' />
+                                        Modul baru
+                                    </Link>
+                                </Button>
+                            ) : null}
+                        </div>
+                        <div className='mt-6 space-y-4'>
+                            {modules.length === 0 ? (
+                                <div className='rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground'>
+                                    Belum ada modul yang diatur untuk kursus ini.
+                                </div>
+                            ) : (
+                                modules.map((moduleRecord, moduleIndex) => {
+                                    const rawId = moduleRecord?.id ?? null;
+                                    const moduleId = typeof rawId === 'number' ? rawId : Number.parseInt(String(rawId ?? ''), 10);
+                                    const moduleOrder =
+                                        typeof moduleRecord?.order === 'number' && Number.isFinite(moduleRecord.order)
+                                            ? moduleRecord.order
+                                            : moduleIndex + 1;
+                                    const moduleDurationLabel = formatMinutes(moduleRecord?.duration ?? null);
+                                    const stageRecords = normalizeDataCollection<ModuleStageRecord>(moduleRecord?.module_stages ?? []);
+                                    const stageCount = stageRecords.length;
+
+                                    return (
+                                        <div
+                                            key={`course-module-${moduleId || moduleIndex}`}
+                                            className='rounded-xl border border-border/60 p-5 shadow-sm'
+                                        >
+                                            <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                                                <div className='space-y-1'>
+                                                    <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                                                        <span className='inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 font-medium text-primary ring-1 ring-primary/20 ring-inset'>
+                                                            <Layers className='h-3.5 w-3.5' />
+                                                            Modul {moduleOrder}
+                                                        </span>
+                                                        <span className='inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 font-medium text-foreground/70 ring-1 ring-border'>
+                                                            {stageCount} konten
+                                                        </span>
+                                                        {moduleDurationLabel ? (
+                                                            <span className='inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 font-medium text-foreground/70 ring-1 ring-border'>
+                                                                <Clock className='h-3.5 w-3.5' />
+                                                                {moduleDurationLabel}
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+                                                    <h4 className='text-lg font-semibold text-foreground'>
+                                                        {moduleRecord?.title && moduleRecord.title.trim().length > 0
+                                                            ? moduleRecord.title
+                                                            : `Modul ${moduleOrder}`}
+                                                    </h4>
+                                                    {moduleRecord?.description ? (
+                                                        <p className='text-sm text-muted-foreground'>{moduleRecord.description}</p>
+                                                    ) : null}
+                                                </div>
+                                                {canManageModules && Number.isFinite(moduleId) && moduleId > 0 ? (
+                                                    <Button asChild variant='outline' size='sm' className='gap-2'>
+                                                        <Link href={moduleContentsUrl(moduleId)} preserveScroll>
+                                                            Kelola konten
+                                                        </Link>
+                                                    </Button>
+                                                ) : null}
+                                            </div>
+                                            <ul className='mt-5 space-y-3'>
+                                                {stageRecords.length === 0 ? (
+                                                    <li className='rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground'>
+                                                        Konten pembelajaran belum ditambahkan ke modul ini.
+                                                    </li>
+                                                ) : (
+                                                    stageRecords.map((stageRecord, stageIndex) => {
+                                                        const stageOrder =
+                                                            typeof stageRecord?.order === 'number' && Number.isFinite(stageRecord.order)
+                                                                ? stageRecord.order
+                                                                : stageIndex + 1;
+                                                        const isQuizStage = stageRecord?.module_able === 'quiz';
+                                                        const content = stageRecord?.module_content as ModuleContentRecord | null;
+                                                        const quiz = stageRecord?.module_quiz as QuizRecord | null;
+                                                        const stageDurationLabel = formatMinutes(
+                                                            isQuizStage ? (quiz?.duration ?? null) : (content?.duration ?? null),
+                                                        );
+                                                        const badgeLabel = isQuizStage ? 'Kuis' : 'Konten';
+                                                        const badgeClass = isQuizStage
+                                                            ? 'bg-amber-500/10 text-amber-600 ring-amber-500/20'
+                                                            : 'bg-primary/10 text-primary ring-primary/20';
+                                                        const title = isQuizStage
+                                                            ? (quiz?.name ?? `Kuis ${stageOrder}`)
+                                                            : (content?.title ?? `Konten ${stageOrder}`);
+                                                        const description = isQuizStage ? quiz?.description : content?.description;
+                                                        const contentType = !isQuizStage ? content?.content_type : undefined;
+                                                        const contentUrl = !isQuizStage ? content?.content_url : undefined;
+                                                        const hasAttachment =
+                                                            !isQuizStage && typeof content?.file_path === 'string' && content.file_path.length > 0;
+
+                                                        return (
+                                                            <li
+                                                                key={`module-${moduleId || moduleIndex}-stage-${stageRecord?.id ?? stageIndex}`}
+                                                                className='flex flex-col gap-4 rounded-lg border border-border px-4 py-4 sm:flex-row sm:items-start sm:justify-between'
+                                                            >
+                                                                <div className='flex items-start gap-3'>
+                                                                    <div
+                                                                        className={`mt-1 flex h-9 w-9 items-center justify-center rounded-full ${
+                                                                            isQuizStage
+                                                                                ? 'bg-amber-500/10 text-amber-600'
+                                                                                : 'bg-primary/10 text-primary'
+                                                                        }`}
+                                                                    >
+                                                                        {isQuizStage ? (
+                                                                            <Layers className='h-4 w-4' />
+                                                                        ) : (
+                                                                            <FileText className='h-4 w-4' />
+                                                                        )}
+                                                                    </div>
+                                                                    <div className='space-y-1'>
+                                                                        <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                                                                            <span className='font-medium text-foreground'>Konten {stageOrder}</span>
+                                                                            <span
+                                                                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-medium ring-1 ring-inset ${badgeClass}`}
+                                                                            >
+                                                                                {badgeLabel}
+                                                                            </span>
+                                                                            {!isQuizStage && contentType ? (
+                                                                                <span className='inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-medium text-foreground/70 ring-1 ring-border'>
+                                                                                    {contentType}
+                                                                                </span>
+                                                                            ) : null}
+                                                                            {stageDurationLabel ? (
+                                                                                <span className='inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-medium text-foreground/70 ring-1 ring-border'>
+                                                                                    <Clock className='h-3.5 w-3.5' />
+                                                                                    {stageDurationLabel}
+                                                                                </span>
+                                                                            ) : null}
+                                                                        </div>
+                                                                        <p className='text-sm font-semibold text-foreground'>{title}</p>
+                                                                        {description ? (
+                                                                            <p className='text-xs text-muted-foreground'>{description}</p>
+                                                                        ) : null}
+                                                                        {!isQuizStage && (contentUrl || hasAttachment) ? (
+                                                                            <div className='flex flex-wrap items-center gap-3 text-xs text-muted-foreground'>
+                                                                                {contentUrl ? (
+                                                                                    <a
+                                                                                        href={contentUrl}
+                                                                                        target='_blank'
+                                                                                        rel='noopener noreferrer'
+                                                                                        className='text-primary hover:underline'
+                                                                                    >
+                                                                                        Buka tautan
+                                                                                    </a>
+                                                                                ) : null}
+                                                                                {hasAttachment ? <span>Lampiran tersedia</span> : null}
+                                                                            </div>
+                                                                        ) : null}
+                                                                    </div>
+                                                                </div>
+                                                            </li>
+                                                        );
+                                                    })
+                                                )}
+                                            </ul>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
 
                     {/* Instructors Management */}
                     <div className='rounded-2xl border bg-card p-6 shadow-lg'>

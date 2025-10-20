@@ -115,6 +115,26 @@ class CoursePolicy {
         return $this->isCourseInstructor($user, $course);
     }
 
+    public function accessWorkspace(User $user, Course $course): bool {
+        if ($user->hasRole(RoleEnum::SuperAdmin->value)) {
+            return true;
+        }
+
+        if ($this->isCourseInstructor($user, $course)) {
+            return true;
+        }
+
+        if ($user->hasRole(RoleEnum::Student->value)) {
+            return $this->isEnrolledStudent($user, $course);
+        }
+
+        if ($user->hasPermissionTo(PermissionEnum::ReadCourse)) {
+            return $this->isCourseInstructor($user, $course) || $this->isEnrolledStudent($user, $course);
+        }
+
+        return false;
+    }
+
     private function isCourseInstructor(User $user, Course $course): bool {
         if ($course->relationLoaded('course_instructors')) {
             return $course->course_instructors->contains('id', $user->getKey());

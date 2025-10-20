@@ -1,4 +1,5 @@
 import CourseController from '@/actions/App/Http/Controllers/CourseController';
+import CourseWorkspaceController from '@/actions/App/Http/Controllers/CourseWorkspaceController';
 import EnrollmentRequestController from '@/actions/App/Http/Controllers/EnrollmentRequestController';
 import UserController from '@/actions/App/Http/Controllers/UserController';
 import { Badge } from '@/components/ui/badge';
@@ -59,6 +60,7 @@ export default function EnrollmentRequestIndex({
     const activeSort = typeof sort === 'string' ? sort : undefined;
     const canManageRequests = abilities?.can_manage ?? false;
     const canCreateRequest = abilities?.can_create ?? false;
+    const isStudentViewer = abilities?.is_student ?? false;
     const columnFilters =
         filters?.columnFilters && typeof filters.columnFilters === 'object' && !Array.isArray(filters.columnFilters)
             ? (filters.columnFilters as Record<string, unknown>)
@@ -67,6 +69,31 @@ export default function EnrollmentRequestIndex({
     const [verificationDialogOpen, setVerificationDialogOpen] = useState(false);
     const [activeRequest, setActiveRequest] = useState<EnrollmentRequestRecord | null>(null);
     const [pendingAction, setPendingAction] = useState<'approve' | 'reject' | null>(null);
+    const workspaceTargets = useMemo(() => {
+        if (!isStudentViewer) {
+            return [] as Array<{ slug: string; courseTitle: string }>;
+        }
+
+        const items = Array.isArray(enrollmentRequests.data) ? enrollmentRequests.data : [];
+        const unique = new Map<string, { slug: string; courseTitle: string }>();
+
+        items.forEach((item) => {
+            if (item.status !== 'Approved') {
+                return;
+            }
+
+            const slug = typeof item.course?.slug === 'string' && item.course.slug.length > 0 ? item.course.slug : null;
+
+            if (!slug) {
+                return;
+            }
+
+            const title = item.course?.title ?? item.course_title ?? 'Ruang belajar';
+            unique.set(slug, { slug, courseTitle: title });
+        });
+
+        return Array.from(unique.values());
+    }, [enrollmentRequests.data, isStudentViewer]);
 
     const openVerificationDialog = useCallback((record: EnrollmentRequestRecord) => {
         setActiveRequest(record);
@@ -282,6 +309,21 @@ export default function EnrollmentRequestIndex({
                         ) : null}
                     </div>
                 </div>
+                {isStudentViewer && workspaceTargets.length > 0 ? (
+                    <div className='mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6'>
+                        <h2 className='text-lg font-semibold text-emerald-700 dark:text-emerald-300'>Ruang belajar siap diakses</h2>
+                        <p className='mt-2 text-sm text-emerald-700/80 dark:text-emerald-200/80'>
+                            Permintaan pendaftaran Anda telah disetujui. Pilih kursus di bawah ini untuk langsung masuk ke ruang belajar.
+                        </p>
+                        <div className='mt-4 flex flex-wrap items-center gap-2'>
+                            {workspaceTargets.map((target) => (
+                                <Button key={target.slug} asChild className='w-full sm:w-auto'>
+                                    <Link href={CourseWorkspaceController.show.url({ course: target.slug })}>Buka {target.courseTitle}</Link>
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
                 <DataTable<EnrollmentRequestRecord>
                     title='Permintaan Pendaftaran'
                     data={enrollmentRequests.data}

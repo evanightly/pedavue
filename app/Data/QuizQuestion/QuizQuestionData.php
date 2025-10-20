@@ -5,6 +5,7 @@ namespace App\Data\QuizQuestion;
 use App\Data\Quiz\QuizData;
 use App\Data\QuizQuestionOption\QuizQuestionOptionData;
 use App\Models\QuizQuestion;
+use Illuminate\Support\Facades\Storage;
 use Spatie\LaravelData\Attributes\DataCollectionOf;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\DataCollection;
@@ -18,9 +19,11 @@ class QuizQuestionData extends Data {
         public int|Optional $id,
         public ?int $quiz_id,
         public ?string $question,
-        public bool $is_answer_shuffled = false,
-        public int $order = 0,
-        public ?QuizData $quiz = null,
+        public ?string $question_image,
+        public ?string $question_image_url,
+        public bool $is_answer_shuffled,
+        public int $order,
+        public ?QuizData $quiz,
         #[DataCollectionOf(QuizQuestionData::class)]
         #[LiteralTypeScriptType('App.Data.QuizQuestionOption.QuizQuestionOptionData[]|null')]
         public ?DataCollection $quiz_question_options,
@@ -33,6 +36,8 @@ class QuizQuestionData extends Data {
             id: $model->getKey(),
             quiz_id: $model->quiz_id,
             question: $model->question,
+            question_image: $model->question_image,
+            question_image_url: static::resolveQuestionImageUrl($model->question_image),
             is_answer_shuffled: $model->is_answer_shuffled,
             order: $model->order,
             quiz: $model->relationLoaded('quiz') ? QuizData::from($model->quiz) : null,
@@ -42,5 +47,17 @@ class QuizQuestionData extends Data {
             created_at: $model->created_at?->toIso8601String(),
             updated_at: $model->updated_at?->toIso8601String(),
         );
+    }
+
+    private static function resolveQuestionImageUrl(?string $path): ?string {
+        if (!$path) {
+            return null;
+        }
+
+        if (!Storage::disk('public')->exists($path)) {
+            return null;
+        }
+
+        return asset('storage/' . ltrim($path, '/'));
     }
 }

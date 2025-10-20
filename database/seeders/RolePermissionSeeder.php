@@ -24,5 +24,10 @@ class RolePermissionSeeder extends Seeder {
             PermissionEnum::UpdateEnrollment,
             PermissionEnum::DeleteEnrollment,
         ]);
+
+        Role::whereName(RoleEnum::Student)->first()->givePermissionTo([
+            PermissionEnum::ReadCourse,
+            PermissionEnum::ReadEnrollment
+        ]);
     }
 }

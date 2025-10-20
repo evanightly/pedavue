@@ -41,11 +41,12 @@ export interface User {
     email: string;
     avatar?: string;
     email_verified_at: string | null;
-    role: App.Support.Enums.RoleEnum;
-    permissions: App.Support.Enums.PermissionEnum[];
     created_at: string;
     updated_at: string;
     avatar_url?: string;
+    role?: App.Support.Enums.RoleEnum | null;
+    permissions?: App.Support.Enums.PermissionEnum[] | null;
+    roles?: App.Data.Role.RoleData[] | null;
     [key: string]: unknown; // This allows for additional properties...
 }
 

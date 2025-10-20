@@ -1,4 +1,15 @@
 declare namespace App.Data.Course {
+    export type CourseCertificateImageData = {
+        id: number;
+        file_path: string;
+        file_url: string;
+        position_x: number;
+        position_y: number;
+        width: number;
+        height: number;
+        z_index: number;
+        label: string | null;
+    };
     export type CourseData = {
         id: any | number;
         instructor_ids: number[] | null;
@@ -23,6 +34,10 @@ declare namespace App.Data.Course {
         certificate_name_text_align: string | null;
         certificate_name_text_color: string | null;
         certificate_name_letter_spacing: number | null;
+        certificate_qr_position_x: number | null;
+        certificate_qr_position_y: number | null;
+        certificate_qr_box_width: number | null;
+        certificate_qr_box_height: number | null;
         certificate_example: string | null;
         certificate_example_url: string | null;
         created_at: string | null;
@@ -31,6 +46,7 @@ declare namespace App.Data.Course {
         updated_at_formatted: string | null;
         course_instructors: App.Data.User.UserData[] | null;
         students: App.Data.User.UserData[] | null;
+        certificate_images: App.Data.Course.CourseCertificateImageData[] | null;
     };
 }
 declare namespace App.Data.CourseInstructor {
@@ -72,6 +88,47 @@ declare namespace App.Data.EnrollmentRequest {
         course: App.Data.Course.CourseData | null;
     };
 }
+declare namespace App.Data.Module {
+    export type ModuleData = {
+        id: any | number;
+        title: string | null;
+        description: string | null;
+        thumbnail: string | null;
+        duration: number | null;
+        order: number | null;
+        created_at: string | null;
+        updated_at: string | null;
+        course: any;
+        module_stages: App.Data.ModuleStage.ModuleStageData[] | null;
+    };
+}
+declare namespace App.Data.ModuleContent {
+    export type ModuleContentData = {
+        id: any | number;
+        title: string | null;
+        description: string | null;
+        file_path: string | null;
+        content_url: string | null;
+        file_url: string | null;
+        duration: number | null;
+        content_type: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+        module_stage: any;
+    };
+}
+declare namespace App.Data.ModuleStage {
+    export type ModuleStageData = {
+        id: any | number;
+        module_able: string | null;
+        order: number | null;
+        created_at: string | null;
+        updated_at: string | null;
+        module: any;
+        module_content: any;
+        module_quiz: any;
+    };
+}
 declare namespace App.Data.Permission {
     export type PermissionData = {
         id: any | number;
@@ -95,11 +152,38 @@ declare namespace App.Data.Quiz {
         updated_at: string | null;
     };
 }
+declare namespace App.Data.QuizImport {
+    export type QuizImportOptionPreviewData = {
+        label: any | string;
+        option_text: string | null;
+        is_correct: boolean;
+        has_image: boolean;
+        image_preview: string | null;
+    };
+    export type QuizImportPreviewData = {
+        token: string;
+        imported_count: number;
+        existing_count: number;
+        incomingQuestions: App.Data.QuizImport.QuizImportQuestionPreviewData[];
+        existingQuestions: App.Data.QuizImport.QuizImportQuestionPreviewData[] | null;
+        warnings: Array<any>;
+        quiz: App.Data.Quiz.QuizData;
+    };
+    export type QuizImportQuestionPreviewData = {
+        label: string;
+        question: string | null;
+        has_image: boolean;
+        image_preview: string | null;
+        options: any;
+    };
+}
 declare namespace App.Data.QuizQuestion {
     export type QuizQuestionData = {
         id: any | number;
         quiz_id: number | null;
         question: string | null;
+        question_image: string | null;
+        question_image_url: string | null;
         is_answer_shuffled: boolean;
         order: number;
         quiz: App.Data.Quiz.QuizData | null;
@@ -114,10 +198,38 @@ declare namespace App.Data.QuizQuestionOption {
         quiz_question_id: number | null;
         option_text: string | null;
         is_correct: boolean | null;
+        option_image: string | null;
+        option_image_url: string | null;
         order: number;
         quiz_question: App.Data.QuizQuestion.QuizQuestionData | null;
         created_at: string | null;
         updated_at: string | null;
+    };
+}
+declare namespace App.Data.QuizResult {
+    export type QuizResultData = {
+        id: any | number;
+        score: number | null;
+        attempt: number | null;
+        started_at: string | null;
+        finished_at: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+        user: any;
+        quiz: any;
+    };
+}
+declare namespace App.Data.QuizResultAnswer {
+    export type QuizResultAnswerData = {
+        id: any | number;
+        user_answer_text: string | null;
+        started_at: string | null;
+        finished_at: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+        quiz_result: any;
+        question: any;
+        answer: any;
     };
 }
 declare namespace App.Data.Role {
@@ -152,6 +264,11 @@ declare namespace App.Support.Enums {
         Pending = 'Pending',
         Approved = 'Approved',
         Rejected = 'Rejected',
+    }
+    export enum ModuleStageProgressStatus {
+        Pending = 'pending',
+        InProgress = 'in_progress',
+        Completed = 'completed',
     }
     export enum PermissionEnum {
         ReadUser = 'ReadUser',

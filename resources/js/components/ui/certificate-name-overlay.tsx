@@ -100,30 +100,6 @@ export function CertificateNameOverlay({
         autoResizeText();
     }, [autoResizeText, sampleText, size.height, size.width, fontFamily, fontWeight, textAlign, letterSpacing]);
 
-    const handleBackgroundPointerDown = useCallback(
-        (event: ReactPointerEvent<HTMLDivElement>) => {
-            if (!editable) {
-                return;
-            }
-
-            if (event.target !== overlayRef.current) {
-                return;
-            }
-
-            const overlay = overlayRef.current;
-            if (!overlay) {
-                return;
-            }
-
-            const bounds = overlay.getBoundingClientRect();
-            const relativeX = ((event.clientX - bounds.left) / bounds.width) * 100;
-            const relativeY = ((event.clientY - bounds.top) / bounds.height) * 100;
-
-            applyPosition(relativeX, relativeY);
-        },
-        [applyPosition, editable],
-    );
-
     const startDrag = useCallback(
         (event: ReactPointerEvent<HTMLDivElement>) => {
             if (!editable) {
@@ -226,37 +202,30 @@ export function CertificateNameOverlay({
     );
 
     return (
-        <div
-            ref={overlayRef}
-            className='pointer-events-none absolute inset-0 select-none'
-            onPointerDown={handleBackgroundPointerDown}
-            role='presentation'
-        >
-            <div className='pointer-events-auto absolute inset-0'>
-                <div
-                    ref={boxRef}
-                    className={cn(
-                        'absolute flex translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded border border-white/70 bg-black/25 p-3 text-white shadow-lg backdrop-blur-sm transition-colors',
-                        editable ? 'cursor-move' : 'cursor-default',
-                    )}
-                    style={boxStyle}
-                    onPointerDown={startDrag}
-                >
-                    <div ref={textRef} className='w-full leading-tight' style={textStyle}>
-                        {sampleText}
-                    </div>
-                    {editable ? (
-                        <div
-                            role='presentation'
-                            onPointerDown={startResize}
-                            className='absolute bottom-2 right-2 flex h-6 w-6 cursor-se-resize items-center justify-center rounded bg-white/80 text-black shadow'
-                        >
-                            <svg viewBox='0 0 24 24' className='h-4 w-4 text-black/70' aria-hidden>
-                                <path d='M9 15h6v6M15 9h6v6M3 9h6v6' stroke='currentColor' strokeWidth='2' fill='none' />
-                            </svg>
-                        </div>
-                    ) : null}
+        <div ref={overlayRef} className='pointer-events-none absolute inset-0 select-none' role='presentation'>
+            <div
+                ref={boxRef}
+                className={cn(
+                    'pointer-events-auto absolute flex translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded border border-white/70 bg-black/25 p-3 text-white shadow-lg backdrop-blur-sm transition-colors',
+                    editable ? 'cursor-move' : 'cursor-default',
+                )}
+                style={boxStyle}
+                onPointerDown={startDrag}
+            >
+                <div ref={textRef} className='w-full leading-tight' style={textStyle}>
+                    {sampleText}
                 </div>
+                {editable ? (
+                    <div
+                        role='presentation'
+                        onPointerDown={startResize}
+                        className='absolute bottom-2 right-2 flex h-6 w-6 cursor-se-resize items-center justify-center rounded bg-white/80 text-black shadow'
+                    >
+                        <svg viewBox='0 0 24 24' className='h-4 w-4 text-black/70' aria-hidden>
+                            <path d='M9 15h6v6M15 9h6v6M3 9h6v6' stroke='currentColor' strokeWidth='2' fill='none' />
+                        </svg>
+                    </div>
+                ) : null}
             </div>
             {guidance ? (
                 <div className='pointer-events-none absolute inset-x-4 bottom-4 flex justify-center text-center text-xs text-white/85'>{guidance}</div>
