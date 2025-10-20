@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CourseCertificateController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\CourseInstructorController;
 use App\Http\Controllers\CourseModuleContentController;
@@ -61,6 +62,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('workspace', [CourseWorkspaceController::class, 'show'])->name('courses.workspace.show');
 
             Route::prefix('workspace')->group(function () {
+                Route::get('certificate', [CourseCertificateController::class, 'download'])->name('courses.workspace.certificate.download');
                 Route::get('modules/{module}/stages/{module_stage}', [WorkspaceModuleStageController::class, 'show'])->name('courses.workspace.stages.show');
                 Route::post('modules/{module}/stages/{module_stage}/complete', [WorkspaceModuleStageController::class, 'complete'])->name('courses.workspace.stages.complete');
                 Route::post('modules/{module}/stages/{module_stage}/quiz/progress', [WorkspaceModuleStageController::class, 'saveQuizProgress'])->name('courses.workspace.stages.quiz.progress');

@@ -31,6 +31,8 @@ class CourseWorkspaceController extends Controller {
             'description' => $course->description,
             'slug' => $course->slug,
             'thumbnail_url' => $course->thumbnail ? asset('storage/' . ltrim($course->thumbnail, '/')) : null,
+            'certification_enabled' => (bool) $course->certification_enabled,
+            'certificate_template_url' => $course->certificate_template ? asset('storage/' . ltrim($course->certificate_template, '/')) : null,
         ];
 
         $enrollmentData = [

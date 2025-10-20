@@ -1,3 +1,4 @@
+import CourseCertificateController from '@/actions/App/Http/Controllers/CourseCertificateController';
 import WorkspaceModuleStageController from '@/actions/App/Http/Controllers/WorkspaceModuleStageController';
 import ModuleStagePreview from '@/components/module-stage-preview';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +11,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
-import { AlertTriangle, BookOpen, CheckCircle2, CheckSquare, Circle, CircleDot, Clock, Flame, Loader2, Lock, PlayCircle, Square } from 'lucide-react';
+import {
+    AlertTriangle,
+    Award,
+    BookOpen,
+    CheckCircle2,
+    CheckSquare,
+    Circle,
+    CircleDot,
+    Clock,
+    Flame,
+    Loader2,
+    Lock,
+    PlayCircle,
+    Square,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -147,6 +162,8 @@ interface WorkspaceCoursePageProps {
         description?: string | null;
         slug: string;
         thumbnail_url?: string | null;
+        certification_enabled?: boolean;
+        certificate_template_url?: string | null;
     };
     enrollment: EnrollmentPayload;
     modules: ModuleSummary[];
@@ -299,9 +316,13 @@ export default function WorkspaceCourseShowPage({
     const [isCompletingStage, setIsCompletingStage] = useState(false);
     const [isSubmittingQuiz, setIsSubmittingQuiz] = useState(false);
     const [isSavingAnswers, setIsSavingAnswers] = useState(false);
+    const [isDownloadingCertificate, setIsDownloadingCertificate] = useState(false);
     const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
     const [lastAction, setLastAction] = useState<StageAction | null>(null);
     const [answers, setAnswers] = useState<AnswerMap>({});
+
+    const certificateEnabled = Boolean(course.certification_enabled && course.certificate_template_url);
+    const certificateReady = certificateEnabled && Boolean(enrollment.completed_at);
 
     const autosaveTimeoutRef = useRef<number | null>(null);
     const lastSavedAnswersRef = useRef<AnswerMap>({});
@@ -487,6 +508,47 @@ export default function WorkspaceCourseShowPage({
         },
         [courseSlug, handleStageDetailResponse],
     );
+
+    const handleDownloadCertificate = useCallback(async (): Promise<void> => {
+        if (!certificateEnabled || !certificateReady) {
+            return;
+        }
+
+        setIsDownloadingCertificate(true);
+
+        try {
+            const response = await axios.get(CourseCertificateController.download.url({ course: courseSlug }), { responseType: 'blob' });
+
+            const blob = new Blob([response.data], {
+                type: typeof response.headers['content-type'] === 'string' ? response.headers['content-type'] : 'application/octet-stream',
+            });
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = downloadUrl;
+
+            const disposition = response.headers['content-disposition'];
+            let filename = `${courseSlug}-certificate`;
+
+            if (typeof disposition === 'string') {
+                const match = disposition.match(/filename="?([^";]+)"?/i);
+                if (match && match[1]) {
+                    filename = match[1];
+                }
+            }
+
+            anchor.download = filename;
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            window.URL.revokeObjectURL(downloadUrl);
+
+            toast.success('Sertifikat berhasil diunduh.');
+        } catch (error) {
+            toast.error('Gagal mengunduh sertifikat. Silakan coba lagi.');
+        } finally {
+            setIsDownloadingCertificate(false);
+        }
+    }, [certificateEnabled, certificateReady, courseSlug]);
 
     const handleSelectStage = useCallback(
         async (stageId: number): Promise<void> => {
@@ -1066,12 +1128,28 @@ export default function WorkspaceCourseShowPage({
                             <CardTitle className='text-3xl font-semibold'>{course.title}</CardTitle>
                             {course.description ? <p className='text-sm text-muted-foreground'>{course.description}</p> : null}
                         </div>
-                        <div className='w-full max-w-sm space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-4'>
+                        <div className='w-full max-w-sm space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4'>
                             <div className='flex items-center justify-between text-sm font-medium text-primary'>
                                 <span>Progres belajar</span>
                                 <span>{enrollment.progress_label ?? `${enrollment.progress}%`}</span>
                             </div>
                             <Progress value={enrollment.progress} />
+                            <Button
+                                type='button'
+                                className='w-full justify-center gap-2'
+                                onClick={handleDownloadCertificate}
+                                disabled={!certificateEnabled || !certificateReady || isDownloadingCertificate}
+                            >
+                                {isDownloadingCertificate ? <Loader2 className='h-4 w-4 animate-spin' /> : <Award className='h-4 w-4' />}
+                                Unduh sertifikat
+                            </Button>
+                            <p className='text-xs text-muted-foreground'>
+                                {certificateEnabled
+                                    ? certificateReady
+                                        ? 'Selamat! Sertifikat siap diunduh.'
+                                        : 'Selesaikan seluruh tahap untuk membuka sertifikat.'
+                                    : 'Instruktur belum mengaktifkan sertifikat untuk kursus ini.'}
+                            </p>
                         </div>
                     </CardHeader>
                 </Card>
