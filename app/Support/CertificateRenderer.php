@@ -3,7 +3,15 @@
 namespace App\Support;
 
 use App\Models\Course;
+use App\Models\CourseCertificateImage;
 use App\Models\User;
+use Carbon\CarbonInterface;
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\ErrorCorrectionLevel;
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Writer\PngWriter;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -19,6 +27,16 @@ class CertificateRenderer {
     private const DEFAULT_BOX_HEIGHT_PERCENT = 16;
 
     private const DEFAULT_POSITION_PERCENT = 50;
+
+    private const DEFAULT_OVERLAY_WIDTH_PERCENT = 20;
+
+    private const DEFAULT_OVERLAY_HEIGHT_PERCENT = 20;
+
+    private const DEFAULT_QR_BOX_PERCENT = 18;
+
+    private const DEFAULT_QR_POSITION_X_PERCENT = 88;
+
+    private const DEFAULT_QR_POSITION_Y_PERCENT = 88;
 
     private const MIN_FONT_SIZE = 12;
 
@@ -93,10 +111,64 @@ class CertificateRenderer {
     /**
      * @return array{path: string, extension: string}
      */
-    public function render(Course $course, User $user, string $templatePath, string $extension): array {
+    public function render(Course $course, User $user, string $templatePath, string $extension, ?string $verificationUrl = null, ?CarbonInterface $completedAt = null): array {
         $image = $this->createImageFromTemplate($templatePath);
         $width = imagesx($image);
         $height = imagesy($image);
+
+        $overlaySource = $course->relationLoaded('certificate_images')
+            ? $course->certificate_images
+            : $course->certificate_images()->orderBy('z_index')->get();
+
+        $overlays = $overlaySource instanceof Collection ? $overlaySource : collect($overlaySource ?? []);
+
+        [$negativeOverlays, $nonNegativeOverlays] = $this->partitionOverlays($overlays);
+
+        if ($negativeOverlays->isNotEmpty()) {
+            $this->drawCertificateImages($image, $negativeOverlays, $width, $height);
+        }
+
+        $this->drawParticipantName($image, $course, $user, $width, $height);
+
+        if ($nonNegativeOverlays->isNotEmpty()) {
+            $this->drawCertificateImages($image, $nonNegativeOverlays, $width, $height);
+        }
+
+        $qrPayload = $this->buildQrPayload($course, $user, $verificationUrl, $completedAt);
+        $this->drawQrCodeOverlay($image, $course, $qrPayload, $width, $height);
+
+        $renderedExtension = $this->normalizeExtension($extension);
+        $outputPath = $this->writeImageToTemporaryPath($image, $renderedExtension);
+        imagedestroy($image);
+
+        return [
+            'path' => $outputPath,
+            'extension' => $renderedExtension,
+        ];
+    }
+
+    /**
+     * @param  Collection<int, CourseCertificateImage>  $overlays
+     * @return array{Collection<int, CourseCertificateImage>, Collection<int, CourseCertificateImage>}
+     */
+    private function partitionOverlays(Collection $overlays): array {
+        $negative = $overlays
+            ->filter(static fn (CourseCertificateImage $overlay): bool => $overlay->z_index < 0)
+            ->sortBy('z_index')
+            ->values();
+
+        $nonNegative = $overlays
+            ->filter(static fn (CourseCertificateImage $overlay): bool => $overlay->z_index >= 0)
+            ->sortBy('z_index')
+            ->values();
+
+        return [$negative, $nonNegative];
+    }
+
+    private function drawParticipantName($image, Course $course, User $user, int $canvasWidth, int $canvasHeight): void {
+        if (!$course->certification_enabled) {
+            return;
+        }
 
         $name = $this->truncateName($user->name ?? '');
         $name = $this->applyNameLimit($name, $course->certificate_name_max_length);
@@ -107,13 +179,13 @@ class CertificateRenderer {
         $boxCenterXPercent = $course->certificate_name_position_x ?? self::DEFAULT_POSITION_PERCENT;
         $boxCenterYPercent = $course->certificate_name_position_y ?? self::DEFAULT_POSITION_PERCENT;
 
-        $boxWidth = max(1, (int) round($width * ($boxWidthPercent / 100)));
-        $boxHeight = max(1, (int) round($height * ($boxHeightPercent / 100)));
-        $boxLeft = (int) round(($boxCenterXPercent / 100) * $width - ($boxWidth / 2));
-        $boxTop = (int) round(($boxCenterYPercent / 100) * $height - ($boxHeight / 2));
+        $boxWidth = max(1, (int) round($canvasWidth * ($boxWidthPercent / 100)));
+        $boxHeight = max(1, (int) round($canvasHeight * ($boxHeightPercent / 100)));
+        $boxLeft = (int) round(($boxCenterXPercent / 100) * $canvasWidth - ($boxWidth / 2));
+        $boxTop = (int) round(($boxCenterYPercent / 100) * $canvasHeight - ($boxHeight / 2));
 
-        $boxLeft = max(0, min($width - $boxWidth, $boxLeft));
-        $boxTop = max(0, min($height - $boxHeight, $boxTop));
+        $boxLeft = max(0, min($canvasWidth - $boxWidth, $boxLeft));
+        $boxTop = max(0, min($canvasHeight - $boxHeight, $boxTop));
 
         $padding = (int) min(self::BOX_PADDING, max(0, min($boxWidth, $boxHeight) / 6));
         $contentLeft = $boxLeft + $padding;
@@ -143,18 +215,254 @@ class CertificateRenderer {
             }
 
             $this->drawText($image, $fontPath, $fontSize, $x, $y, $textColor, $name, $letterSpacing);
-        } else {
-            $this->drawWithBuiltInFont($image, $name, $contentLeft, $contentTop, $contentWidth, $contentHeight, $textAlign, $textColor);
+
+            return;
         }
 
-        $renderedExtension = $this->normalizeExtension($extension);
-        $outputPath = $this->writeImageToTemporaryPath($image, $renderedExtension);
-        imagedestroy($image);
+        $this->drawWithBuiltInFont($image, $name, $contentLeft, $contentTop, $contentWidth, $contentHeight, $textAlign, $textColor);
+    }
 
-        return [
-            'path' => $outputPath,
-            'extension' => $renderedExtension,
-        ];
+    /**
+     * @param  Collection<int, CourseCertificateImage>  $overlays
+     */
+    private function drawCertificateImages($canvas, Collection $overlays, int $canvasWidth, int $canvasHeight): void {
+        foreach ($overlays as $overlay) {
+            $path = $this->resolveOverlayPath($overlay->file_path);
+
+            if ($path === null) {
+                continue;
+            }
+
+            try {
+                $overlayImage = $this->createImageFromTemplate($path);
+            } catch (RuntimeException $exception) {
+                continue;
+            }
+
+            $widthPercent = $overlay->width ?? self::DEFAULT_OVERLAY_WIDTH_PERCENT;
+            $heightPercent = $overlay->height ?? self::DEFAULT_OVERLAY_HEIGHT_PERCENT;
+            $positionXPercent = $overlay->position_x ?? self::DEFAULT_POSITION_PERCENT;
+            $positionYPercent = $overlay->position_y ?? self::DEFAULT_POSITION_PERCENT;
+
+            $targetWidth = max(1, (int) round($canvasWidth * ($widthPercent / 100)));
+            $targetHeight = max(1, (int) round($canvasHeight * ($heightPercent / 100)));
+
+            $targetWidth = min($targetWidth, $canvasWidth);
+            $targetHeight = min($targetHeight, $canvasHeight);
+
+            if ($targetWidth <= 0 || $targetHeight <= 0) {
+                imagedestroy($overlayImage);
+
+                continue;
+            }
+
+            $boxLeft = (int) round(($positionXPercent / 100) * $canvasWidth - ($targetWidth / 2));
+            $boxTop = (int) round(($positionYPercent / 100) * $canvasHeight - ($targetHeight / 2));
+
+            $boxLeft = max(0, min($canvasWidth - $targetWidth, $boxLeft));
+            $boxTop = max(0, min($canvasHeight - $targetHeight, $boxTop));
+
+            $resized = imagecreatetruecolor($targetWidth, $targetHeight);
+            imagealphablending($resized, false);
+            imagesavealpha($resized, true);
+            $transparent = imagecolorallocatealpha($resized, 0, 0, 0, 127);
+            imagefill($resized, 0, 0, $transparent);
+            imagealphablending($resized, true);
+
+            $sourceWidth = imagesx($overlayImage);
+            $sourceHeight = imagesy($overlayImage);
+
+            if ($sourceWidth <= 0 || $sourceHeight <= 0) {
+                imagedestroy($overlayImage);
+                imagedestroy($resized);
+
+                continue;
+            }
+
+            $scale = min($targetWidth / $sourceWidth, $targetHeight / $sourceHeight);
+
+            if ($scale <= 0) {
+                imagedestroy($overlayImage);
+                imagedestroy($resized);
+
+                continue;
+            }
+
+            $scaledWidth = max(1, (int) round($sourceWidth * $scale));
+            $scaledHeight = max(1, (int) round($sourceHeight * $scale));
+            $offsetX = (int) floor(($targetWidth - $scaledWidth) / 2);
+            $offsetY = (int) floor(($targetHeight - $scaledHeight) / 2);
+
+            imagecopyresampled(
+                $resized,
+                $overlayImage,
+                $offsetX,
+                $offsetY,
+                0,
+                0,
+                $scaledWidth,
+                $scaledHeight,
+                $sourceWidth,
+                $sourceHeight
+            );
+
+            imagealphablending($canvas, true);
+            imagesavealpha($canvas, true);
+            imagecopy($canvas, $resized, $boxLeft, $boxTop, 0, 0, $targetWidth, $targetHeight);
+
+            imagedestroy($resized);
+            imagedestroy($overlayImage);
+        }
+    }
+
+    private function drawQrCodeOverlay($canvas, Course $course, ?string $payload, int $canvasWidth, int $canvasHeight): void {
+        if ($payload === null) {
+            return;
+        }
+
+        $widthPercent = $course->certificate_qr_box_width ?? self::DEFAULT_QR_BOX_PERCENT;
+        $heightPercent = $course->certificate_qr_box_height ?? self::DEFAULT_QR_BOX_PERCENT;
+        $positionXPercent = $course->certificate_qr_position_x ?? self::DEFAULT_QR_POSITION_X_PERCENT;
+        $positionYPercent = $course->certificate_qr_position_y ?? self::DEFAULT_QR_POSITION_Y_PERCENT;
+
+        $targetWidth = max(1, (int) round($canvasWidth * ($widthPercent / 100)));
+        $targetHeight = max(1, (int) round($canvasHeight * ($heightPercent / 100)));
+
+        $targetWidth = min($targetWidth, $canvasWidth);
+        $targetHeight = min($targetHeight, $canvasHeight);
+
+        $centerX = ($positionXPercent / 100) * $canvasWidth;
+        $centerY = ($positionYPercent / 100) * $canvasHeight;
+
+        $desiredSquare = max($targetWidth, $targetHeight);
+        $maxSquare = min($canvasWidth, $canvasHeight);
+        $desiredSquare = max(1, min($desiredSquare, $maxSquare));
+
+        $targetWidth = min($canvasWidth, max($targetWidth, $desiredSquare));
+        $targetHeight = min($canvasHeight, max($targetHeight, $desiredSquare));
+
+        $boxLeft = (int) round($centerX - ($targetWidth / 2));
+        $boxTop = (int) round($centerY - ($targetHeight / 2));
+
+        $boxLeft = max(0, min($canvasWidth - $targetWidth, $boxLeft));
+        $boxTop = max(0, min($canvasHeight - $targetHeight, $boxTop));
+
+        $squareSize = max(1, (int) round(min($targetWidth, $targetHeight)));
+        $generatedSize = max($squareSize * 4, 512);
+        $qrCode = new QrCode(
+            data: $payload,
+            encoding: new Encoding('UTF-8'),
+            errorCorrectionLevel: ErrorCorrectionLevel::High,
+            size: $generatedSize,
+            margin: 0,
+        );
+
+        $writer = new PngWriter;
+        $qrImage = imagecreatefromstring($writer->write($qrCode)->getString());
+
+        if ($qrImage === false) {
+            return;
+        }
+
+        $resized = imagecreatetruecolor($targetWidth, $targetHeight);
+        imagealphablending($resized, false);
+        imagesavealpha($resized, true);
+        // $white = imagecolorallocatealpha($resized, 255, 255, 255, 0);
+        // imagefill($resized, 0, 0, $white);
+        // imagealphablending($resized, true);
+
+        // $innerPadding = 0;
+        // $drawSize = max(1, $squareSize - ($innerPadding * 2));
+
+        // $offsetX = (int) floor(($targetWidth - $drawSize) / 2);
+        // $offsetY = (int) floor(($targetHeight - $drawSize) / 2);
+
+        // $sourceWidth = imagesx($qrImage);
+        // $sourceHeight = imagesy($qrImage);
+
+        // if ($sourceWidth === $drawSize && $sourceHeight === $drawSize) {
+        //     imagecopy(
+        //         $resized,
+        //         $qrImage,
+        //         $offsetX,
+        //         $offsetY,
+        //         0,
+        //         0,
+        //         $drawSize,
+        //         $drawSize,
+        //     );
+        // } else {
+        //     imagecopyresampled(
+        //         $resized,
+        //         $qrImage,
+        //         $offsetX,
+        //         $offsetY,
+        //         0,
+        //         0,
+        //         $drawSize,
+        //         $drawSize,
+        //         $sourceWidth,
+        //         $sourceHeight,
+        //     );
+        // }
+
+        // imagealphablending($canvas, true);
+        // imagesavealpha($canvas, true);
+        // imagecopy($canvas, $resized, $boxLeft, $boxTop, 0, 0, $targetWidth, $targetHeight);
+
+        // imagedestroy($resized);
+        // imagedestroy($qrImage);
+
+        $qrImage = imagecreatefromstring($writer->write($qrCode)->getString());
+        if ($qrImage === false) return;
+
+        $sourceWidth = imagesx($qrImage);
+        $sourceHeight = imagesy($qrImage);
+
+        imagecopyresampled(
+            $canvas,
+            $qrImage,
+            $boxLeft,
+            $boxTop,
+            0,
+            0,
+            $targetWidth,
+            $targetHeight,
+            $sourceWidth,
+            $sourceHeight
+        );
+
+        imagedestroy($qrImage);
+
+    }
+
+    private function resolveOverlayPath(string $path): ?string {
+        if (trim($path) === '') {
+            return null;
+        }
+
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return null;
+        }
+
+        if (Storage::disk('public')->exists($path)) {
+            return Storage::disk('public')->path($path);
+        }
+
+        return $this->absolutePath($path);
+    }
+
+    private function buildQrPayload(Course $course, User $user, ?string $verificationUrl, ?CarbonInterface $completedAt): ?string {
+        if ($verificationUrl === null) {
+            return null;
+        }
+        $trimmed = trim($verificationUrl);
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        return $trimmed;
     }
 
     private function truncateName(string $name): string {

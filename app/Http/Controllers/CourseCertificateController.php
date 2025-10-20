@@ -8,6 +8,7 @@ use App\Support\WorkspaceProgressManager;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -27,6 +28,8 @@ class CourseCertificateController extends Controller {
             abort(404, 'Sertifikat belum tersedia untuk kursus ini.');
         }
 
+        $course->loadMissing('certificate_images');
+
         $templatePath = $course->certificate_template;
 
         if ($templatePath === null || trim($templatePath) === '' || !Storage::disk('public')->exists($templatePath)) {
@@ -44,8 +47,13 @@ class CourseCertificateController extends Controller {
 
         $enrollment->loadMissing('user');
 
+        $verificationUrl = URL::signedRoute('certificates.verify', [
+            'course' => $course,
+            'enrollment' => $enrollment,
+        ], absolute: true);
+
         try {
-            $rendered = $this->certificateRenderer->render($course, $enrollment->user, $absolutePath, $extension);
+            $rendered = $this->certificateRenderer->render($course, $enrollment->user, $absolutePath, $extension, $verificationUrl, $enrollment->completed_at);
         } catch (\Throwable $exception) {
             report($exception);
 

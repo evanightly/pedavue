@@ -1,4 +1,15 @@
 declare namespace App.Data.Course {
+    export type CourseCertificateImageData = {
+        id: number;
+        file_path: string;
+        file_url: string;
+        position_x: number;
+        position_y: number;
+        width: number;
+        height: number;
+        z_index: number;
+        label: string | null;
+    };
     export type CourseData = {
         id: any | number;
         instructor_ids: number[] | null;
@@ -23,6 +34,10 @@ declare namespace App.Data.Course {
         certificate_name_text_align: string | null;
         certificate_name_text_color: string | null;
         certificate_name_letter_spacing: number | null;
+        certificate_qr_position_x: number | null;
+        certificate_qr_position_y: number | null;
+        certificate_qr_box_width: number | null;
+        certificate_qr_box_height: number | null;
         certificate_example: string | null;
         certificate_example_url: string | null;
         created_at: string | null;
@@ -31,6 +46,7 @@ declare namespace App.Data.Course {
         updated_at_formatted: string | null;
         course_instructors: App.Data.User.UserData[] | null;
         students: App.Data.User.UserData[] | null;
+        certificate_images: App.Data.Course.CourseCertificateImageData[] | null;
     };
 }
 declare namespace App.Data.CourseInstructor {

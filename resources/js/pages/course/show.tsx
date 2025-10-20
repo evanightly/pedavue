@@ -6,6 +6,7 @@ import UserController from '@/actions/App/Http/Controllers/UserController';
 import GenericDataSelector from '@/components/generic-data-selector';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CertificateTemplateOverlay } from '@/components/ui/certificate-template-overlay';
 import type { PaginationMeta } from '@/components/ui/data-table-types';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,6 +30,17 @@ type ModuleRecord = App.Data.Module.ModuleData;
 type ModuleStageRecord = App.Data.ModuleStage.ModuleStageData;
 type ModuleContentRecord = App.Data.ModuleContent.ModuleContentData;
 type QuizRecord = App.Data.Quiz.QuizData;
+
+const DEFAULT_NAME_POSITION = { x: 50, y: 50 } as const;
+const DEFAULT_NAME_BOX = { width: 40, height: 16 } as const;
+const DEFAULT_QR_POSITION = { x: 84, y: 78 } as const;
+const DEFAULT_QR_SIZE = { width: 18, height: 18 } as const;
+const DEFAULT_OVERLAY_POSITION = { x: 50, y: 50 } as const;
+const DEFAULT_OVERLAY_SIZE = { width: 18, height: 18 } as const;
+const DEFAULT_FONT_FAMILY = 'Poppins';
+const DEFAULT_FONT_WEIGHT = '600';
+const DEFAULT_TEXT_ALIGN: 'left' | 'center' | 'right' = 'center';
+const DEFAULT_TEXT_COLOR = '#1F2937';
 
 function normalizeDataCollection<T>(value: unknown): T[] {
     if (Array.isArray(value)) {
@@ -162,17 +174,118 @@ export default function CourseShow({ record, modules: modulesProp = null, abilit
 
         return base.slice(0, limit);
     }, [record.certificate_name_max_length]);
-    const certificatePosition = useMemo(() => {
-        const x = typeof record.certificate_name_position_x === 'number' ? record.certificate_name_position_x : null;
-        const y = typeof record.certificate_name_position_y === 'number' ? record.certificate_name_position_y : null;
+    const certificateNamePosition = useMemo(() => {
+        const x = typeof record.certificate_name_position_x === 'number' ? record.certificate_name_position_x : DEFAULT_NAME_POSITION.x;
+        const y = typeof record.certificate_name_position_y === 'number' ? record.certificate_name_position_y : DEFAULT_NAME_POSITION.y;
 
-        return {
-            x,
-            y,
-            previewX: x ?? 50,
-            previewY: y ?? 50,
-        };
+        return { x, y };
     }, [record.certificate_name_position_x, record.certificate_name_position_y]);
+    const certificateNameBoxSize = useMemo(() => {
+        const width =
+            typeof record.certificate_name_box_width === 'number' && record.certificate_name_box_width > 0
+                ? record.certificate_name_box_width
+                : DEFAULT_NAME_BOX.width;
+        const height =
+            typeof record.certificate_name_box_height === 'number' && record.certificate_name_box_height > 0
+                ? record.certificate_name_box_height
+                : DEFAULT_NAME_BOX.height;
+
+        return { width, height };
+    }, [record.certificate_name_box_width, record.certificate_name_box_height]);
+    const certificateNameFontFamily = useMemo(() => {
+        if (typeof record.certificate_name_font_family === 'string' && record.certificate_name_font_family.trim() !== '') {
+            return record.certificate_name_font_family;
+        }
+
+        return DEFAULT_FONT_FAMILY;
+    }, [record.certificate_name_font_family]);
+    const certificateNameFontWeight = useMemo(() => {
+        if (
+            typeof record.certificate_name_font_weight === 'string' &&
+            ['400', '500', '600', '700', '800'].includes(record.certificate_name_font_weight)
+        ) {
+            return record.certificate_name_font_weight;
+        }
+
+        return DEFAULT_FONT_WEIGHT;
+    }, [record.certificate_name_font_weight]);
+    const certificateNameTextAlign = useMemo(() => {
+        if (
+            record.certificate_name_text_align === 'left' ||
+            record.certificate_name_text_align === 'center' ||
+            record.certificate_name_text_align === 'right'
+        ) {
+            return record.certificate_name_text_align;
+        }
+
+        return DEFAULT_TEXT_ALIGN;
+    }, [record.certificate_name_text_align]);
+    const certificateNameTextColor = useMemo(() => {
+        if (typeof record.certificate_name_text_color === 'string' && record.certificate_name_text_color.trim() !== '') {
+            return record.certificate_name_text_color;
+        }
+
+        return DEFAULT_TEXT_COLOR;
+    }, [record.certificate_name_text_color]);
+    const certificateNameLetterSpacing = useMemo(() => {
+        if (typeof record.certificate_name_letter_spacing === 'number') {
+            return record.certificate_name_letter_spacing;
+        }
+
+        return 0;
+    }, [record.certificate_name_letter_spacing]);
+    const certificateQrOverlay = useMemo(() => {
+        const position = {
+            x: typeof record.certificate_qr_position_x === 'number' ? record.certificate_qr_position_x : DEFAULT_QR_POSITION.x,
+            y: typeof record.certificate_qr_position_y === 'number' ? record.certificate_qr_position_y : DEFAULT_QR_POSITION.y,
+        };
+        const size = {
+            width: typeof record.certificate_qr_box_width === 'number' ? record.certificate_qr_box_width : DEFAULT_QR_SIZE.width,
+            height: typeof record.certificate_qr_box_height === 'number' ? record.certificate_qr_box_height : DEFAULT_QR_SIZE.height,
+        };
+
+        return { position, size };
+    }, [record.certificate_qr_box_height, record.certificate_qr_box_width, record.certificate_qr_position_x, record.certificate_qr_position_y]);
+    const certificateImageOverlays = useMemo(() => {
+        if (!Array.isArray(record.certificate_images) || record.certificate_images.length === 0) {
+            return [] as Array<{
+                key: string;
+                position: { x: number; y: number };
+                size: { width: number; height: number };
+                imageUrl: string | null;
+                label: string | null;
+                zIndex: number;
+            }>;
+        }
+
+        return record.certificate_images
+            .filter((value): value is App.Data.Course.CourseCertificateImageData => Boolean(value) && typeof value === 'object')
+            .map((overlay, index) => ({
+                key: `overlay-${overlay.id ?? index}`,
+                position: {
+                    x: typeof overlay.position_x === 'number' ? overlay.position_x : DEFAULT_OVERLAY_POSITION.x,
+                    y: typeof overlay.position_y === 'number' ? overlay.position_y : DEFAULT_OVERLAY_POSITION.y,
+                },
+                size: {
+                    width: typeof overlay.width === 'number' ? overlay.width : DEFAULT_OVERLAY_SIZE.width,
+                    height: typeof overlay.height === 'number' ? overlay.height : DEFAULT_OVERLAY_SIZE.height,
+                },
+                imageUrl: typeof overlay.file_url === 'string' ? overlay.file_url : null,
+                label: typeof overlay.label === 'string' ? overlay.label : null,
+                zIndex: typeof overlay.z_index === 'number' ? overlay.z_index : 0,
+            }))
+            .sort((a, b) => a.zIndex - b.zIndex);
+    }, [record.certificate_images]);
+    const certificatePosition = useMemo(() => {
+        return {
+            x: certificateNamePosition.x,
+            y: certificateNamePosition.y,
+            previewX: certificateNamePosition.x,
+            previewY: certificateNamePosition.y,
+        };
+    }, [certificateNamePosition]);
+    const noopPositionChange = useCallback((_: { x: number; y: number }) => undefined, []);
+    const noopSizeChange = useCallback((_: { width: number; height: number }) => undefined, []);
     const hasCertificateTemplate = Boolean(record.certification_enabled && record.certificate_template_url);
     let enrollmentTitle = 'Belum Terdaftar';
     let enrollmentDescription = 'Kirim permintaan pendaftaran untuk mengikuti kursus ini.';
@@ -709,12 +822,39 @@ export default function CourseShow({ record, modules: modulesProp = null, abilit
                                             alt='Template Sertifikat Kursus'
                                             className='h-full w-full rounded-lg object-contain'
                                         />
-                                        <div
-                                            className='absolute -translate-x-1/2 -translate-y-1/2 rounded bg-black/70 px-4 py-2 text-sm font-semibold text-white shadow-lg'
-                                            style={{ left: `${certificatePosition.previewX}%`, top: `${certificatePosition.previewY}%` }}
-                                        >
-                                            {certificatePreviewName}
-                                        </div>
+                                        <CertificateTemplateOverlay
+                                            enabled={hasCertificateTemplate}
+                                            nameOverlay={{
+                                                editable: false,
+                                                position: certificateNamePosition,
+                                                size: certificateNameBoxSize,
+                                                onPositionChange: noopPositionChange,
+                                                onSizeChange: noopSizeChange,
+                                                sampleText: certificatePreviewName,
+                                                fontFamily: certificateNameFontFamily,
+                                                fontWeight: certificateNameFontWeight,
+                                                textAlign: certificateNameTextAlign,
+                                                textColor: certificateNameTextColor,
+                                                letterSpacing: certificateNameLetterSpacing,
+                                            }}
+                                            qrOverlay={{
+                                                editable: false,
+                                                position: certificateQrOverlay.position,
+                                                size: certificateQrOverlay.size,
+                                                onPositionChange: noopPositionChange,
+                                                onSizeChange: noopSizeChange,
+                                            }}
+                                            imageOverlays={certificateImageOverlays.map((overlay) => ({
+                                                key: overlay.key,
+                                                editable: false,
+                                                position: overlay.position,
+                                                size: overlay.size,
+                                                onPositionChange: noopPositionChange,
+                                                onSizeChange: noopSizeChange,
+                                                imageUrl: overlay.imageUrl,
+                                                label: overlay.label,
+                                            }))}
+                                        />
                                     </div>
                                 </div>
                                 <dl className='grid gap-4 text-sm text-muted-foreground sm:grid-cols-3'>

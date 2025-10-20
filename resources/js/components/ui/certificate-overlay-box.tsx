@@ -1,45 +1,38 @@
-import { type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useMemo, useRef } from 'react';
 
-type Alignment = 'left' | 'center' | 'right';
-
-type CertificateNameOverlayProps = {
+type CertificateOverlayBoxProps = {
     editable: boolean;
     position: { x: number; y: number };
     size: { width: number; height: number };
     onPositionChange: (value: { x: number; y: number }) => void;
-    onSizeChange: (value: { width: number; height: number }) => void;
-    sampleText: string;
+    onSizeChange?: (value: { width: number; height: number }) => void;
+    children?: ReactNode;
     guidance?: ReactNode;
-    fontFamily: string;
-    fontWeight: string;
-    textAlign: Alignment;
-    textColor: string;
-    letterSpacing: number;
+    className?: string;
+    isSelected?: boolean;
+    onSelect?: () => void;
+    resizeHandle?: ReactNode;
 };
 
-const MIN_BOX_PERCENT = 10;
+const MIN_BOX_PERCENT = 5;
 const MAX_BOX_PERCENT = 100;
-const MIN_FONT_SIZE = 12;
-const MAX_FONT_SIZE = 128;
 
-export function CertificateNameOverlay({
+export function CertificateOverlayBox({
     editable,
     position,
     size,
     onPositionChange,
     onSizeChange,
-    sampleText,
+    children,
     guidance,
-    fontFamily,
-    fontWeight,
-    textAlign,
-    textColor,
-    letterSpacing,
-}: CertificateNameOverlayProps) {
+    className,
+    isSelected = false,
+    onSelect,
+    resizeHandle,
+}: CertificateOverlayBoxProps) {
     const overlayRef = useRef<HTMLDivElement>(null);
     const boxRef = useRef<HTMLDivElement>(null);
-    const textRef = useRef<HTMLDivElement>(null);
 
     const clampPosition = useCallback(
         (x: number, y: number, width: number = size.width, height: number = size.height) => {
@@ -57,48 +50,13 @@ export function CertificateNameOverlay({
     const applyPosition = useCallback(
         (x: number, y: number) => {
             const next = clampPosition(x, y);
-            onPositionChange(next);
+            onPositionChange({
+                x: Math.round(next.x * 100) / 100,
+                y: Math.round(next.y * 100) / 100,
+            });
         },
         [clampPosition, onPositionChange],
     );
-
-    const autoResizeText = useCallback(() => {
-        const box = boxRef.current;
-        const text = textRef.current;
-
-        if (!box || !text) {
-            return;
-        }
-
-        const boxRect = box.getBoundingClientRect();
-
-        if (boxRect.width <= 0 || boxRect.height <= 0) {
-            return;
-        }
-
-        let min = MIN_FONT_SIZE;
-        let max = MAX_FONT_SIZE;
-        let best = min;
-
-        while (min <= max) {
-            const mid = Math.floor((min + max) / 2);
-            text.style.fontSize = `${mid}px`;
-            const fits = text.scrollWidth <= boxRect.width && text.scrollHeight <= boxRect.height;
-
-            if (fits) {
-                best = mid;
-                min = mid + 1;
-            } else {
-                max = mid - 1;
-            }
-        }
-
-        text.style.fontSize = `${best}px`;
-    }, []);
-
-    useLayoutEffect(() => {
-        autoResizeText();
-    }, [autoResizeText, sampleText, size.height, size.width, fontFamily, fontWeight, textAlign, letterSpacing]);
 
     const startDrag = useCallback(
         (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -113,6 +71,8 @@ export function CertificateNameOverlay({
             if (!overlay) {
                 return;
             }
+
+            onSelect?.();
 
             const bounds = overlay.getBoundingClientRect();
             const startX = event.clientX;
@@ -133,12 +93,12 @@ export function CertificateNameOverlay({
             window.addEventListener('pointermove', handlePointerMove);
             window.addEventListener('pointerup', handlePointerUp, { once: true });
         },
-        [applyPosition, editable, position],
+        [applyPosition, editable, onSelect, position],
     );
 
     const startResize = useCallback(
         (event: ReactPointerEvent<HTMLDivElement>) => {
-            if (!editable) {
+            if (!editable || !onSizeChange) {
                 return;
             }
 
@@ -149,6 +109,8 @@ export function CertificateNameOverlay({
             if (!overlay) {
                 return;
             }
+
+            onSelect?.();
 
             const bounds = overlay.getBoundingClientRect();
             const startX = event.clientX;
@@ -163,10 +125,16 @@ export function CertificateNameOverlay({
                 const nextWidth = Math.min(MAX_BOX_PERCENT, Math.max(MIN_BOX_PERCENT, initialSize.width + deltaX));
                 const nextHeight = Math.min(MAX_BOX_PERCENT, Math.max(MIN_BOX_PERCENT, initialSize.height + deltaY));
 
-                onSizeChange({ width: nextWidth, height: nextHeight });
+                onSizeChange({
+                    width: Math.round(nextWidth * 100) / 100,
+                    height: Math.round(nextHeight * 100) / 100,
+                });
 
                 const clamped = clampPosition(initialPosition.x, initialPosition.y, nextWidth, nextHeight);
-                onPositionChange(clamped);
+                onPositionChange({
+                    x: Math.round(clamped.x * 100) / 100,
+                    y: Math.round(clamped.y * 100) / 100,
+                });
             };
 
             const handlePointerUp = () => {
@@ -177,7 +145,7 @@ export function CertificateNameOverlay({
             window.addEventListener('pointermove', handlePointerMove);
             window.addEventListener('pointerup', handlePointerUp, { once: true });
         },
-        [clampPosition, editable, onPositionChange, onSizeChange, position, size],
+        [clampPosition, editable, onPositionChange, onSelect, onSizeChange, position, size],
     );
 
     const boxStyle: CSSProperties = useMemo(
@@ -190,40 +158,31 @@ export function CertificateNameOverlay({
         [position.x, position.y, size.height, size.width],
     );
 
-    const textStyle: CSSProperties = useMemo(
-        () => ({
-            fontFamily,
-            fontWeight,
-            textAlign,
-            color: textColor,
-            letterSpacing: `${letterSpacing}px`,
-        }),
-        [fontFamily, fontWeight, letterSpacing, textAlign, textColor],
-    );
-
     return (
         <div ref={overlayRef} className='pointer-events-none absolute inset-0 select-none' role='presentation'>
             <div
                 ref={boxRef}
                 className={cn(
-                    'pointer-events-auto absolute flex translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded border border-white/70 bg-black/25 p-3 text-white shadow-lg backdrop-blur-sm transition-colors',
+                    'pointer-events-auto absolute translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded border border-white/70 bg-black/20 shadow-lg backdrop-blur-sm transition',
                     editable ? 'cursor-move' : 'cursor-default',
+                    isSelected ? 'ring-2 ring-primary' : '',
+                    className,
                 )}
                 style={boxStyle}
                 onPointerDown={startDrag}
             >
-                <div ref={textRef} className='w-full leading-tight' style={textStyle}>
-                    {sampleText}
-                </div>
-                {editable ? (
+                <div className='h-full w-full'>{children}</div>
+                {editable && onSizeChange ? (
                     <div
                         role='presentation'
                         onPointerDown={startResize}
-                        className='absolute bottom-2 right-2 flex h-6 w-6 cursor-se-resize items-center justify-center rounded bg-white/80 text-black shadow'
+                        className='absolute bottom-2 right-2 flex h-6 w-6 cursor-se-resize items-center justify-center rounded bg-white/85 text-black shadow'
                     >
-                        <svg viewBox='0 0 24 24' className='h-4 w-4 text-black/70' aria-hidden>
-                            <path d='M9 15h6v6M15 9h6v6M3 9h6v6' stroke='currentColor' strokeWidth='2' fill='none' />
-                        </svg>
+                        {resizeHandle ?? (
+                            <svg viewBox='0 0 24 24' className='h-4 w-4 text-black/70' aria-hidden>
+                                <path d='M9 15h6v6M15 9h6v6M3 9h6v6' stroke='currentColor' strokeWidth='2' fill='none' />
+                            </svg>
+                        )}
                     </div>
                 ) : null}
             </div>

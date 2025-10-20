@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CertificateVerificationController;
 use App\Http\Controllers\CourseCertificateController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\CourseInstructorController;
@@ -25,6 +26,9 @@ use Illuminate\Support\Facades\Route;
 Route::inertia('/', 'welcome')->name('home');
 
 Route::get('explore-course', [CourseController::class, 'explore'])->name('courses.explore');
+Route::get('certificates/verify/{course}/{enrollment}', [CertificateVerificationController::class, 'show'])
+    ->middleware('signed')
+    ->name('certificates.verify');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('dashboard', DashboardController::class);

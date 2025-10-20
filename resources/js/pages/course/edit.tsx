@@ -7,8 +7,8 @@ import UserController from '@/actions/App/Http/Controllers/UserController';
 import GenericDataSelector from '@/components/generic-data-selector';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { CertificateNameOverlay } from '@/components/ui/certificate-name-overlay';
-import { Combobox } from '@/components/ui/combobox';
+import { CertificateTemplateOverlay } from '@/components/ui/certificate-template-overlay';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import type { PaginationMeta } from '@/components/ui/data-table-types';
 import { ImageDropzone } from '@/components/ui/image-dropzone';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,7 @@ import AppLayout from '@/layouts/app-layout';
 import type { FormDataConvertible } from '@inertiajs/core';
 import { Form, Head } from '@inertiajs/react';
 import axios from 'axios';
-import { LoaderCircle } from 'lucide-react';
+import { ImagePlus, LoaderCircle, QrCode, Trash2 } from 'lucide-react';
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 export type CourseRecord = App.Data.Course.CourseData;
@@ -34,6 +34,54 @@ export type CourseCollection = PaginationMeta & {
 interface CourseEditProps {
     record: CourseRecord;
 }
+
+type CertificateImageOverlayState = {
+    clientId: string;
+    id?: number;
+    label: string | null;
+    position: { x: number; y: number };
+    size: { width: number; height: number };
+    zIndex: number;
+    file: File | null;
+    fileUrl: string | null;
+    status: 'create' | 'keep' | 'update' | 'delete';
+};
+
+const DEFAULT_OVERLAY_SIZE = { width: 18, height: 18 } as const;
+const QR_OVERLAY_ID = '__qr__';
+const DEFAULT_QR_POSITION = { x: 84, y: 78 } as const;
+const DEFAULT_QR_SIZE = { width: 18, height: 18 } as const;
+
+const generateOverlayClientId = (): string => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+
+    return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+};
+
+const assignOverlayZIndexes = (overlays: CertificateImageOverlayState[]): CertificateImageOverlayState[] =>
+    overlays.map((overlay, index) => {
+        const targetZIndex = index + 1;
+
+        if (overlay.zIndex === targetZIndex || overlay.status === 'delete') {
+            return overlay;
+        }
+
+        return {
+            ...overlay,
+            zIndex: targetZIndex,
+            status: overlay.id ? ('update' as const) : overlay.status,
+        };
+    });
+
+const readFileAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string) ?? '');
+        reader.onerror = () => reject(reader.error ?? new Error('Gagal membaca berkas.'));
+        reader.readAsDataURL(file);
+    });
 
 export default function CourseEdit({ record }: CourseEditProps) {
     const extendedRecord = record as CourseRecord &
@@ -198,14 +246,14 @@ export default function CourseEdit({ record }: CourseEditProps) {
             height: height && height > 0 ? Math.min(100, Math.max(10, height)) : 16,
         };
     });
-    const allowedFontFamilies = ['sans-serif', 'serif'] as const;
+    const allowedFontFamilies = ['Poppins', 'Montserrat', 'Playfair Display', 'Roboto', 'Lora'] as const;
     const [certificateNameFontFamily, setCertificateNameFontFamily] = useState<string>(() => {
         const candidate = extendedRecord?.certificate_name_font_family;
         if (candidate && allowedFontFamilies.includes(candidate as (typeof allowedFontFamilies)[number])) {
             return candidate;
         }
 
-        return 'sans-serif';
+        return allowedFontFamilies[0];
     });
     const [certificateNameFontWeight, setCertificateNameFontWeight] = useState<string>(() => {
         const candidate = extendedRecord?.certificate_name_font_weight;
@@ -232,6 +280,50 @@ export default function CourseEdit({ record }: CourseEditProps) {
         return 0;
     });
     const [certificateSampleName, setCertificateSampleName] = useState<string>('Nama Lengkap Peserta');
+    const [certificateQrPosition, setCertificateQrPosition] = useState<{ x: number; y: number }>(() => ({
+        x: typeof record?.certificate_qr_position_x === 'number' ? record.certificate_qr_position_x : DEFAULT_QR_POSITION.x,
+        y: typeof record?.certificate_qr_position_y === 'number' ? record.certificate_qr_position_y : DEFAULT_QR_POSITION.y,
+    }));
+    const [certificateQrSize, setCertificateQrSize] = useState<{ width: number; height: number }>(() => ({
+        width:
+            typeof record?.certificate_qr_box_width === 'number'
+                ? Math.min(100, Math.max(5, record.certificate_qr_box_width))
+                : DEFAULT_QR_SIZE.width,
+        height:
+            typeof record?.certificate_qr_box_height === 'number'
+                ? Math.min(100, Math.max(5, record.certificate_qr_box_height))
+                : DEFAULT_QR_SIZE.height,
+    }));
+    const [certificateImageOverlays, setCertificateImageOverlays] = useState<CertificateImageOverlayState[]>(() => {
+        const items = Array.isArray(record?.certificate_images) ? record.certificate_images : [];
+
+        if (!items || items.length === 0) {
+            return [];
+        }
+
+        return assignOverlayZIndexes(
+            [...items]
+                .sort((a, b) => (a?.z_index ?? 0) - (b?.z_index ?? 0))
+                .map((overlay) => ({
+                    clientId: generateOverlayClientId(),
+                    id: overlay.id,
+                    label: overlay.label,
+                    position: {
+                        x: overlay.position_x ?? DEFAULT_QR_POSITION.x,
+                        y: overlay.position_y ?? DEFAULT_QR_POSITION.y,
+                    },
+                    size: {
+                        width: overlay.width ?? DEFAULT_OVERLAY_SIZE.width,
+                        height: overlay.height ?? DEFAULT_OVERLAY_SIZE.height,
+                    },
+                    zIndex: overlay.z_index ?? 1,
+                    file: null,
+                    fileUrl: overlay.file_url ?? null,
+                    status: 'keep',
+                })),
+        );
+    });
+    const [activeOverlayId, setActiveOverlayId] = useState<string | null>(null);
 
     const clampPositionForSize = (value: { x: number; y: number }, dimensions: { width: number; height: number }) => {
         const halfWidth = dimensions.width / 2;
@@ -243,17 +335,17 @@ export default function CourseEdit({ record }: CourseEditProps) {
         };
     };
 
-    const levelOptions = [
+    const levelOptions: ComboboxOption[] = [
         { value: 'Pemula', label: 'Pemula' },
         { value: 'Menengah', label: 'Menengah' },
         { value: 'Lanjutan', label: 'Lanjutan' },
         { value: 'Semua Tingkat', label: 'Semua Tingkat' },
     ];
 
-    const fontFamilyOptions = [
-        { value: 'sans-serif', label: 'Sans Serif' },
-        { value: 'serif', label: 'Serif' },
-    ];
+    const fontFamilyOptions = allowedFontFamilies.map((family) => ({
+        value: family,
+        label: family,
+    }));
 
     const fontWeightOptions = [
         { value: '400', label: 'Reguler (400)' },
@@ -300,6 +392,296 @@ export default function CourseEdit({ record }: CourseEditProps) {
             return adjusted === current ? current : adjusted;
         });
     }, [certificateNameMaxLength]);
+
+    useEffect(() => {
+        if (!certificateEnabled) {
+            setActiveOverlayId(null);
+        }
+    }, [certificateEnabled]);
+
+    useEffect(() => {
+        setCertificateQrPosition((position) => {
+            const next = clampPositionForSize(position, certificateQrSize);
+
+            if (position.x === next.x && position.y === next.y) {
+                return position;
+            }
+
+            return next;
+        });
+    }, [certificateQrSize]);
+
+    const handleAddCertificateOverlay = () => {
+        setCertificateImageOverlays((current) => {
+            const clientId = generateOverlayClientId();
+            const next: CertificateImageOverlayState = {
+                clientId,
+                label: `Overlay ${current.filter((item) => item.status !== 'delete').length + 1}`,
+                position: { x: 78, y: 50 },
+                size: { ...DEFAULT_OVERLAY_SIZE },
+                zIndex: current.length + 1,
+                file: null,
+                fileUrl: null,
+                status: 'create',
+            };
+
+            const updated = [...current, next];
+
+            setActiveOverlayId(clientId);
+
+            return assignOverlayZIndexes(updated);
+        });
+    };
+
+    const handleOverlaySelect = (clientId: string) => {
+        setActiveOverlayId(clientId);
+    };
+
+    const handleOverlayPositionChange = (clientId: string, value: { x: number; y: number }) => {
+        setCertificateImageOverlays((current) =>
+            current.map((overlay) => {
+                if (overlay.clientId !== clientId || overlay.status === 'delete') {
+                    return overlay;
+                }
+
+                const nextPosition = clampPositionForSize(value, overlay.size);
+
+                if (overlay.position.x === nextPosition.x && overlay.position.y === nextPosition.y) {
+                    return overlay;
+                }
+
+                return {
+                    ...overlay,
+                    position: nextPosition,
+                    status: overlay.id ? 'update' : overlay.status,
+                };
+            }),
+        );
+    };
+
+    const handleOverlaySizeChange = (clientId: string, value: { width: number; height: number }) => {
+        setCertificateImageOverlays((current) =>
+            current.map((overlay) => {
+                if (overlay.clientId !== clientId || overlay.status === 'delete') {
+                    return overlay;
+                }
+
+                const width = Math.min(100, Math.max(5, Math.round(value.width * 100) / 100));
+                const height = Math.min(100, Math.max(5, Math.round(value.height * 100) / 100));
+                const normalizedSize = { width, height };
+                const normalizedPosition = clampPositionForSize(overlay.position, normalizedSize);
+
+                if (
+                    overlay.size.width === normalizedSize.width &&
+                    overlay.size.height === normalizedSize.height &&
+                    overlay.position.x === normalizedPosition.x &&
+                    overlay.position.y === normalizedPosition.y
+                ) {
+                    return overlay;
+                }
+
+                return {
+                    ...overlay,
+                    size: normalizedSize,
+                    position: normalizedPosition,
+                    status: overlay.id ? 'update' : overlay.status,
+                };
+            }),
+        );
+    };
+
+    const handleOverlayLabelChange = (clientId: string, label: string) => {
+        setCertificateImageOverlays((current) =>
+            current.map((overlay) => {
+                if (overlay.clientId !== clientId || overlay.status === 'delete') {
+                    return overlay;
+                }
+
+                const normalizedLabel = label.slice(0, 120);
+
+                if (overlay.label === normalizedLabel) {
+                    return overlay;
+                }
+
+                return {
+                    ...overlay,
+                    label: normalizedLabel,
+                    status: overlay.id ? 'update' : overlay.status,
+                };
+            }),
+        );
+    };
+
+    const handleOverlayFileChange = async (clientId: string, fileList: FileList | null) => {
+        const file = fileList && fileList.length > 0 ? fileList[0] : null;
+
+        if (!file) {
+            setCertificateImageOverlays((current) =>
+                current.map((overlay) => {
+                    if (overlay.clientId !== clientId || overlay.status === 'delete') {
+                        return overlay;
+                    }
+
+                    if (!overlay.file && !overlay.fileUrl) {
+                        return overlay;
+                    }
+
+                    return {
+                        ...overlay,
+                        file: null,
+                        fileUrl: null,
+                        status: overlay.id ? 'update' : overlay.status,
+                    };
+                }),
+            );
+
+            setActiveOverlayId(clientId);
+
+            return;
+        }
+
+        try {
+            const preview = await readFileAsDataUrl(file);
+
+            setCertificateImageOverlays((current) =>
+                current.map((overlay) => {
+                    if (overlay.clientId !== clientId || overlay.status === 'delete') {
+                        return overlay;
+                    }
+
+                    return {
+                        ...overlay,
+                        file,
+                        fileUrl: preview,
+                        status: overlay.id ? 'update' : overlay.status,
+                    };
+                }),
+            );
+
+            setActiveOverlayId(clientId);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleOverlayRemove = (clientId: string) => {
+        setCertificateImageOverlays((current) => {
+            const next: CertificateImageOverlayState[] = [];
+
+            for (const overlay of current) {
+                if (overlay.clientId !== clientId) {
+                    next.push(overlay);
+                    continue;
+                }
+
+                if (overlay.id) {
+                    next.push({
+                        ...overlay,
+                        status: 'delete' as const,
+                    });
+                }
+            }
+
+            if (activeOverlayId === clientId) {
+                setActiveOverlayId(null);
+            }
+
+            return assignOverlayZIndexes(next);
+        });
+    };
+
+    const handleOverlayMove = (clientId: string, direction: 'up' | 'down') => {
+        setCertificateImageOverlays((current) => {
+            const index = current.findIndex((overlay) => overlay.clientId === clientId);
+
+            if (index === -1) {
+                return current;
+            }
+
+            const targetIndex = direction === 'up' ? index - 1 : index + 1;
+
+            if (targetIndex < 0 || targetIndex >= current.length) {
+                return current;
+            }
+
+            const updated = [...current];
+            const [moved] = updated.splice(index, 1);
+            updated.splice(targetIndex, 0, moved);
+
+            const withStatus: CertificateImageOverlayState[] = updated.map((overlay) => {
+                if (overlay.id && overlay.status !== 'create' && overlay.status !== 'delete') {
+                    return {
+                        ...overlay,
+                        status: 'update' as const,
+                    };
+                }
+
+                return overlay;
+            });
+
+            return assignOverlayZIndexes(withStatus);
+        });
+    };
+
+    const handleOverlayBringToFront = (clientId: string) => {
+        setCertificateImageOverlays((current) => {
+            const sorted = [...current].sort((a, b) => a.zIndex - b.zIndex);
+            const index = sorted.findIndex((overlay) => overlay.clientId === clientId);
+
+            if (index === -1) {
+                return current;
+            }
+
+            const [item] = sorted.splice(index, 1);
+            sorted.push(item);
+
+            const withStatus: CertificateImageOverlayState[] = sorted.map((overlay) => {
+                if (overlay.id && overlay.status !== 'create' && overlay.status !== 'delete') {
+                    return {
+                        ...overlay,
+                        status: 'update' as const,
+                    };
+                }
+
+                return overlay;
+            });
+
+            return assignOverlayZIndexes(withStatus);
+        });
+    };
+
+    const visibleOverlays = useMemo(
+        () => certificateImageOverlays.filter((overlay) => overlay.status !== 'delete').sort((a, b) => a.zIndex - b.zIndex),
+        [certificateImageOverlays],
+    );
+
+    const handleQrOverlayPositionChange = (value: { x: number; y: number }) => {
+        setCertificateQrPosition((current) => {
+            const next = clampPositionForSize(value, certificateQrSize);
+
+            if (current.x === next.x && current.y === next.y) {
+                return current;
+            }
+
+            return next;
+        });
+    };
+
+    const handleQrOverlaySizeChange = (value: { width: number; height: number }) => {
+        const width = Math.min(100, Math.max(5, Math.round(value.width * 100) / 100));
+        const height = Math.min(100, Math.max(5, Math.round(value.height * 100) / 100));
+        const nextSize = { width, height };
+
+        setCertificateQrSize((current) => {
+            if (current.width === nextSize.width && current.height === nextSize.height) {
+                return current;
+            }
+
+            return nextSize;
+        });
+
+        setCertificateQrPosition((currentPosition) => clampPositionForSize(currentPosition, nextSize));
+    };
 
     const handleCertificateTemplateDrop = (file: File) => {
         setCertificateTemplateFile(file);
@@ -412,6 +794,56 @@ export default function CourseEdit({ record }: CourseEditProps) {
 
     const handleCertificateCentering = () => {
         setCertificateNamePosition(() => clampPositionForSize({ x: 50, y: 50 }, certificateNameBoxSize));
+    };
+
+    const handleCertificateQrHorizontalChange = (value: number[]) => {
+        const [coordinate] = value;
+
+        if (typeof coordinate !== 'number') {
+            return;
+        }
+
+        const sanitized = Math.min(100, Math.max(0, Math.round(coordinate)));
+        handleQrOverlayPositionChange({ x: sanitized, y: certificateQrPosition.y });
+    };
+
+    const handleCertificateQrVerticalChange = (value: number[]) => {
+        const [coordinate] = value;
+
+        if (typeof coordinate !== 'number') {
+            return;
+        }
+
+        const sanitized = Math.min(100, Math.max(0, Math.round(coordinate)));
+        handleQrOverlayPositionChange({ x: certificateQrPosition.x, y: sanitized });
+    };
+
+    const handleCertificateQrWidthChange = (value: number[]) => {
+        const [width] = value;
+
+        if (typeof width !== 'number') {
+            return;
+        }
+
+        const sanitized = Math.min(100, Math.max(5, Math.round(width)));
+        handleQrOverlaySizeChange({ width: sanitized, height: certificateQrSize.height });
+    };
+
+    const handleCertificateQrHeightChange = (value: number[]) => {
+        const [height] = value;
+
+        if (typeof height !== 'number') {
+            return;
+        }
+
+        const sanitized = Math.min(100, Math.max(5, Math.round(height)));
+        handleQrOverlaySizeChange({ width: certificateQrSize.width, height: sanitized });
+    };
+
+    const handleCertificateQrReset = () => {
+        setCertificateQrSize({ ...DEFAULT_QR_SIZE });
+        setCertificateQrPosition(() => clampPositionForSize({ ...DEFAULT_QR_POSITION }, DEFAULT_QR_SIZE));
+        setActiveOverlayId(QR_OVERLAY_ID);
     };
 
     // const [modulesIds, setModulesIds] = useState<Array<number | string>>(() => {
@@ -549,6 +981,10 @@ export default function CourseEdit({ record }: CourseEditProps) {
                         certificate_name_text_align: certificateEnabled ? certificateNameTextAlign : null,
                         certificate_name_text_color: certificateEnabled ? certificateNameTextColor.toUpperCase() : null,
                         certificate_name_letter_spacing: certificateEnabled ? Math.round(certificateNameLetterSpacing) : null,
+                        certificate_qr_position_x: certificateEnabled ? Math.round(certificateQrPosition.x) : null,
+                        certificate_qr_position_y: certificateEnabled ? Math.round(certificateQrPosition.y) : null,
+                        certificate_qr_box_width: certificateEnabled ? Math.round(certificateQrSize.width) : null,
+                        certificate_qr_box_height: certificateEnabled ? Math.round(certificateQrSize.height) : null,
                     };
 
                     // Only include thumbnail if a new file was selected
@@ -560,6 +996,44 @@ export default function CourseEdit({ record }: CourseEditProps) {
                         transformed.certificate_template = certificateTemplateFile;
                     } else {
                         delete transformed.certificate_template;
+                    }
+
+                    if (certificateEnabled) {
+                        const entries = certificateImageOverlays.flatMap((overlay): Array<Record<string, FormDataConvertible>> => {
+                            if (overlay.status === 'delete' && !overlay.id) {
+                                return [];
+                            }
+
+                            const action = overlay.status ?? (overlay.id ? 'keep' : 'create');
+                            const base: Record<string, FormDataConvertible> = {
+                                action,
+                                id: overlay.id ?? null,
+                                client_id: overlay.clientId,
+                            };
+
+                            if (action === 'delete') {
+                                return [base];
+                            }
+
+                            base.label = overlay.label ?? null;
+                            base.position_x = Math.round(overlay.position.x);
+                            base.position_y = Math.round(overlay.position.y);
+                            base.width = Math.round(overlay.size.width);
+                            base.height = Math.round(overlay.size.height);
+                            base.z_index = overlay.zIndex;
+
+                            if (overlay.file) {
+                                const fileKey = overlay.clientId;
+                                base.file_key = fileKey;
+                                transformed[`certificate_image_files[${fileKey}]`] = overlay.file;
+                            }
+
+                            return [base];
+                        });
+
+                        transformed.certificate_image_entries = JSON.stringify(entries);
+                    } else {
+                        transformed.certificate_image_entries = '[]';
                     }
 
                     return transformed;
@@ -698,29 +1172,66 @@ export default function CourseEdit({ record }: CourseEditProps) {
                                             disabled={!certificateEnabled}
                                             previewOverlay={
                                                 certificateEnabled && certificateTemplatePreview ? (
-                                                    <CertificateNameOverlay
-                                                        editable={certificateEnabled}
-                                                        position={certificateNamePosition}
-                                                        size={certificateNameBoxSize}
-                                                        onPositionChange={(value) =>
-                                                            setCertificateNamePosition({
-                                                                x: Math.round(value.x * 100) / 100,
-                                                                y: Math.round(value.y * 100) / 100,
-                                                            })
-                                                        }
-                                                        onSizeChange={(value) =>
-                                                            setCertificateNameBoxSize({
-                                                                width: Math.round(value.width * 100) / 100,
-                                                                height: Math.round(value.height * 100) / 100,
-                                                            })
-                                                        }
-                                                        sampleText={truncatedSampleName}
-                                                        fontFamily={certificateNameFontFamily}
-                                                        fontWeight={certificateNameFontWeight}
-                                                        textAlign={certificateNameTextAlign}
-                                                        textColor={certificateNameTextColor}
-                                                        letterSpacing={certificateNameLetterSpacing}
-                                                        guidance='Seret kotak untuk memindahkan, tarik sudut untuk mengubah ukuran.'
+                                                    <CertificateTemplateOverlay
+                                                        enabled={certificateEnabled}
+                                                        nameOverlay={{
+                                                            editable: certificateEnabled,
+                                                            position: certificateNamePosition,
+                                                            size: certificateNameBoxSize,
+                                                            onPositionChange: (value) =>
+                                                                setCertificateNamePosition((current) => {
+                                                                    const next = clampPositionForSize(value, certificateNameBoxSize);
+
+                                                                    if (current.x === next.x && current.y === next.y) {
+                                                                        return current;
+                                                                    }
+
+                                                                    return next;
+                                                                }),
+                                                            onSizeChange: (value) => {
+                                                                const width = Math.min(100, Math.max(10, Math.round(value.width * 100) / 100));
+                                                                const height = Math.min(100, Math.max(10, Math.round(value.height * 100) / 100));
+                                                                const nextSize = { width, height };
+
+                                                                setCertificateNameBoxSize((current) => {
+                                                                    if (current.width === nextSize.width && current.height === nextSize.height) {
+                                                                        return current;
+                                                                    }
+
+                                                                    return nextSize;
+                                                                });
+
+                                                                setCertificateNamePosition((current) => clampPositionForSize(current, nextSize));
+                                                            },
+                                                            sampleText: truncatedSampleName,
+                                                            fontFamily: certificateNameFontFamily,
+                                                            fontWeight: certificateNameFontWeight,
+                                                            textAlign: certificateNameTextAlign,
+                                                            textColor: certificateNameTextColor,
+                                                            letterSpacing: certificateNameLetterSpacing,
+                                                            guidance: 'Seret kotak untuk memindahkan, tarik sudut untuk mengubah ukuran.',
+                                                        }}
+                                                        qrOverlay={{
+                                                            editable: certificateEnabled,
+                                                            position: certificateQrPosition,
+                                                            size: certificateQrSize,
+                                                            onPositionChange: handleQrOverlayPositionChange,
+                                                            onSizeChange: handleQrOverlaySizeChange,
+                                                            isSelected: activeOverlayId === QR_OVERLAY_ID,
+                                                            onSelect: () => setActiveOverlayId(QR_OVERLAY_ID),
+                                                        }}
+                                                        imageOverlays={visibleOverlays.map((overlay) => ({
+                                                            key: overlay.clientId,
+                                                            editable: certificateEnabled,
+                                                            position: overlay.position,
+                                                            size: overlay.size,
+                                                            onPositionChange: (value) => handleOverlayPositionChange(overlay.clientId, value),
+                                                            onSizeChange: (value) => handleOverlaySizeChange(overlay.clientId, value),
+                                                            imageUrl: overlay.fileUrl,
+                                                            label: overlay.label,
+                                                            isSelected: activeOverlayId === overlay.clientId,
+                                                            onSelect: () => handleOverlaySelect(overlay.clientId),
+                                                        }))}
                                                     />
                                                 ) : null
                                             }
@@ -730,6 +1241,268 @@ export default function CourseEdit({ record }: CourseEditProps) {
                                             PNG atau JPG hingga 4MB. Sertakan ruang kosong untuk nama peserta.
                                         </p>
                                         <InputError message={errors.certificate_template} />
+                                        <div className='grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'>
+                                            <div className='space-y-3'>
+                                                <div className='flex flex-wrap items-center justify-between gap-3'>
+                                                    <div>
+                                                        <p className='text-sm font-medium text-foreground'>Overlay Gambar</p>
+                                                        <p className='text-xs text-muted-foreground'>
+                                                            Kelola logo, stempel, atau tanda tangan tambahan pada sertifikat.
+                                                        </p>
+                                                    </div>
+                                                    <Button
+                                                        type='button'
+                                                        variant='outline'
+                                                        size='sm'
+                                                        onClick={handleAddCertificateOverlay}
+                                                        disabled={!certificateEnabled}
+                                                    >
+                                                        <ImagePlus className='h-4 w-4' />
+                                                        <span className='sr-only sm:not-sr-only sm:ml-1'>Tambah Overlay</span>
+                                                    </Button>
+                                                </div>
+                                                <div className='space-y-3'>
+                                                    {visibleOverlays.length === 0 ? (
+                                                        <div className='rounded-lg border border-dashed p-4 text-xs text-muted-foreground'>
+                                                            Belum ada overlay gambar. Klik tombol di atas untuk menambahkan.
+                                                        </div>
+                                                    ) : (
+                                                        visibleOverlays.map((overlay, index) => {
+                                                            const fallbackLabel =
+                                                                overlay.label && overlay.label.trim().length > 0
+                                                                    ? overlay.label
+                                                                    : `Overlay ${index + 1}`;
+                                                            const isActive = activeOverlayId === overlay.clientId;
+
+                                                            return (
+                                                                <div
+                                                                    key={overlay.clientId}
+                                                                    className={`rounded-lg border p-3 transition ${
+                                                                        isActive
+                                                                            ? 'border-primary bg-primary/5 ring-1 ring-primary/40'
+                                                                            : 'border-border bg-card/70'
+                                                                    }`}
+                                                                >
+                                                                    <div className='flex flex-col gap-3'>
+                                                                        <div className='flex flex-wrap items-start gap-3'>
+                                                                            <div className='h-16 w-24 overflow-hidden rounded-md border bg-muted'>
+                                                                                {overlay.fileUrl ? (
+                                                                                    <img
+                                                                                        src={overlay.fileUrl}
+                                                                                        alt={fallbackLabel ?? 'Overlay Sertifikat'}
+                                                                                        className='h-full w-full object-contain'
+                                                                                    />
+                                                                                ) : (
+                                                                                    <div className='flex h-full w-full items-center justify-center px-2 text-[10px] text-muted-foreground'>
+                                                                                        Belum ada gambar
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className='flex min-w-0 flex-1 flex-col gap-2'>
+                                                                                <Input
+                                                                                    value={overlay.label ?? ''}
+                                                                                    placeholder={fallbackLabel ?? 'Overlay'}
+                                                                                    onChange={(event) =>
+                                                                                        handleOverlayLabelChange(overlay.clientId, event.target.value)
+                                                                                    }
+                                                                                    onFocus={() => handleOverlaySelect(overlay.clientId)}
+                                                                                    disabled={!certificateEnabled}
+                                                                                />
+                                                                                <div className='flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground'>
+                                                                                    <span>
+                                                                                        Posisi: {Math.round(overlay.position.x)}% ×{' '}
+                                                                                        {Math.round(overlay.position.y)}%
+                                                                                    </span>
+                                                                                    <span className='hidden sm:inline'>•</span>
+                                                                                    <span>
+                                                                                        Ukuran: {Math.round(overlay.size.width)}% ×{' '}
+                                                                                        {Math.round(overlay.size.height)}%
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className='flex flex-wrap items-center justify-between gap-3'>
+                                                                            <div className='flex flex-wrap items-center gap-2'>
+                                                                                <label
+                                                                                    htmlFor={`overlay-file-${overlay.clientId}`}
+                                                                                    className={`inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                                                                                        certificateEnabled
+                                                                                            ? 'cursor-pointer hover:bg-accent hover:text-accent-foreground'
+                                                                                            : 'cursor-not-allowed opacity-50'
+                                                                                    }`}
+                                                                                    onClick={() => handleOverlaySelect(overlay.clientId)}
+                                                                                >
+                                                                                    <input
+                                                                                        id={`overlay-file-${overlay.clientId}`}
+                                                                                        type='file'
+                                                                                        className='hidden'
+                                                                                        accept='image/png,image/jpeg,image/webp'
+                                                                                        onChange={(event) =>
+                                                                                            handleOverlayFileChange(
+                                                                                                overlay.clientId,
+                                                                                                event.target.files,
+                                                                                            )
+                                                                                        }
+                                                                                        disabled={!certificateEnabled}
+                                                                                    />
+                                                                                    Ganti Gambar
+                                                                                </label>
+                                                                                <Button
+                                                                                    type='button'
+                                                                                    variant='outline'
+                                                                                    size='sm'
+                                                                                    onClick={() => {
+                                                                                        handleOverlaySelect(overlay.clientId);
+                                                                                        handleOverlayMove(overlay.clientId, 'up');
+                                                                                    }}
+                                                                                    disabled={!certificateEnabled || index === 0}
+                                                                                >
+                                                                                    Naik
+                                                                                </Button>
+                                                                                <Button
+                                                                                    type='button'
+                                                                                    variant='outline'
+                                                                                    size='sm'
+                                                                                    onClick={() => {
+                                                                                        handleOverlaySelect(overlay.clientId);
+                                                                                        handleOverlayMove(overlay.clientId, 'down');
+                                                                                    }}
+                                                                                    disabled={
+                                                                                        !certificateEnabled || index === visibleOverlays.length - 1
+                                                                                    }
+                                                                                >
+                                                                                    Turun
+                                                                                </Button>
+                                                                                <Button
+                                                                                    type='button'
+                                                                                    variant='outline'
+                                                                                    size='sm'
+                                                                                    onClick={() => {
+                                                                                        handleOverlaySelect(overlay.clientId);
+                                                                                        handleOverlayBringToFront(overlay.clientId);
+                                                                                    }}
+                                                                                    disabled={
+                                                                                        !certificateEnabled || index === visibleOverlays.length - 1
+                                                                                    }
+                                                                                >
+                                                                                    Paling Atas
+                                                                                </Button>
+                                                                            </div>
+                                                                            <Button
+                                                                                type='button'
+                                                                                variant='ghost'
+                                                                                size='icon'
+                                                                                onClick={() => handleOverlayRemove(overlay.clientId)}
+                                                                                disabled={!certificateEnabled}
+                                                                                className='text-destructive hover:bg-destructive/10'
+                                                                            >
+                                                                                <Trash2 className='h-4 w-4' />
+                                                                            </Button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    )}
+                                                </div>
+                                                <InputError message={errors.certificate_image_entries} />
+                                            </div>
+                                            <div className='space-y-4 rounded-lg border bg-muted/20 p-4'>
+                                                <div className='flex flex-wrap items-center justify-between gap-3'>
+                                                    <div>
+                                                        <p className='text-sm font-medium text-foreground'>Posisi QR Sertifikat</p>
+                                                        <p className='text-xs text-muted-foreground'>
+                                                            Seret langsung pada pratinjau atau gunakan slider berikut.
+                                                        </p>
+                                                    </div>
+                                                    <div className='flex gap-2'>
+                                                        <Button
+                                                            type='button'
+                                                            variant={activeOverlayId === QR_OVERLAY_ID ? 'default' : 'outline'}
+                                                            size='sm'
+                                                            onClick={() => setActiveOverlayId(QR_OVERLAY_ID)}
+                                                            disabled={!certificateEnabled}
+                                                        >
+                                                            <QrCode className='h-4 w-4' />
+                                                            <span className='sr-only sm:not-sr-only sm:ml-1'>Pilih QR</span>
+                                                        </Button>
+                                                        <Button
+                                                            type='button'
+                                                            variant='outline'
+                                                            size='sm'
+                                                            onClick={handleCertificateQrReset}
+                                                            disabled={!certificateEnabled}
+                                                        >
+                                                            Reset QR
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                                <div className='grid gap-4'>
+                                                    <div className='grid gap-2'>
+                                                        <Label htmlFor='certificate_qr_position_x'>Posisi Horizontal QR</Label>
+                                                        <Slider
+                                                            id='certificate_qr_position_x'
+                                                            value={[certificateQrPosition.x]}
+                                                            onValueChange={handleCertificateQrHorizontalChange}
+                                                            max={100}
+                                                            step={1}
+                                                            disabled={!certificateEnabled}
+                                                        />
+                                                        <p className='text-xs text-muted-foreground'>
+                                                            Terletak {certificateQrPosition.x}% dari sisi kiri.
+                                                        </p>
+                                                        <InputError message={errors.certificate_qr_position_x} />
+                                                    </div>
+                                                    <div className='grid gap-2'>
+                                                        <Label htmlFor='certificate_qr_position_y'>Posisi Vertikal QR</Label>
+                                                        <Slider
+                                                            id='certificate_qr_position_y'
+                                                            value={[certificateQrPosition.y]}
+                                                            onValueChange={handleCertificateQrVerticalChange}
+                                                            max={100}
+                                                            step={1}
+                                                            disabled={!certificateEnabled}
+                                                        />
+                                                        <p className='text-xs text-muted-foreground'>
+                                                            Terletak {certificateQrPosition.y}% dari sisi atas.
+                                                        </p>
+                                                        <InputError message={errors.certificate_qr_position_y} />
+                                                    </div>
+                                                    <div className='grid gap-2'>
+                                                        <Label htmlFor='certificate_qr_box_width'>Lebar Area QR</Label>
+                                                        <Slider
+                                                            id='certificate_qr_box_width'
+                                                            value={[certificateQrSize.width]}
+                                                            onValueChange={handleCertificateQrWidthChange}
+                                                            min={5}
+                                                            max={40}
+                                                            step={1}
+                                                            disabled={!certificateEnabled}
+                                                        />
+                                                        <p className='text-xs text-muted-foreground'>
+                                                            Lebar {certificateQrSize.width}% dari lebar sertifikat.
+                                                        </p>
+                                                        <InputError message={errors.certificate_qr_box_width} />
+                                                    </div>
+                                                    <div className='grid gap-2'>
+                                                        <Label htmlFor='certificate_qr_box_height'>Tinggi Area QR</Label>
+                                                        <Slider
+                                                            id='certificate_qr_box_height'
+                                                            value={[certificateQrSize.height]}
+                                                            onValueChange={handleCertificateQrHeightChange}
+                                                            min={5}
+                                                            max={40}
+                                                            step={1}
+                                                            disabled={!certificateEnabled}
+                                                        />
+                                                        <p className='text-xs text-muted-foreground'>
+                                                            Tinggi {certificateQrSize.height}% dari tinggi sertifikat.
+                                                        </p>
+                                                        <InputError message={errors.certificate_qr_box_height} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className='grid gap-6 md:grid-cols-2'>

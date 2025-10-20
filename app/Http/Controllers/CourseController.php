@@ -7,6 +7,7 @@ use App\Data\EnrollmentRequest\EnrollmentRequestData;
 use App\Data\Module\ModuleData;
 use App\Data\User\UserData;
 use App\Models\Course;
+use App\Models\CourseCertificateImage;
 use App\Models\Enrollment;
 use App\Models\EnrollmentRequest;
 use App\Models\User;
@@ -19,7 +20,10 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\QueryBuilder\AllowedFilter;
@@ -158,6 +162,7 @@ class CourseController extends BaseResourceController {
         $course->load([
             'course_instructors',
             'students',
+            'certificate_images',
             'modules.module_stages.module_content',
             'modules.module_stages.module_quiz',
         ]);
@@ -202,7 +207,7 @@ class CourseController extends BaseResourceController {
 
     public function edit(Course $course): Response {
         return Inertia::render('course/edit', [
-            'record' => CourseData::fromModel($course->load('course_instructors'))->toArray(),
+            'record' => CourseData::fromModel($course->load(['course_instructors', 'certificate_images']))->toArray(),
         ]);
     }
 
@@ -237,6 +242,8 @@ class CourseController extends BaseResourceController {
         if ($instructorIds->isNotEmpty()) {
             $course->course_instructors()->sync($instructorIds->all());
         }
+
+        $this->syncCertificateImages($course);
 
         return redirect()
             ->route('courses.index', $course)
@@ -286,6 +293,8 @@ class CourseController extends BaseResourceController {
         $course->update($data);
 
         $course->course_instructors()->sync($instructorIds->all());
+
+        $this->syncCertificateImages($course);
 
         return redirect()
             ->route('courses.index', $course)
@@ -622,6 +631,19 @@ class CourseController extends BaseResourceController {
             ? max(-10, min(20, (int) $data['certificate_name_letter_spacing']))
             : null;
 
+        $data['certificate_qr_position_x'] = isset($data['certificate_qr_position_x'])
+            ? max(0, min(100, (int) $data['certificate_qr_position_x']))
+            : null;
+        $data['certificate_qr_position_y'] = isset($data['certificate_qr_position_y'])
+            ? max(0, min(100, (int) $data['certificate_qr_position_y']))
+            : null;
+        $data['certificate_qr_box_width'] = isset($data['certificate_qr_box_width'])
+            ? max(5, min(100, (int) $data['certificate_qr_box_width']))
+            : null;
+        $data['certificate_qr_box_height'] = isset($data['certificate_qr_box_height'])
+            ? max(5, min(100, (int) $data['certificate_qr_box_height']))
+            : null;
+
         if (!$data['certification_enabled']) {
             $data['certificate_name_position_x'] = null;
             $data['certificate_name_position_y'] = null;
@@ -633,9 +655,226 @@ class CourseController extends BaseResourceController {
             $data['certificate_name_text_align'] = null;
             $data['certificate_name_text_color'] = null;
             $data['certificate_name_letter_spacing'] = null;
+            $data['certificate_qr_position_x'] = null;
+            $data['certificate_qr_position_y'] = null;
+            $data['certificate_qr_box_width'] = null;
+            $data['certificate_qr_box_height'] = null;
         }
 
         return $data;
+    }
+
+    private function syncCertificateImages(Course $course): void {
+        $entriesJson = request()->input('certificate_image_entries');
+
+        if ($entriesJson === null) {
+            return;
+        }
+
+        if (!$course->certification_enabled) {
+            $existing = $course->certificate_images()->get();
+
+            foreach ($existing as $image) {
+                $this->deleteCertificateImageFile($image->file_path);
+                $image->delete();
+            }
+
+            $course->unsetRelation('certificate_images');
+
+            return;
+        }
+
+        if ($entriesJson === '') {
+            $existing = $course->certificate_images()->get();
+
+            foreach ($existing as $image) {
+                $this->deleteCertificateImageFile($image->file_path);
+                $image->delete();
+            }
+
+            $course->unsetRelation('certificate_images');
+
+            return;
+        }
+
+        try {
+            $entries = json_decode($entriesJson, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw ValidationException::withMessages([
+                'certificate_image_entries' => 'Format overlay tidak valid.',
+            ]);
+        }
+
+        if (!is_array($entries)) {
+            throw ValidationException::withMessages([
+                'certificate_image_entries' => 'Format overlay tidak valid.',
+            ]);
+        }
+
+        /** @var \Illuminate\Support\Collection<int, CourseCertificateImage> $existingImages */
+        $existingImages = $course->certificate_images()->get()->keyBy('id');
+
+        $processedIds = [];
+
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                throw ValidationException::withMessages([
+                    'certificate_image_entries' => sprintf('Data overlay ke-%d tidak valid.', $index + 1),
+                ]);
+            }
+
+            $validator = Validator::make($entry, [
+                'action' => ['required', 'string', 'in:keep,create,update,delete'],
+                'id' => ['nullable', 'integer'],
+                'client_id' => ['required', 'string'],
+                'label' => ['nullable', 'string', 'max:120'],
+                'position_x' => ['required_unless:action,delete', 'integer', 'between:0,100'],
+                'position_y' => ['required_unless:action,delete', 'integer', 'between:0,100'],
+                'width' => ['required_unless:action,delete', 'integer', 'between:5,100'],
+                'height' => ['required_unless:action,delete', 'integer', 'between:5,100'],
+                'z_index' => ['required_unless:action,delete', 'integer', 'between:-1000,1000'],
+                'file_key' => ['nullable', 'string'],
+            ]);
+
+            $attributeNames = [
+                'action' => sprintf('overlay ke-%d tindakan', $index + 1),
+                'id' => sprintf('overlay ke-%d', $index + 1),
+                'client_id' => sprintf('overlay ke-%d', $index + 1),
+                'label' => sprintf('overlay ke-%d label', $index + 1),
+                'position_x' => sprintf('overlay ke-%d posisi horizontal', $index + 1),
+                'position_y' => sprintf('overlay ke-%d posisi vertikal', $index + 1),
+                'width' => sprintf('overlay ke-%d lebar', $index + 1),
+                'height' => sprintf('overlay ke-%d tinggi', $index + 1),
+                'z_index' => sprintf('overlay ke-%d urutan lapisan', $index + 1),
+                'file_key' => sprintf('overlay ke-%d berkas', $index + 1),
+            ];
+
+            if (method_exists($validator, 'setAttributeNames')) {
+                $validator->setAttributeNames($attributeNames);
+            }
+
+            $validated = $validator->validate();
+
+            $action = $validated['action'];
+            $id = $validated['id'] ?? null;
+            $fileKey = $validated['file_key'] ?? null;
+            /** @var UploadedFile|null $file */
+            $file = $fileKey ? request()->file('certificate_image_files.' . $fileKey) : null;
+
+            if (in_array($action, ['keep', 'update', 'delete'], true) && $id === null) {
+                throw ValidationException::withMessages([
+                    'certificate_image_entries' => sprintf('Overlay ke-%d tidak memiliki ID yang valid.', $index + 1),
+                ]);
+            }
+
+            if ($action === 'create' && $file === null) {
+                throw ValidationException::withMessages([
+                    'certificate_image_entries' => sprintf('Overlay ke-%d memerlukan berkas gambar.', $index + 1),
+                ]);
+            }
+
+            if ($file !== null) {
+                Validator::make(['file' => $file], [
+                    'file' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', 'max:4096'],
+                ], [], [
+                    'file' => sprintf('overlay ke-%d berkas', $index + 1),
+                ])->validate();
+            }
+
+            if ($action === 'delete') {
+                if ($id !== null) {
+                    /** @var CourseCertificateImage|null $record */
+                    $record = $existingImages->get($id);
+
+                    if ($record !== null) {
+                        $this->deleteCertificateImageFile($record->file_path);
+                        $record->delete();
+                        $existingImages->forget($id);
+                    }
+                }
+
+                continue;
+            }
+
+            $attributes = [
+                'position_x' => (int) $validated['position_x'],
+                'position_y' => (int) $validated['position_y'],
+                'width' => (int) $validated['width'],
+                'height' => (int) $validated['height'],
+                'z_index' => (int) $validated['z_index'],
+                'label' => $validated['label'] ?? null,
+            ];
+
+            if ($action === 'create') {
+                $path = $file?->store('courses/certificates/overlays', 'public');
+
+                if ($path === null) {
+                    throw ValidationException::withMessages([
+                        'certificate_image_entries' => sprintf('Overlay ke-%d gagal diunggah.', $index + 1),
+                    ]);
+                }
+
+                $record = $course->certificate_images()->create(array_merge($attributes, [
+                    'file_path' => $path,
+                ]));
+
+                $processedIds[] = $record->getKey();
+                $existingImages->put($record->getKey(), $record);
+
+                continue;
+            }
+
+            /** @var CourseCertificateImage|null $record */
+            $record = $existingImages->get($id);
+
+            if ($record === null) {
+                throw ValidationException::withMessages([
+                    'certificate_image_entries' => sprintf('Overlay ke-%d tidak ditemukan.', $index + 1),
+                ]);
+            }
+
+            if ($file instanceof UploadedFile) {
+                $this->deleteCertificateImageFile($record->file_path);
+                $path = $file->store('courses/certificates/overlays', 'public');
+
+                if ($path === false) {
+                    throw ValidationException::withMessages([
+                        'certificate_image_entries' => sprintf('Overlay ke-%d gagal diunggah.', $index + 1),
+                    ]);
+                }
+
+                $record->file_path = $path;
+            }
+
+            $record->fill($attributes);
+
+            if ($record->isDirty()) {
+                $record->save();
+            }
+
+            $processedIds[] = $record->getKey();
+        }
+
+        $remaining = $course->certificate_images()
+            ->whereNotIn('id', $processedIds)
+            ->get();
+
+        foreach ($remaining as $image) {
+            $this->deleteCertificateImageFile($image->file_path);
+            $image->delete();
+        }
+
+        $course->unsetRelation('certificate_images');
+    }
+
+    private function deleteCertificateImageFile(?string $path): void {
+        if ($path === null || trim($path) === '') {
+            return;
+        }
+
+        if (Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     public function destroy(Course $course): RedirectResponse {
