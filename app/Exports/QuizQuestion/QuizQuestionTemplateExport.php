@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Exports\Quiz;
+namespace App\Exports\QuizQuestion;
 
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromArray;
@@ -13,7 +13,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Table;
 use PhpOffice\PhpSpreadsheet\Worksheet\Table\TableStyle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class QuizzesTemplateExport implements FromArray, ShouldAutoSize, WithEvents, WithHeadings, WithStyles {
+class QuizQuestionTemplateExport implements FromArray, ShouldAutoSize, WithEvents, WithHeadings, WithStyles {
     use Exportable;
 
     public function headings(): array {

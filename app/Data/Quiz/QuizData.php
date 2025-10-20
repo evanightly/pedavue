@@ -45,27 +45,17 @@ class QuizData extends Data {
     }
 
     public static function rules(ValidationContext $context = null): array {
-        $defaultRules = [
-            'name' => ['required', 'string'],
-            'description' => ['required', 'string'],
-            'duration' => ['required', 'integer'],
-            // 'is_question_shuffled' => ['required', 'boolean'],
-        ];
+        
 
         switch (request()->route()->getName()) {
-            case 'quizzes.import':
-                return [
-                    ...$defaultRules,
-                    'is_answer_shuffled' => ['boolean'],
-                    'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
-                ];
+            
             case 'quizzes.import.questions':
                 return [
                     'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
                 ];
             
             default:
-                return $defaultRules;
+                return [];
         }
     }
 }

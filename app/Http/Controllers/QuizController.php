@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Data\Quiz\QuizData;
-use App\Exports\Quiz\QuizzesTemplateExport;
-use App\Imports\Quiz\QuizzesImport;
+use App\Exports\QuizQuestion\QuizQuestionTemplateExport;
+use App\Imports\QuizQuestion\QuizQuestionImport;
 use App\Models\Quiz;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
@@ -41,13 +41,12 @@ class QuizController extends BaseResourceController
 
         $quizzes = QuizData::collect($items);
 
-        return $this->respond($request, 'quiz/index', [
+        return $request->expectsJson() ? $quizzes : $this->respond($request, 'quiz/index', [
             'quizzes' => $quizzes,
             'filters' => $request->only($this->allowedFilters),
             'filteredData' => $filteredData,
             'sort' => (string) $request->query('sort', $this->defaultSorts[0] ?? '-created_at'),
         ]);
-        // return $quizzes;
     }
 
     /**
@@ -56,7 +55,7 @@ class QuizController extends BaseResourceController
     public function create()
     {
         if (request()->has('download')) {
-            return (new QuizzesTemplateExport())->download('quiz_template.xlsx');
+            return (new QuizQuestionTemplateExport())->download('quiz_template.xlsx');
         }
         return Inertia::render('quiz/create');
         
@@ -74,14 +73,18 @@ class QuizController extends BaseResourceController
         $quiz = Quiz::create($data);
         if (request()->hasFile('import')) {
             $file = request()->file('import');
-            Excel::import(new QuizzesImport($quiz), $file);
+            Excel::import(new QuizQuestionImport($quiz), $file);
         }
         return $quiz;
     }
-    public function importQuestions(QuizData $quizData, Quiz $quiz)
+    public function importQuestions(Request $request, Quiz $quiz)
     {
-        $data = $quizData->toArray();
-        Excel::import(new QuizzesImport($quiz), $data['file']);
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv']
+        ]);
+        // $data = $quizData->toArray();
+        Excel::import(new QuizQuestionImport($quiz, $request['is_answer_shuffled'] ?? false), $request['file']);
+        return $quiz->load('quiz_questions.quiz_question_options');
     }
 
     /**
