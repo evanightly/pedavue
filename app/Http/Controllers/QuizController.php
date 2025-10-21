@@ -108,7 +108,9 @@ class QuizController extends BaseResourceController
         if (!filled($quizQuestionData->order ?? null)) {
             $quizQuestionData->order = $quiz->quiz_questions()->max('order') + 1;
         }
-        $quiz->quiz_questions()->create($quizQuestionData->toArray());
+        $question = $quiz->quiz_questions()->create($quizQuestionData->toArray());
+        $question->quiz_question_options()->createMany($quizQuestionData->quiz_question_options->toArray());
+        unset($quizQuestionData->quiz_question_options);
         return QuizQuestionData::collect($quiz->quiz_questions->load('quiz_question_options'))->toArray();
     }
 

@@ -13,9 +13,9 @@ class QuizQuestionOptionData extends Data {
     public function __construct(
         public int|Optional $id,
         public ?int $quiz_question_id,
-        public ?string $option_text,
-        public ?bool $is_correct,
-        public int $order = 0,
+        public string $option_text,
+        public bool|Optional $is_correct = false,
+        public ?int $order = 0,
         public ?QuizQuestionData $quiz_question = null,
         public ?string $created_at,
         public ?string $updated_at,
