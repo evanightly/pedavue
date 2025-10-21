@@ -26,7 +26,6 @@ class QuizQuestionData extends Data {
         public ?int $order,
         public ?QuizData $quiz = null,
         #[DataCollectionOf(QuizQuestionOptionData::class)]
-        #[DataCollectionOf(QuizQuestionData::class)]
         #[LiteralTypeScriptType('App.Data.QuizQuestionOption.QuizQuestionOptionData[]|null')]
         public ?DataCollection $quiz_question_options,
         public ?string $created_at,

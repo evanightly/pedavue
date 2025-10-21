@@ -22,9 +22,9 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        if (app()->isLocal()) {
-            Artisan::call('db:seed', ['--class' => 'QuizResponseAnswerSeeder']);
-        }
+        // if (app()->isLocal()) {
+        //     Artisan::call('db:seed', ['--class' => 'QuizResponseAnswerSeeder']);
+        // }
     }
 
     /**

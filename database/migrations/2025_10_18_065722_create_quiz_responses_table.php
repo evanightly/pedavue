@@ -23,12 +23,12 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        if (app()->isLocal()) {
-            if (User::count() === 0) {
-                Artisan::call('db:seed', ['--class' => 'UserSeeder']);
-            }
-            Artisan::call('db:seed', ['--class' => 'QuizResponseSeeder']);
-        }
+        // if (app()->isLocal()) {
+        //     if (User::count() === 0) {
+        //         Artisan::call('db:seed', ['--class' => 'UserSeeder']);
+        //     }
+        //     Artisan::call('db:seed', ['--class' => 'QuizResponseSeeder']);
+        // }
     }
 
     /**
