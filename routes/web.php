@@ -18,9 +18,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('permissions', PermissionController::class);
     Route::resource('quizzes', QuizController::class);
-    Route::post('quizzes/{quiz}/import-questions', [QuizController::class, 'importQuestions'])->name('quizzes.import.questions');
-    Route::resource('quiz_responses', QuizResponseController::class);
-    Route::resource('quiz_response_answers', QuizResponseAnswerController::class);
+    Route::post('quizzes/init-questions', [QuizController::class, 'initQuestions'])->name('quizzes.init.questions');
+    Route::group(['prefix' => 'quizzes/{quiz}', 'as' => 'quizzes.'], function () {
+        Route::get('questions', [QuizController::class, 'questions'])->name('questions');
+        Route::post('questions', [QuizController::class, 'addQuestion'])->name('questions.add');
+        Route::post('import-questions', [QuizController::class, 'importQuestions'])->name('import.questions');
+    });
+    Route::resource('quiz-questions', QuizResponseController::class);
+    Route::resource('quiz-responses', QuizResponseController::class);
+    Route::resource('quiz-response-answers', QuizResponseAnswerController::class);
     Route::resource('roles', RoleController::class);
     Route::resource('courses', CourseController::class);
     Route::post('courses/{course}/instructors', [CourseController::class, 'attachInstructor'])->name('courses.instructors.attach');

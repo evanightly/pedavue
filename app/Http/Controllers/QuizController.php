@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Data\Quiz\QuizData;
+use App\Data\QuizQuestion\QuizQuestionData;
 use App\Exports\QuizQuestion\QuizQuestionTemplateExport;
 use App\Imports\QuizQuestion\QuizQuestionImport;
 use App\Models\Quiz;
@@ -96,6 +97,19 @@ class QuizController extends BaseResourceController
         // return Inertia::render('quiz/show', [
         //     'record' => QuizData::fromModel($quiz)->toArray(),
         // ]);
+    }
+    public function questions(Quiz $quiz)
+    {
+        return QuizQuestionData::collect($quiz->quiz_questions->load('quiz_question_options'))->toArray();
+    }
+    public function addQuestion(QuizQuestionData $quizQuestionData, Quiz $quiz)
+    {
+        $quizQuestionData->quiz_id = $quiz->id;
+        if (!filled($quizQuestionData->order ?? null)) {
+            $quizQuestionData->order = $quiz->quiz_questions()->max('order') + 1;
+        }
+        $quiz->quiz_questions()->create($quizQuestionData->toArray());
+        return QuizQuestionData::collect($quiz->quiz_questions->load('quiz_question_options'))->toArray();
     }
 
     /**

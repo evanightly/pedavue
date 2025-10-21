@@ -9,6 +9,7 @@ use Spatie\LaravelData\Attributes\DataCollectionOf;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\DataCollection;
 use Spatie\LaravelData\Optional;
+use Spatie\LaravelData\Support\Validation\ValidationContext;
 use Spatie\TypeScriptTransformer\Attributes\LiteralTypeScriptType;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
@@ -17,9 +18,9 @@ class QuizQuestionData extends Data {
     public function __construct(
         public int|Optional $id,
         public ?int $quiz_id,
-        public ?string $question,
-        public bool $is_answer_shuffled = false,
-        public int $order = 0,
+        public string $question,
+        public bool|Optional $is_answer_shuffled = false,
+        public ?int $order,
         public ?QuizData $quiz = null,
         #[DataCollectionOf(QuizQuestionOptionData::class)]
         #[LiteralTypeScriptType('App.Data.QuizQuestionOption.QuizQuestionOptionData[]|null')]
@@ -42,5 +43,11 @@ class QuizQuestionData extends Data {
             created_at: $model->created_at?->toIso8601String(),
             updated_at: $model->updated_at?->toIso8601String(),
         );
+    }
+
+    public static function rules(ValidationContext $context = null): array {
+        return [
+            'quiz_id' => ['integer', 'exists:quizzes,id'],
+        ];
     }
 }

@@ -54,9 +54,9 @@ declare namespace App.Data.QuizQuestion {
     export type QuizQuestionData = {
         id: any | number;
         quiz_id: number | null;
-        question: string | null;
-        is_answer_shuffled: boolean;
-        order: number;
+        question: string;
+        is_answer_shuffled: any | boolean;
+        order: number | null;
         quiz: App.Data.Quiz.QuizData | null;
         quiz_question_options: App.Data.QuizQuestionOption.QuizQuestionOptionData[] | null;
         created_at: string | null;
