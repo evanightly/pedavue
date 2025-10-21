@@ -10,6 +10,7 @@ use Spatie\LaravelData\Attributes\DataCollectionOf;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\DataCollection;
 use Spatie\LaravelData\Optional;
+use Spatie\LaravelData\Support\Validation\ValidationContext;
 use Spatie\TypeScriptTransformer\Attributes\LiteralTypeScriptType;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
@@ -18,13 +19,13 @@ class QuizQuestionData extends Data {
     public function __construct(
         public int|Optional $id,
         public ?int $quiz_id,
-        public ?string $question,
+        public string $question,
         public ?string $question_image,
         public ?string $question_image_url,
-        public bool $is_answer_shuffled,
-        public int $order,
-        public ?QuizData $quiz,
-        #[DataCollectionOf(QuizQuestionData::class)]
+        public bool|Optional $is_answer_shuffled = false,
+        public ?int $order,
+        public ?QuizData $quiz = null,
+        #[DataCollectionOf(QuizQuestionOptionData::class)]
         #[LiteralTypeScriptType('App.Data.QuizQuestionOption.QuizQuestionOptionData[]|null')]
         public ?DataCollection $quiz_question_options,
         public ?string $created_at,
@@ -49,6 +50,21 @@ class QuizQuestionData extends Data {
         );
     }
 
+    public static function rules(ValidationContext $context = null): array {
+        $defaultRules = [
+            'quiz_id' => ['integer', 'exists:quizzes,id'],
+        ];
+        switch (request()->route()->getName()) {
+            case 'quizzes.questions.add':
+                return [
+                    ...$defaultRules,
+                    'quiz_question_options' => ['required', 'array'],
+                ];
+            default:
+                return $defaultRules;
+        }
+    }
+    
     private static function resolveQuestionImageUrl(?string $path): ?string {
         if (!$path) {
             return null;
