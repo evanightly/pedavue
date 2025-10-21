@@ -12,6 +12,7 @@ import { PermissionEnum, RoleEnum } from '@/types/enums.generated';
 import { Link } from '@inertiajs/react';
 import { BookA, BookDashed, Compass, Key, LayoutGrid, Lock, User } from 'lucide-react';
 import AppLogo from './app-logo';
+import QuizController from '@/actions/App/Http/Controllers/QuizController';
 
 const navGroups: NavGroup[] = [
     {
@@ -62,6 +63,11 @@ const navGroups: NavGroup[] = [
                 href: EnrollmentRequestController.index(),
                 icon: BookDashed,
                 permissions: [PermissionEnum.ReadEnrollment],
+            },
+            {
+                title: 'Quizzes',
+                href: QuizController.index(),
+                icon: BookA,
             },
         ],
     },

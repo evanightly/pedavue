@@ -8,6 +8,7 @@ use Spatie\LaravelData\Attributes\DataCollectionOf;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\DataCollection;
 use Spatie\LaravelData\Optional;
+use Spatie\LaravelData\Support\Validation\ValidationContext;
 use Spatie\TypeScriptTransformer\Attributes\LiteralTypeScriptType;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 
@@ -18,7 +19,7 @@ class QuizData extends Data {
         public ?string $name,
         public ?string $description,
         public ?int $duration,
-        public bool $is_question_shuffled = false,
+        public bool|Optional $is_question_shuffled = false,
         public ?string $type,
         #[DataCollectionOf(QuizQuestionData::class)]
         #[LiteralTypeScriptType('App.Data.QuizQuestion.QuizQuestionData[]|null')]
@@ -42,4 +43,20 @@ class QuizData extends Data {
             updated_at: $model->updated_at?->toIso8601String(),
         );
     }
+
+    public static function rules(ValidationContext $context = null): array {
+        
+
+        switch (request()->route()->getName()) {
+            
+            case 'quizzes.import.questions':
+                return [
+                    'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
+                ];
+            
+            default:
+                return [];
+        }
+    }
 }
+

@@ -18,6 +18,9 @@ class DatabaseSeeder extends Seeder {
             RolePermissionSeeder::class,
             UserSeeder::class,
             CourseSeeder::class,
+            QuizSeeder::class,
+            QuizQuestionSeeder::class,
+            QuizQuestionOptionSeeder::class
         ]);
 
     }

@@ -16,6 +16,8 @@ use App\Http\Controllers\ModuleStageController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\QuizImportController;
+use App\Http\Controllers\QuizResponseAnswerController;
+use App\Http\Controllers\QuizResponseController;
 use App\Http\Controllers\QuizResultAnswerController;
 use App\Http\Controllers\QuizResultController;
 use App\Http\Controllers\RoleController;
@@ -35,10 +37,26 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('permissions', PermissionController::class);
     Route::resource('quizzes', QuizController::class);
+
+    // Quiz management extensions from both branches
+    // 1) Init / questions / add / import-questions (feature branch)
+    Route::post('quizzes/init-questions', [QuizController::class, 'initQuestions'])->name('quizzes.init.questions');
+    Route::group(['prefix' => 'quizzes/{quiz}', 'as' => 'quizzes.'], function () {
+        Route::get('questions', [QuizController::class, 'questions'])->name('questions');
+        Route::post('questions', [QuizController::class, 'addQuestion'])->name('questions.add');
+        Route::post('import-questions', [QuizController::class, 'importQuestions'])->name('import.questions');
+    });
+
+    // 2) Import flow (origin/main)
     Route::get('quizzes/import/template', [QuizImportController::class, 'template'])->name('quizzes.import.template');
     Route::get('quizzes/{quiz}/import', [QuizImportController::class, 'show'])->name('quizzes.import.show');
     Route::match(['get', 'post'], 'quizzes/{quiz}/import/preview', [QuizImportController::class, 'preview'])->name('quizzes.import.preview');
     Route::post('quizzes/{quiz}/import/confirm', [QuizImportController::class, 'confirm'])->name('quizzes.import.confirm');
+
+    // Quiz response related resources
+    Route::resource('quiz-questions', QuizResponseController::class);
+    Route::resource('quiz-responses', QuizResponseController::class);
+    Route::resource('quiz-response-answers', QuizResponseAnswerController::class);
     Route::resource('roles', RoleController::class);
     Route::resource('courses', CourseController::class)->except(['show']);
     Route::post('courses/{course}/instructors', [CourseController::class, 'attachInstructor'])->name('courses.instructors.attach');
@@ -75,6 +93,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
 });
+
 Route::get('courses/{course}', [CourseController::class, 'show'])->name('courses.show');
 Route::get('csrf-token', function () {
     return response()->json(['csrf_token' => csrf_token()]);
