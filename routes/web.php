@@ -40,7 +40,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Quiz management extensions from both branches
     // 1) Init / questions / add / import-questions (feature branch)
-    Route::post('quizzes/init-questions', [QuizController::class, 'initQuestions'])->name('quizzes.init.questions');
+    // Route::post('quizzes/init-questions', [QuizController::class, 'initQuestions'])->name('quizzes.init.questions');
     Route::group(['prefix' => 'quizzes/{quiz}', 'as' => 'quizzes.'], function () {
         Route::get('questions', [QuizController::class, 'questions'])->name('questions');
         Route::post('questions', [QuizController::class, 'addQuestion'])->name('questions.add');

@@ -17,8 +17,8 @@ return new class extends Migration
             $table->dateTime('started_at')->nullable();
             $table->dateTime('finished_at')->nullable();
             $table->foreignId('quiz_result_id')->constrained('quiz_results');
-            $table->foreignId('question_id')->constrained('quiz_questions');
-            $table->foreignId('answer_id')->nullable()->constrained('quiz_question_options');
+            $table->foreignId('quiz_question_id')->constrained('quiz_questions');
+            $table->foreignId('quiz_question_option_id')->nullable()->constrained('quiz_question_options');
             $table->timestamps();
         });
     }

@@ -240,27 +240,33 @@ declare namespace App.Data.QuizResponseAnswer {
 declare namespace App.Data.QuizResult {
     export type QuizResultData = {
         id: any | number;
-        score: number | null;
+        quiz_id: number | null;
+        user_id: number | null;
         attempt: number | null;
+        score: number | null;
         started_at: string | null;
         finished_at: string | null;
+        quiz: App.Data.Quiz.QuizData | null;
+        user: App.Data.User.UserData | null;
+        quiz_result_answers: App.Data.QuizResultAnswer.QuizResultAnswerData[] | null;
         created_at: string | null;
         updated_at: string | null;
-        user: any;
-        quiz: any;
     };
 }
 declare namespace App.Data.QuizResultAnswer {
     export type QuizResultAnswerData = {
         id: any | number;
         user_answer_text: string | null;
+        quiz_result_id: number | null;
+        quiz_question_id: number | null;
+        quiz_question_option_id: number | null;
         started_at: string | null;
         finished_at: string | null;
+        quiz_result: App.Data.QuizResult.QuizResultData | null;
+        quiz_question: App.Data.QuizQuestion.QuizQuestionData | null;
+        quiz_question_option: App.Data.QuizQuestionOption.QuizQuestionOptionData | null;
         created_at: string | null;
         updated_at: string | null;
-        quiz_result: any;
-        question: any;
-        answer: any;
     };
 }
 declare namespace App.Data.Role {

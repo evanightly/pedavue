@@ -3,28 +3,34 @@
 namespace App\Data\QuizResult;
 
 use App\Data\Quiz\QuizData;
+use App\Data\QuizResultAnswer\QuizResultAnswerData;
 use App\Data\User\UserData;
 use App\Models\QuizResult;
+use Spatie\LaravelData\Attributes\DataCollectionOf;
 use Spatie\LaravelData\Data;
+use Spatie\LaravelData\DataCollection;
 use Spatie\LaravelData\Optional;
+use Spatie\TypeScriptTransformer\Attributes\LiteralTypeScriptType;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
-use Spatie\TypeScriptTransformer\Attributes\TypeScriptType;
 
 #[TypeScript]
 class QuizResultData extends Data
 {
     public function __construct(
         public int|Optional $id,
-        public ?int $score,
+        public ?int $quiz_id,
+        public ?int $user_id,
         public ?int $attempt,
+        public ?int $score,
         public ?string $started_at,
         public ?string $finished_at,
+        public ?QuizData $quiz = null,
+        public ?UserData $user = null,
+        #[DataCollectionOf(QuizResultAnswerData::class)]
+        #[LiteralTypeScriptType('App.Data.QuizResultAnswer.QuizResultAnswerData[]|null')]
+        public ?DataCollection $quiz_result_answers,
         public ?string $created_at,
         public ?string $updated_at,
-        #[TypeScriptType('App.Data.User.UserData | null')]
-        public ?UserData $user,
-        #[TypeScriptType('App.Data.Quiz.QuizData | null')]
-        public ?QuizData $quiz,
     ) {}
 
 
@@ -32,18 +38,19 @@ class QuizResultData extends Data
     {
         return new self(
             id: $model->getKey(),
-            score: $model->score !== null ? (int) $model->score : null,
-            attempt: $model->attempt !== null ? (int) $model->attempt : null,
+            quiz_id: $model->quiz_id,
+            user_id: $model->user_id,
+            attempt: $model->attempt,
+            score: $model->score,
             started_at: $model->started_at?->toIso8601String(),
             finished_at: $model->finished_at?->toIso8601String(),
+            quiz: $model->relationLoaded('quiz') ? QuizData::from($model->quiz) : null,
+            user: $model->relationLoaded('user') ? UserData::from($model->user) : null,
+            quiz_result_answers: $model->relationLoaded('quiz_result_answers')
+                ? new DataCollection(QuizResultAnswerData::class, $model->quiz_result_answers)
+                : null,
             created_at: $model->created_at?->toIso8601String(),
             updated_at: $model->updated_at?->toIso8601String(),
-            user: $model->relationLoaded('user') && $model->user
-                ? UserData::fromModel($model->user)
-                : null,
-            quiz: $model->relationLoaded('quiz') && $model->quiz
-                ? QuizData::fromModel($model->quiz)
-                : null,
         );
     }
 }
