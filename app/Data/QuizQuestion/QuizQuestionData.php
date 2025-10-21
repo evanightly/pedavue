@@ -46,8 +46,18 @@ class QuizQuestionData extends Data {
     }
 
     public static function rules(ValidationContext $context = null): array {
-        return [
+        $defaultRules = [
             'quiz_id' => ['integer', 'exists:quizzes,id'],
         ];
+        switch (request()->route()->getName()) {
+            case 'quizzes.questions.add':
+                return [
+                    ...$defaultRules,
+                    'quiz_question_options' => ['required', 'array'],
+                ];
+            default:
+                return $defaultRules;
+        }
     }
+    
 }

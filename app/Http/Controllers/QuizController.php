@@ -7,6 +7,7 @@ use App\Data\QuizQuestion\QuizQuestionData;
 use App\Exports\QuizQuestion\QuizQuestionTemplateExport;
 use App\Imports\QuizQuestion\QuizQuestionImport;
 use App\Models\Quiz;
+use App\Models\QuizQuestionOption;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -109,8 +110,14 @@ class QuizController extends BaseResourceController
             $quizQuestionData->order = $quiz->quiz_questions()->max('order') + 1;
         }
         $question = $quiz->quiz_questions()->create($quizQuestionData->toArray());
+        
         $question->quiz_question_options()->createMany($quizQuestionData->quiz_question_options->toArray());
+
+        $options = QuizQuestionOption::whereQuizQuestionId($question->id);
+        $options = $question->is_answer_shuffled ? $options->inRandomOrder() : $options;
+        $options->get()->each(fn ($option, $index) => $option->update(['order' => $index + 1]));
         unset($quizQuestionData->quiz_question_options);
+
         return QuizQuestionData::collect($quiz->quiz_questions->load('quiz_question_options'))->toArray();
     }
 
