@@ -21,7 +21,7 @@ import {
     Users2,
 } from 'lucide-react';
 import { useMemo } from 'react';
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, Label, Pie, PieChart, XAxis, YAxis } from 'recharts';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -318,19 +318,23 @@ export default function Dashboard() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title='Dashboard' />
-            <div className='flex flex-col gap-8 pb-12'>
-                <section className='grid gap-4 lg:grid-cols-3'>
-                    <MagicCard className='rounded-2xl border border-border/60 bg-card/80 p-6 backdrop-blur'>
-                        <CardHeader className='p-0'>
+            <div className='flex flex-col gap-6 p-6 pb-12'>
+                <section className='grid gap-6 lg:grid-cols-3'>
+                    <MagicCard className='group relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/95 via-card/90 to-card/80 p-6 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-xl'>
+                        <div className='absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                        <CardHeader className='relative p-0'>
                             <div className='flex items-center justify-between gap-4'>
                                 <div>
-                                    <CardTitle className='flex items-center gap-2 text-lg'>
+                                    <CardTitle className='flex items-center gap-2 text-lg font-bold'>
                                         <UserCircle2 className='h-5 w-5 text-primary' />
                                         Akun Aktif
                                     </CardTitle>
-                                    <CardDescription className='mt-1 text-sm'>Profil ringkas pengguna yang sedang masuk.</CardDescription>
+                                    <CardDescription className='mt-1.5 text-sm'>Profil ringkas pengguna yang sedang masuk.</CardDescription>
                                 </div>
-                                <Badge variant='outline' className='rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase'>
+                                <Badge
+                                    variant='outline'
+                                    className='rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold tracking-wide uppercase shadow-sm'
+                                >
                                     {payload?.role_names?.join(' • ') || 'Tanpa Peran'}
                                 </Badge>
                             </div>
@@ -356,13 +360,14 @@ export default function Dashboard() {
                         </CardContent>
                     </MagicCard>
 
-                    <Card className='rounded-2xl border border-border/60 bg-card/80 shadow-sm backdrop-blur'>
-                        <CardHeader className='flex flex-row items-center justify-between gap-3'>
+                    <Card className='group overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/95 via-card/90 to-card/80 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-xl'>
+                        <div className='absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                        <CardHeader className='relative flex flex-row items-center justify-between gap-3'>
                             <div>
-                                <CardTitle className='text-lg'>Peran Anda</CardTitle>
+                                <CardTitle className='text-lg font-bold'>Peran Anda</CardTitle>
                                 <CardDescription>Setiap peran memiliki kartu wawasan khusus di bawah ini.</CardDescription>
                             </div>
-                            <Layers3 className='h-8 w-8 text-primary' />
+                            <Layers3 className='h-8 w-8 text-primary transition-transform duration-300 group-hover:scale-110' />
                         </CardHeader>
                         <CardContent className='space-y-3'>
                             {payload?.role_names?.length ? (
@@ -386,22 +391,23 @@ export default function Dashboard() {
                         </CardContent>
                     </Card>
 
-                    <MagicCard className='rounded-2xl border border-border/60 bg-card/80 p-6 backdrop-blur'>
-                        <CardHeader className='p-0'>
-                            <CardTitle className='flex items-center gap-2 text-lg'>
+                    <MagicCard className='group relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/95 via-card/90 to-card/80 p-6 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-xl'>
+                        <div className='absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                        <CardHeader className='relative p-0'>
+                            <CardTitle className='flex items-center gap-2 text-lg font-bold'>
                                 <BarChart3 className='h-5 w-5 text-primary' />
                                 Ringkasan Cepat
                             </CardTitle>
-                            <CardDescription className='mt-1 text-sm'>Jumlah data utama berdasarkan peran Anda.</CardDescription>
+                            <CardDescription className='mt-1.5 text-sm'>Jumlah data utama berdasarkan peran Anda.</CardDescription>
                         </CardHeader>
-                        <CardContent className='mt-6 grid gap-4 p-0 text-sm lg:grid-cols-2'>
-                            <div className='rounded-xl border border-border/60 bg-background/60 p-3 shadow-sm'>
+                        <CardContent className='relative mt-6 grid gap-4 p-0 text-sm lg:grid-cols-2'>
+                            <div className='group/stat rounded-xl border border-border/60 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 p-4 shadow-sm transition-all duration-300 hover:border-emerald-500/30 hover:shadow-md'>
                                 <p className='text-xs text-muted-foreground'>Mahasiswa Dibimbing</p>
                                 <p className='mt-2 text-2xl font-semibold text-foreground'>{instructor?.unique_students ?? 0}</p>
                                 <p className='text-xs text-muted-foreground'>Total siswa unik yang terdaftar di kursus Anda</p>
                             </div>
-                            <div className='rounded-xl border border-border/60 bg-background/60 p-3 shadow-sm'>
-                                <p className='text-xs text-muted-foreground'>Progress Modul Terbaru</p>
+                            <div className='group/stat rounded-xl border border-border/60 bg-gradient-to-br from-sky-500/10 to-sky-500/5 p-4 shadow-sm transition-all duration-300 hover:border-sky-500/30 hover:shadow-md'>
+                                <p className='text-xs font-medium text-muted-foreground'>Progress Modul Terbaru</p>
                                 <p className='mt-2 text-2xl font-semibold text-foreground'>{studentProgress.length}</p>
                                 <p className='text-xs text-muted-foreground'>Riwayat aktivitas modul terakhir Anda</p>
                             </div>
@@ -475,35 +481,57 @@ export default function Dashboard() {
                             </div>
                         </div>
 
-                        <div className='grid gap-4 lg:grid-cols-2'>
-                            <MagicCard className='rounded-2xl border border-border/60 bg-card/80 p-6 backdrop-blur'>
-                                <CardHeader className='p-0'>
-                                    <CardTitle className='flex items-center gap-2 text-lg'>
+                        <div className='grid gap-6 lg:grid-cols-2'>
+                            <MagicCard className='group relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/95 via-card/90 to-card/80 p-6 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-xl'>
+                                <div className='absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                                <CardHeader className='relative p-0'>
+                                    <CardTitle className='flex items-center gap-2 text-lg font-bold'>
                                         <GraduationCap className='h-5 w-5 text-primary' />
                                         Distribusi Pengguna Berdasarkan Peran
                                     </CardTitle>
-                                    <CardDescription>{superAdmin.user_roles.description}</CardDescription>
+                                    <CardDescription className='mt-1.5'>{superAdmin.user_roles.description}</CardDescription>
                                 </CardHeader>
-                                <CardContent className='mt-6 p-0'>
+                                <CardContent className='relative mt-8 p-0'>
                                     {userRoleChartData.data.length === 0 ? (
                                         <p className='text-sm text-muted-foreground'>Belum ada data pengguna untuk periode ini.</p>
                                     ) : (
-                                        <ChartContainer config={userRoleChartData.config} className='mx-auto aspect-square max-h-[280px]'>
+                                        <ChartContainer config={userRoleChartData.config} className='mx-auto aspect-square max-h-[320px]'>
                                             <PieChart>
-                                                <ChartTooltip cursor={false} content={<ChartTooltipContent hideIndicator />} />
+                                                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
                                                 <Pie
                                                     data={userRoleChartData.data}
                                                     dataKey='value'
-                                                    nameKey='label'
-                                                    innerRadius={60}
-                                                    outerRadius={110}
-                                                    strokeWidth={5}
+                                                    nameKey='key'
+                                                    innerRadius={70}
+                                                    outerRadius={120}
+                                                    strokeWidth={2}
+                                                    paddingAngle={2}
                                                 >
-                                                    {userRoleChartData.data.map(
-                                                        (entry: { key: string; label: string; value: number; color: string }) => (
-                                                            <Cell key={`user-role-${entry.key}`} fill={entry.color} />
-                                                        ),
-                                                    )}
+                                                    <Label
+                                                        content={({ viewBox }) => {
+                                                            if (viewBox && 'cx' in viewBox && 'cy' in viewBox) {
+                                                                const total = userRoleChartData.data.reduce((sum, entry) => sum + entry.value, 0);
+                                                                return (
+                                                                    <text x={viewBox.cx} y={viewBox.cy} textAnchor='middle' dominantBaseline='middle'>
+                                                                        <tspan
+                                                                            x={viewBox.cx}
+                                                                            y={viewBox.cy}
+                                                                            className='fill-foreground text-3xl font-bold'
+                                                                        >
+                                                                            {total}
+                                                                        </tspan>
+                                                                        <tspan
+                                                                            x={viewBox.cx}
+                                                                            y={(viewBox.cy || 0) + 24}
+                                                                            className='fill-muted-foreground text-sm'
+                                                                        >
+                                                                            Total Pengguna
+                                                                        </tspan>
+                                                                    </text>
+                                                                );
+                                                            }
+                                                        }}
+                                                    />
                                                 </Pie>
                                             </PieChart>
                                         </ChartContainer>
@@ -511,15 +539,16 @@ export default function Dashboard() {
                                 </CardContent>
                             </MagicCard>
 
-                            <MagicCard className='rounded-2xl border border-border/60 bg-card/80 p-6 backdrop-blur'>
-                                <CardHeader className='p-0'>
-                                    <CardTitle className='flex items-center gap-2 text-lg'>
+                            <MagicCard className='group relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/95 via-card/90 to-card/80 p-6 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-xl'>
+                                <div className='absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                                <CardHeader className='relative p-0'>
+                                    <CardTitle className='flex items-center gap-2 text-lg font-bold'>
                                         <BookOpen className='h-5 w-5 text-primary' />
                                         Distribusi Kursus Berdasarkan Level
                                     </CardTitle>
-                                    <CardDescription>{superAdmin.course_levels.description}</CardDescription>
+                                    <CardDescription className='mt-1.5'>{superAdmin.course_levels.description}</CardDescription>
                                 </CardHeader>
-                                <CardContent className='mt-6 p-0'>
+                                <CardContent className='relative mt-8 p-0'>
                                     {courseLevelChartData.length === 0 ? (
                                         <p className='text-sm text-muted-foreground'>Belum ada kursus yang tercatat untuk periode ini.</p>
                                     ) : (
@@ -594,17 +623,18 @@ export default function Dashboard() {
                             </Select>
                         </div>
 
-                        <div className='grid gap-4 lg:grid-cols-2'>
-                            <Card className='rounded-2xl border border-border/60 bg-card/80 shadow-sm backdrop-blur'>
-                                <CardHeader>
-                                    <CardTitle className='flex items-center gap-2 text-lg'>
+                        <div className='grid gap-6 lg:grid-cols-2'>
+                            <Card className='group overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/95 via-card/90 to-card/80 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-xl'>
+                                <div className='absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                                <CardHeader className='relative'>
+                                    <CardTitle className='flex items-center gap-2 text-lg font-bold'>
                                         <Users2 className='h-5 w-5 text-primary' />
                                         Ringkasan Populasi Siswa
                                     </CardTitle>
                                     <CardDescription>Total siswa unik dalam kursus pilihan Anda.</CardDescription>
                                 </CardHeader>
-                                <CardContent className='p-6 pt-0'>
-                                    <div className='rounded-2xl border border-border/60 bg-background/60 p-6 text-center shadow-sm'>
+                                <CardContent className='relative p-6 pt-0'>
+                                    <div className='rounded-2xl border border-border/60 bg-gradient-to-br from-primary/10 to-primary/5 p-8 text-center shadow-sm transition-all duration-300 hover:shadow-md'>
                                         <p className='text-xs tracking-wide text-muted-foreground uppercase'>Total Siswa Unik</p>
                                         <p className='mt-3 text-4xl font-bold text-foreground'>{instructor.unique_students}</p>
                                         <p className='mt-2 text-xs text-muted-foreground'>
@@ -614,15 +644,16 @@ export default function Dashboard() {
                                 </CardContent>
                             </Card>
 
-                            <MagicCard className='rounded-2xl border border-border/60 bg-card/80 p-6 backdrop-blur'>
-                                <CardHeader className='p-0'>
-                                    <CardTitle className='flex items-center gap-2 text-lg'>
+                            <MagicCard className='group relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/95 via-card/90 to-card/80 p-6 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-xl'>
+                                <div className='absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                                <CardHeader className='relative p-0'>
+                                    <CardTitle className='flex items-center gap-2 text-lg font-bold'>
                                         <TrendingUp className='h-5 w-5 text-primary' />
                                         Progres Siswa per Kursus
                                     </CardTitle>
-                                    <CardDescription>Pembagian status belajar untuk setiap kursus.</CardDescription>
+                                    <CardDescription className='mt-1.5'>Pembagian status belajar untuk setiap kursus.</CardDescription>
                                 </CardHeader>
-                                <CardContent className='mt-6 p-0'>
+                                <CardContent className='relative mt-8 p-0'>
                                     {instructorCourseData.chart.length === 0 ? (
                                         <p className='text-sm text-muted-foreground'>Belum ada siswa yang terdaftar pada kursus terpilih.</p>
                                     ) : (
@@ -655,9 +686,9 @@ export default function Dashboard() {
                             </MagicCard>
                         </div>
 
-                        <div className='grid gap-4 lg:grid-cols-2'>
+                        <div className='grid gap-6 lg:grid-cols-2'>
                             {instructorCourseData.summaries.length === 0 ? (
-                                <Card className='rounded-2xl border border-dashed border-border/60 bg-card/60 shadow-none backdrop-blur'>
+                                <Card className='rounded-3xl border border-dashed border-border/60 bg-card/60 shadow-none backdrop-blur'>
                                     <CardContent className='flex min-h-[180px] flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground'>
                                         <Layers3 className='h-6 w-6 text-muted-foreground' />
                                         Belum ada data progres siswa yang bisa ditampilkan.
@@ -667,18 +698,22 @@ export default function Dashboard() {
                                 instructorCourseData.summaries.map((summary) => (
                                     <Card
                                         key={`course-summary-${summary.course_id}`}
-                                        className='rounded-2xl border border-border/60 bg-card/80 shadow-sm backdrop-blur'
+                                        className='group overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/95 via-card/90 to-card/80 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-xl'
                                     >
-                                        <CardHeader>
-                                            <CardTitle className='flex items-center justify-between gap-2 text-lg'>
+                                        <div className='absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                                        <CardHeader className='relative'>
+                                            <CardTitle className='flex items-center justify-between gap-2 text-lg font-bold'>
                                                 <span>{summary.course_title}</span>
-                                                <Badge variant='outline' className='rounded-full px-3 py-1 text-xs font-semibold'>
+                                                <Badge
+                                                    variant='outline'
+                                                    className='rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold shadow-sm'
+                                                >
                                                     {summary.total_students} siswa
                                                 </Badge>
                                             </CardTitle>
                                             <CardDescription>Kondisi progres siswa di kursus ini.</CardDescription>
                                         </CardHeader>
-                                        <CardContent className='space-y-4'>
+                                        <CardContent className='relative space-y-4'>
                                             <div className='flex flex-wrap gap-3 text-xs font-semibold tracking-wide uppercase'>
                                                 <span className='flex items-center gap-2 text-emerald-600 dark:text-emerald-400'>
                                                     <CheckCircle2 className='h-4 w-4' /> {summary.completed_count} selesai
@@ -690,11 +725,11 @@ export default function Dashboard() {
                                                     <CircleDashed className='h-4 w-4' /> {summary.not_started_count} belum mulai
                                                 </span>
                                             </div>
-                                            <div className='space-y-3'>
+                                            <div className='space-y-2'>
                                                 {summary.students.slice(0, 5).map((student: CourseStudentProgress) => (
                                                     <div
                                                         key={`student-${summary.course_id}-${student.student_id}`}
-                                                        className='flex items-center justify-between rounded-xl border border-border/60 bg-background/60 px-4 py-3'
+                                                        className='group/student flex items-center justify-between rounded-xl border border-border/60 bg-background/60 px-4 py-3 transition-all duration-200 hover:border-primary/30 hover:bg-background/80 hover:shadow-sm'
                                                     >
                                                         <div>
                                                             <p className='text-sm font-medium text-foreground'>{student.student_name}</p>
@@ -791,22 +826,25 @@ export default function Dashboard() {
                         </div>
 
                         <div className='grid gap-4 md:grid-cols-3'>
-                            <Card className='rounded-2xl border border-border/60 bg-card/80 shadow-sm backdrop-blur'>
-                                <CardContent className='flex flex-col items-center justify-center gap-2 p-6 text-center'>
+                            <Card className='group overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-card/80 shadow-lg backdrop-blur-sm transition-all duration-300 hover:border-emerald-500/30 hover:shadow-xl'>
+                                <div className='absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                                <CardContent className='relative flex flex-col items-center justify-center gap-3 p-8 text-center'>
                                     <Award className='h-8 w-8 text-emerald-500' />
                                     <p className='text-xs tracking-wide text-muted-foreground uppercase'>Modul Selesai</p>
                                     <p className='text-3xl font-bold text-foreground'>{student.completed_count}</p>
                                 </CardContent>
                             </Card>
-                            <Card className='rounded-2xl border border-border/60 bg-card/80 shadow-sm backdrop-blur'>
-                                <CardContent className='flex flex-col items-center justify-center gap-2 p-6 text-center'>
+                            <Card className='group overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-sky-500/10 via-sky-500/5 to-card/80 shadow-lg backdrop-blur-sm transition-all duration-300 hover:border-sky-500/30 hover:shadow-xl'>
+                                <div className='absolute inset-0 bg-gradient-to-br from-sky-500/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                                <CardContent className='relative flex flex-col items-center justify-center gap-3 p-8 text-center'>
                                     <Hourglass className='h-8 w-8 text-sky-500' />
                                     <p className='text-xs tracking-wide text-muted-foreground uppercase'>Sedang Berjalan</p>
                                     <p className='text-3xl font-bold text-foreground'>{student.in_progress_count}</p>
                                 </CardContent>
                             </Card>
-                            <Card className='rounded-2xl border border-border/60 bg-card/80 shadow-sm backdrop-blur'>
-                                <CardContent className='flex flex-col items-center justify-center gap-2 p-6 text-center'>
+                            <Card className='group overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-zinc-500/10 via-zinc-500/5 to-card/80 shadow-lg backdrop-blur-sm transition-all duration-300 hover:border-zinc-500/30 hover:shadow-xl'>
+                                <div className='absolute inset-0 bg-gradient-to-br from-zinc-500/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                                <CardContent className='relative flex flex-col items-center justify-center gap-3 p-8 text-center'>
                                     <CircleDashed className='h-8 w-8 text-zinc-500' />
                                     <p className='text-xs tracking-wide text-muted-foreground uppercase'>Belum Dimulai</p>
                                     <p className='text-3xl font-bold text-foreground'>{student.pending_count}</p>
@@ -834,9 +872,10 @@ export default function Dashboard() {
                                     return (
                                         <MagicCard
                                             key={`progress-${progress.id ?? index}`}
-                                            className='rounded-2xl border border-border/60 bg-card/80 p-6 backdrop-blur'
+                                            className='group relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/95 via-card/90 to-card/80 p-6 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-xl'
                                         >
-                                            <div className='flex flex-col gap-3'>
+                                            <div className='absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
+                                            <div className='relative flex flex-col gap-4'>
                                                 <div className='flex items-start justify-between gap-3'>
                                                     <div>
                                                         <h3 className='text-lg font-semibold text-foreground'>{moduleTitle}</h3>
