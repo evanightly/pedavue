@@ -65,7 +65,10 @@ class QuizImportController extends Controller {
                         return [
                             'question' => $question->question,
                             'options' => $ordered
-                                ->map(fn ($option) => ['option_text' => $option->option_text])
+                                ->map(fn ($option) => [
+                                    'option_text' => $option->option_text,
+                                    'is_correct' => (bool) $option->is_correct,
+                                ])
                                 ->all(),
                         ];
                     })

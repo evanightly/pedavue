@@ -15,13 +15,15 @@ class QuizImportService {
     private const REQUIRED_HEADINGS = [
         'Soal / Pertanyaan*',
         'Gambar Pertanyaan (opsional)',
-        'Opsi 1 - Benar*',
+        'Opsi 1*',
         'Gambar Opsi 1 (opsional)',
         'Opsi 2*',
         'Gambar Opsi 2 (opsional)',
         'Opsi 3*',
         'Gambar Opsi 3 (opsional)',
     ];
+
+    private const CORRECT_ANSWER_HEADING = 'Jawaban Benar*';
 
     private const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -38,11 +40,11 @@ class QuizImportService {
         $sheet = $spreadsheet->getActiveSheet();
 
         $headings = $this->resolveHeadings($sheet);
-        $this->assertHeadings($headings);
+        $correctAnswerColumnIndex = $this->resolveCorrectAnswerColumnIndex($headings);
+        $this->assertHeadings($headings, $correctAnswerColumnIndex);
 
         $drawingMap = $this->prepareDrawingMap($sheet);
         $highestRow = $sheet->getHighestRow();
-        $highestColumnIndex = Coordinate::columnIndexFromString($sheet->getHighestColumn());
 
         $questions = [];
         $errors = [];
@@ -67,8 +69,7 @@ class QuizImportService {
             }
 
             $options = [];
-            $optionPairIndex = 0;
-            for ($col = 3; $col <= $highestColumnIndex; $col += 2) {
+            for ($col = 3; $col < $correctAnswerColumnIndex; $col += 2) {
                 $optionText = $this->cellStringValue($sheet, $col, $row);
                 $optionColumnIndex = intdiv($col - 1, 2);
                 $optionImageKey = 'rows.' . $row . '.options.' . $optionColumnIndex . '.image';
@@ -88,13 +89,11 @@ class QuizImportService {
                 if ($isEmpty) {
                     continue;
                 }
-
                 $options[] = [
                     'option_text' => $optionText,
-                    'is_correct' => $optionPairIndex === 0,
+                    'is_correct' => false,
                     'image' => $optionImage,
                 ];
-                $optionPairIndex++;
             }
 
             $isQuestionEmpty = ($questionText === null || $questionText === '') && $questionImage === null;
@@ -110,7 +109,8 @@ class QuizImportService {
 
             $consecutiveEmptyRows = 0;
 
-            if (count($options) < 2) {
+            $optionCount = count($options);
+            if ($optionCount < 2) {
                 $this->recordRowError(
                     $errors,
                     'rows.' . $row . '.options',
@@ -121,6 +121,40 @@ class QuizImportService {
 
             if ($rowHasErrors) {
                 continue;
+            }
+
+            $correctAnswerKey = 'rows.' . $row . '.correct_answer';
+            $correctAnswerValue = $this->cellStringValue($sheet, $correctAnswerColumnIndex, $row);
+            $selectedCorrectIndexes = $this->resolveCorrectAnswerSelection(
+                $correctAnswerValue,
+                $optionCount,
+                $row,
+                $correctAnswerKey,
+                $errors,
+            );
+
+            if ($selectedCorrectIndexes === null) {
+                continue;
+            }
+
+            foreach ($selectedCorrectIndexes as $selectedIndex) {
+                if (!isset($options[$selectedIndex])) {
+                    continue;
+                }
+
+                $options[$selectedIndex]['is_correct'] = true;
+            }
+
+            $hasCorrectOption = false;
+            foreach ($options as $option) {
+                if (($option['is_correct'] ?? false) === true) {
+                    $hasCorrectOption = true;
+                    break;
+                }
+            }
+
+            if (!$hasCorrectOption && isset($options[0])) {
+                $options[0]['is_correct'] = true;
             }
 
             $questions[] = [
@@ -228,13 +262,91 @@ class QuizImportService {
     /**
      * @param  array<int, string>  $headings
      */
-    private function assertHeadings(array $headings): void {
+    private function assertHeadings(array $headings, ?int $correctAnswerColumnIndex): void {
         foreach (self::REQUIRED_HEADINGS as $index => $expectedHeading) {
             $columnIndex = $index + 1;
             if (!isset($headings[$columnIndex]) || Str::lower($headings[$columnIndex]) !== Str::lower($expectedHeading)) {
                 throw new RuntimeException('Format kolom tidak sesuai dengan template impor terbaru.');
             }
         }
+
+        if ($correctAnswerColumnIndex === null) {
+            throw new RuntimeException('Kolom Jawaban Benar tidak ditemukan pada template impor.');
+        }
+    }
+
+    private function resolveCorrectAnswerColumnIndex(array $headings): ?int {
+        foreach ($headings as $index => $heading) {
+            if (Str::lower($heading) === Str::lower(self::CORRECT_ANSWER_HEADING)) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<int, int>|null
+     */
+    private function resolveCorrectAnswerSelection(
+        ?string $value,
+        int $optionCount,
+        int $row,
+        string $errorKey,
+        array &$errors,
+    ): ?array {
+        if ($optionCount === 0) {
+            return [];
+        }
+
+        if ($value === null || trim($value) === '') {
+            return [0];
+        }
+
+        $rawTokens = preg_split('/[\s,;\/|]+/', strtoupper($value));
+        if ($rawTokens === false) {
+            $rawTokens = [];
+        }
+
+        $normalizedIndexes = [];
+        foreach ($rawTokens as $token) {
+            $token = trim($token);
+            if ($token === '') {
+                continue;
+            }
+
+            if (ctype_digit($token)) {
+                $index = (int) $token;
+            } elseif (strlen($token) === 1 && ctype_alpha($token)) {
+                $index = ord($token) - ord('A') + 1;
+            } else {
+                $this->recordRowError(
+                    $errors,
+                    $errorKey,
+                    'Nilai "' . $token . '" pada kolom Jawaban Benar baris ' . $row . ' tidak valid. Gunakan huruf (A, B, C, ...) atau angka (1, 2, 3, ...).',
+                );
+
+                return null;
+            }
+
+            if ($index < 1 || $index > $optionCount) {
+                $this->recordRowError(
+                    $errors,
+                    $errorKey,
+                    'Nilai "' . $token . '" pada kolom Jawaban Benar baris ' . $row . ' berada di luar rentang opsi yang tersedia.',
+                );
+
+                return null;
+            }
+
+            $normalizedIndexes[] = $index - 1;
+        }
+
+        if ($normalizedIndexes === []) {
+            return [0];
+        }
+
+        return array_values(array_unique($normalizedIndexes));
     }
 
     /**

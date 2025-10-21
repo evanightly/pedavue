@@ -217,8 +217,9 @@ export default function QuizImportPage({ quiz, templateUrl, existingQuestionCoun
                                         Kolom dengan tanda <span className='font-semibold'>*</span> wajib diisi minimal menggunakan teks atau gambar.
                                     </li>
                                     <li>
-                                        Opsi 1 otomatis dianggap sebagai jawaban benar. Tambahkan opsi lain dengan menyalin pasangan kolom teks dan
-                                        gambar di sebelah kanan apabila dibutuhkan.
+                                        Isi kolom <span className='font-semibold'>Jawaban Benar</span> dengan huruf (A, B, C, ...) atau angka (1, 2,
+                                        3, ...) sesuai urutan opsi yang benar. Pisahkan lebih dari satu jawaban menggunakan tanda garis miring (/)
+                                        jika diperlukan.
                                     </li>
                                     <li>Setiap pertanyaan harus memiliki minimal dua opsi yang berisi teks atau gambar.</li>
                                     <li>
