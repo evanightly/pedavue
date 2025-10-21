@@ -2,15 +2,34 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\Dashboard\DashboardBuilder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class DashboardController extends Controller {
     /**
      * Display a listing of the resource.
      */
-    public function index() {
-        return Inertia::render('dashboard');
+    public function index(Request $request): Response|JsonResponse {
+        $user = $request->user();
+
+        if ($user === null) {
+            return Inertia::render('dashboard');
+        }
+
+        $dashboard = (new DashboardBuilder($request, $user))->build();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'dashboard' => $dashboard->toArray(),
+            ]);
+        }
+
+        return Inertia::render('dashboard', [
+            'dashboard' => $dashboard->toArray(),
+        ]);
     }
 
     /**
