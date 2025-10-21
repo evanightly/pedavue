@@ -23,17 +23,17 @@ function debounce(func, wait) {
 // Function to run TypeScript transform
 const runTypeScriptTransform = debounce(() => {
     console.log('🔄 Running TypeScript transformer...');
-    exec('php artisan typescript:transform --format', { cwd: projectRoot }, (error, stdout, stderr) => {
+    exec('php artisan typescript:custom-transform', { cwd: projectRoot }, (error, stdout, stderr) => {
         if (error) {
-            console.error('❌ TypeScript transform failed:', error.message);
+            console.error('❌ Custom TypeScript transform failed:', error.message);
             console.error('Error code:', error.code);
             console.error('Error signal:', error.signal);
             return;
         }
         if (stderr) {
-            console.error('⚠️ TypeScript transform stderr:', stderr);
+            console.error('⚠️ Custom TypeScript transform stderr:', stderr);
         }
-        console.log('✅ TypeScript types generated successfully');
+        console.log('✅ Custom TypeScript types generated successfully');
         if (stdout) {
             console.log(stdout);
         }

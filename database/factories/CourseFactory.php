@@ -25,6 +25,20 @@ class CourseFactory extends Factory {
             'thumbnail' => fake()->word(),
             'level' => fake()->word(),
             'duration' => fake()->word(),
+            'certificate_name_position_x' => null,
+            'certificate_name_position_y' => null,
+            'certificate_name_max_length' => null,
+            'certificate_name_box_width' => null,
+            'certificate_name_box_height' => null,
+            'certificate_name_font_family' => null,
+            'certificate_name_font_weight' => null,
+            'certificate_name_text_align' => null,
+            'certificate_name_text_color' => null,
+            'certificate_name_letter_spacing' => null,
+            'certificate_qr_position_x' => null,
+            'certificate_qr_position_y' => null,
+            'certificate_qr_box_width' => null,
+            'certificate_qr_box_height' => null,
         ];
     }
 

@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -69,6 +70,16 @@ class User extends Authenticatable {
 
     public function courses(): BelongsToMany {
         return $this->belongsToMany(Course::class, 'course_instructors', 'instructor_id', 'course_id')
+            ->withTimestamps();
+    }
+
+    public function enrollments(): HasMany {
+        return $this->hasMany(Enrollment::class);
+    }
+
+    public function enrolled_courses(): BelongsToMany {
+        return $this->belongsToMany(Course::class, 'enrollments', 'user_id', 'course_id')
+            ->withPivot(['progress', 'completed_at'])
             ->withTimestamps();
     }
 }

@@ -1,34 +1,44 @@
 'use client';
 
 import { useTheme, type Theme } from '@/hooks/use-theme';
-import { getAvailableThemes } from '@/utils/generated-themes';
+import { getAvailableThemes } from '@/lib/generated-themes';
 import { Check, SwatchBook } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './dropdown-menu';
 
-type Props = {
-    className?: string;
-};
+interface Props extends React.HTMLAttributes<HTMLDivElement> {
+    triggerElement?: React.ReactNode;
+}
 
 // Get themes automatically from CSS
 const themes = getAvailableThemes();
 
-export const AnimatedThemeSelector = ({ className }: Props) => {
+export const AnimatedThemeSelector = ({ className, triggerElement }: Props) => {
     const { theme: currentTheme, updateTheme } = useTheme();
     const themeButtonRef = useRef<HTMLDivElement | null>(null);
-    const [open, setOpen] = useState(false);
 
-    const changeTheme = async (newTheme: Theme) => {
-        if (!themeButtonRef.current || newTheme === currentTheme) return;
+    const changeTheme = async (newTheme: Theme, anchor: HTMLElement) => {
+        if (newTheme === currentTheme) {
+            return;
+        }
 
-        await document.startViewTransition(() => {
-            flushSync(() => {
-                updateTheme(newTheme);
-            });
-        }).ready;
+        const pivotElement = themeButtonRef.current ?? anchor;
 
-        const { top, left, width, height } = themeButtonRef.current.getBoundingClientRect();
+        if (!document.startViewTransition) {
+            updateTheme(newTheme);
+            return;
+        }
+
+        await document
+            .startViewTransition(() => {
+                flushSync(() => {
+                    updateTheme(newTheme);
+                });
+            })
+            .ready;
+
+        const { top, left, width, height } = pivotElement.getBoundingClientRect();
         const y = top + height / 2;
         const x = left + width / 2;
 
@@ -51,10 +61,12 @@ export const AnimatedThemeSelector = ({ className }: Props) => {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <DropdownMenuItem>
-                    <SwatchBook />
-                    Theme
-                </DropdownMenuItem>
+                {triggerElement ? triggerElement : (
+                    <DropdownMenuItem>
+                        <SwatchBook />
+                        Tema
+                    </DropdownMenuItem>
+                )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
                 {themes.map((theme) => (
@@ -62,12 +74,12 @@ export const AnimatedThemeSelector = ({ className }: Props) => {
                         ref={theme.value === currentTheme ? themeButtonRef : undefined}
                         onClick={(e) => {
                             e.preventDefault();
-                            changeTheme(theme.value);
+                            changeTheme(theme.value, e.currentTarget);
                         }}
                         key={theme.value}
                     >
                         {theme.label}
-                        {currentTheme === theme.value && <Check className='ml-2 h-4 w-4' />}
+                        {currentTheme === theme.value && <Check />}
                     </DropdownMenuItem>
                 ))}
             </DropdownMenuContent>

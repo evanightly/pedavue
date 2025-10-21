@@ -23,6 +23,22 @@ class Course extends Model {
         'thumbnail',
         'level',
         'duration',
+        'certificate_template', // if null, use system default template like udemy does
+        'certificate_example',
+        'certificate_name_position_x',
+        'certificate_name_position_y',
+        'certificate_name_max_length',
+        'certificate_name_box_width',
+        'certificate_name_box_height',
+        'certificate_name_font_family',
+        'certificate_name_font_weight',
+        'certificate_name_text_align',
+        'certificate_name_text_color',
+        'certificate_name_letter_spacing',
+        'certificate_qr_position_x',
+        'certificate_qr_position_y',
+        'certificate_qr_box_width',
+        'certificate_qr_box_height',
     ];
 
     /**
@@ -31,6 +47,16 @@ class Course extends Model {
     protected function casts(): array {
         return [
             'certification_enabled' => 'boolean',
+            'certificate_name_position_x' => 'integer',
+            'certificate_name_position_y' => 'integer',
+            'certificate_name_max_length' => 'integer',
+            'certificate_name_box_width' => 'integer',
+            'certificate_name_box_height' => 'integer',
+            'certificate_name_letter_spacing' => 'integer',
+            'certificate_qr_position_x' => 'integer',
+            'certificate_qr_position_y' => 'integer',
+            'certificate_qr_box_width' => 'integer',
+            'certificate_qr_box_height' => 'integer',
         ];
     }
 
@@ -50,20 +76,34 @@ class Course extends Model {
         return 'slug';
     }
 
-    // public function Modules(): HasMany
-    // {
-    //     return $this->hasMany(Module::class);
-    // }
+    public function modules(): HasMany {
+        return $this
+            ->hasMany(Module::class)
+            ->orderBy('order');
+    }
 
     // public function Quizzes(): HasMany
     // {
     //     return $this->hasMany(Quiz::class);
     // }
 
-    // public function Enrollments(): HasMany
-    // {
-    //     return $this->hasMany(Enrollment::class);
-    // }
+    public function enrollments(): HasMany {
+        return $this->hasMany(Enrollment::class);
+    }
+
+    public function students(): BelongsToMany {
+        return $this->belongsToMany(User::class, 'enrollments', 'course_id', 'user_id')
+            ->withPivot(['progress', 'completed_at'])
+            ->withTimestamps();
+    }
+
+    public function enrollment_requests(): HasMany {
+        return $this->hasMany(EnrollmentRequest::class);
+    }
+
+    public function certificate_images(): HasMany {
+        return $this->hasMany(CourseCertificateImage::class)->orderBy('z_index');
+    }
 
     // public function Certificates(): HasMany
     // {

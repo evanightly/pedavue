@@ -73,26 +73,7 @@ export interface ThemeInfo {
 }
 
 export function getAvailableThemes(): ThemeInfo[] {
-    const themes: Theme[] = [
-        'default',
-        'burgundy',
-        'crimson',
-        'crimson-elegant',
-        'crimson-modern',
-        'cyber',
-        'forest',
-        'fresh-red',
-        'midnight',
-        'mono',
-        'ocean',
-        'plum',
-        'rosegold',
-        'spectrum',
-        'sunset',
-        'sustainable',
-        'triadic',
-        'violet',
-    ];
+    const themes: Theme[] = ['default', 'crimson', 'crimson-elegant', 'fresh-red', 'midnight', 'ocean', 'rosegold', 'sunset'];
 
     return themes.map((theme) => ({
         value: theme,

@@ -1,27 +1,100 @@
 import CourseController from '@/actions/App/Http/Controllers/CourseController';
+import CourseModuleController from '@/actions/App/Http/Controllers/CourseModuleController';
+import CourseWorkspaceController from '@/actions/App/Http/Controllers/CourseWorkspaceController';
+import EnrollmentRequestController from '@/actions/App/Http/Controllers/EnrollmentRequestController';
 import UserController from '@/actions/App/Http/Controllers/UserController';
 import GenericDataSelector from '@/components/generic-data-selector';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CertificateTemplateOverlay } from '@/components/ui/certificate-template-overlay';
 import type { PaginationMeta } from '@/components/ui/data-table-types';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link, router } from '@inertiajs/react';
+import GuestLayout from '@/layouts/guest-layout';
+import { login, register } from '@/routes';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { ArrowLeft, Award, BookOpen, Calendar, Clock, Trash2, User } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ArrowLeft, Award, BookOpen, Calendar, Clock, FileText, Layers, Plus, Trash2, User, UserPlus, Users } from 'lucide-react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
-export type CourseRecord = App.Data.Course.CourseData;
+export type CourseRecord = App.Data.Course.CourseData & {
+    students?: App.Data.User.UserData[] | null;
+};
 
 export type CourseCollection = PaginationMeta & {
     data: App.Data.Course.CourseData[];
 };
 
-interface CourseShowProps {
-    record: CourseRecord;
+type ModuleRecord = App.Data.Module.ModuleData;
+type ModuleStageRecord = App.Data.ModuleStage.ModuleStageData;
+type ModuleContentRecord = App.Data.ModuleContent.ModuleContentData;
+type QuizRecord = App.Data.Quiz.QuizData;
+
+const DEFAULT_NAME_POSITION = { x: 50, y: 50 } as const;
+const DEFAULT_NAME_BOX = { width: 40, height: 16 } as const;
+const DEFAULT_QR_POSITION = { x: 84, y: 78 } as const;
+const DEFAULT_QR_SIZE = { width: 18, height: 18 } as const;
+const DEFAULT_OVERLAY_POSITION = { x: 50, y: 50 } as const;
+const DEFAULT_OVERLAY_SIZE = { width: 18, height: 18 } as const;
+const DEFAULT_FONT_FAMILY = 'Poppins';
+const DEFAULT_FONT_WEIGHT = '600';
+const DEFAULT_TEXT_ALIGN: 'left' | 'center' | 'right' = 'center';
+const DEFAULT_TEXT_COLOR = '#1F2937';
+
+function normalizeDataCollection<T>(value: unknown): T[] {
+    if (Array.isArray(value)) {
+        return value as T[];
+    }
+
+    if (value && typeof value === 'object') {
+        const data = (value as { data?: unknown }).data;
+
+        if (Array.isArray(data)) {
+            return data as T[];
+        }
+    }
+
+    return [];
 }
 
-export default function CourseShow({ record }: CourseShowProps) {
+interface CourseShowProps {
+    record: CourseRecord;
+    modules?: ModuleRecord[] | null;
+    abilities?: {
+        assign_students?: boolean;
+        unassign_students?: boolean;
+        manage_modules?: boolean;
+    } | null;
+    viewer?: {
+        is_student?: boolean;
+        is_enrolled?: boolean;
+        can_request_enrollment?: boolean;
+        latest_request?: App.Data.EnrollmentRequest.EnrollmentRequestData | null;
+    } | null;
+}
+
+export default function CourseShow({ record, modules: modulesProp = null, abilities = null, viewer = null }: CourseShowProps) {
+    const page = usePage<{ auth: { user: App.Data.User.UserData | null } }>();
+    const authUser = page.props.auth?.user ?? null;
     const courseSlug = typeof record.slug === 'string' ? record.slug : String(record.slug ?? '');
+    const canAssignStudents = Boolean(abilities?.assign_students);
+    const canUnassignStudents = Boolean(abilities?.unassign_students);
+    const canManageModules = Boolean(abilities?.manage_modules);
+    const viewerState = viewer ?? null;
+    const isStudentViewer = Boolean(viewerState?.is_student);
+    const isGuestViewer = authUser === null;
+    const isInstructorOrAdminViewer = Boolean(authUser && !isStudentViewer);
+    const isEnrolledViewer = Boolean(viewerState?.is_enrolled);
+    const canRequestEnrollment = Boolean(viewerState?.can_request_enrollment);
+    const latestRequest = viewerState?.latest_request ?? null;
+    const latestStatus = typeof latestRequest?.status === 'string' ? latestRequest.status : null;
+    const hasPendingRequest = latestStatus === 'Pending';
+    const hasApprovedRequest = latestStatus === 'Approved';
+    const hasRejectedRequest = latestStatus === 'Rejected';
+    const latestRequestCreatedAt = typeof latestRequest?.created_at_formatted === 'string' ? latestRequest.created_at_formatted : null;
     const instructors = useMemo(() => (Array.isArray(record.course_instructors) ? record.course_instructors : []), [record.course_instructors]);
+    const students = useMemo<App.Data.User.UserData[]>(() => (Array.isArray(record.students) ? record.students : []), [record.students]);
     const instructorIds = useMemo(() => {
         if (!Array.isArray(record.instructor_ids)) {
             return [] as number[];
@@ -39,9 +112,259 @@ export default function CourseShow({ record }: CourseShowProps) {
             .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
     }, [record.instructor_ids]);
 
+    const modules = useMemo<ModuleRecord[]>(() => {
+        if (Array.isArray(modulesProp)) {
+            return modulesProp;
+        }
+
+        return normalizeDataCollection<ModuleRecord>(modulesProp);
+    }, [modulesProp]);
+
     const [pendingInstructorId, setPendingInstructorId] = useState<number | string | null>(null);
     const [isAttaching, setIsAttaching] = useState(false);
     const [removingInstructorId, setRemovingInstructorId] = useState<number | null>(null);
+    const [removingStudentId, setRemovingStudentId] = useState<number | null>(null);
+    const [enrollmentDialogOpen, setEnrollmentDialogOpen] = useState(false);
+    const enrollmentForm = useForm({
+        message: '',
+    });
+    const [hasAutoOpenedModal, setHasAutoOpenedModal] = useState(false);
+    const enrollmentRedirectPath = useMemo(() => CourseController.show.url({ course: courseSlug }, { query: { enroll: '1' } }), [courseSlug]);
+    const registerUrl = useMemo(() => {
+        const identifier = typeof record.id === 'number' ? record.id : Number.parseInt(String(record.id ?? 0), 10);
+
+        return register({
+            query: {
+                course: Number.isFinite(identifier) && identifier > 0 ? identifier : undefined,
+                redirect_to: enrollmentRedirectPath,
+            },
+        }).url;
+    }, [enrollmentRedirectPath, record.id]);
+    const loginUrl = useMemo(() => login({ query: { redirect_to: enrollmentRedirectPath } }).url, [enrollmentRedirectPath]);
+    const moduleCreateUrl = useMemo(() => CourseModuleController.create.url({ course: courseSlug }), [courseSlug]);
+    const workspaceUrl = useMemo(() => CourseWorkspaceController.show.url({ course: courseSlug }), [courseSlug]);
+    const moduleContentsUrl = useCallback((moduleId: number | string): string => `/courses/${courseSlug}/modules/${moduleId}/contents`, [courseSlug]);
+    const formatMinutes = useCallback((value: unknown): string | null => {
+        const raw = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+
+        if (!Number.isFinite(raw) || raw <= 0) {
+            return null;
+        }
+
+        const hours = Math.floor(raw / 60);
+        const minutes = raw % 60;
+
+        if (hours > 0 && minutes > 0) {
+            return `${hours} jam ${minutes} menit`;
+        }
+
+        if (hours > 0) {
+            return `${hours} jam`;
+        }
+
+        return `${minutes} menit`;
+    }, []);
+    const certificatePreviewName = useMemo(() => {
+        const base = 'Nama Lengkap Peserta';
+        const limit = typeof record.certificate_name_max_length === 'number' ? record.certificate_name_max_length : null;
+
+        if (!limit || limit <= 0) {
+            return base;
+        }
+
+        return base.slice(0, limit);
+    }, [record.certificate_name_max_length]);
+    const certificateNamePosition = useMemo(() => {
+        const x = typeof record.certificate_name_position_x === 'number' ? record.certificate_name_position_x : DEFAULT_NAME_POSITION.x;
+        const y = typeof record.certificate_name_position_y === 'number' ? record.certificate_name_position_y : DEFAULT_NAME_POSITION.y;
+
+        return { x, y };
+    }, [record.certificate_name_position_x, record.certificate_name_position_y]);
+    const certificateNameBoxSize = useMemo(() => {
+        const width =
+            typeof record.certificate_name_box_width === 'number' && record.certificate_name_box_width > 0
+                ? record.certificate_name_box_width
+                : DEFAULT_NAME_BOX.width;
+        const height =
+            typeof record.certificate_name_box_height === 'number' && record.certificate_name_box_height > 0
+                ? record.certificate_name_box_height
+                : DEFAULT_NAME_BOX.height;
+
+        return { width, height };
+    }, [record.certificate_name_box_width, record.certificate_name_box_height]);
+    const certificateNameFontFamily = useMemo(() => {
+        if (typeof record.certificate_name_font_family === 'string' && record.certificate_name_font_family.trim() !== '') {
+            return record.certificate_name_font_family;
+        }
+
+        return DEFAULT_FONT_FAMILY;
+    }, [record.certificate_name_font_family]);
+    const certificateNameFontWeight = useMemo(() => {
+        if (
+            typeof record.certificate_name_font_weight === 'string' &&
+            ['400', '500', '600', '700', '800'].includes(record.certificate_name_font_weight)
+        ) {
+            return record.certificate_name_font_weight;
+        }
+
+        return DEFAULT_FONT_WEIGHT;
+    }, [record.certificate_name_font_weight]);
+    const certificateNameTextAlign = useMemo(() => {
+        if (
+            record.certificate_name_text_align === 'left' ||
+            record.certificate_name_text_align === 'center' ||
+            record.certificate_name_text_align === 'right'
+        ) {
+            return record.certificate_name_text_align;
+        }
+
+        return DEFAULT_TEXT_ALIGN;
+    }, [record.certificate_name_text_align]);
+    const certificateNameTextColor = useMemo(() => {
+        if (typeof record.certificate_name_text_color === 'string' && record.certificate_name_text_color.trim() !== '') {
+            return record.certificate_name_text_color;
+        }
+
+        return DEFAULT_TEXT_COLOR;
+    }, [record.certificate_name_text_color]);
+    const certificateNameLetterSpacing = useMemo(() => {
+        if (typeof record.certificate_name_letter_spacing === 'number') {
+            return record.certificate_name_letter_spacing;
+        }
+
+        return 0;
+    }, [record.certificate_name_letter_spacing]);
+    const certificateQrOverlay = useMemo(() => {
+        const position = {
+            x: typeof record.certificate_qr_position_x === 'number' ? record.certificate_qr_position_x : DEFAULT_QR_POSITION.x,
+            y: typeof record.certificate_qr_position_y === 'number' ? record.certificate_qr_position_y : DEFAULT_QR_POSITION.y,
+        };
+        const size = {
+            width: typeof record.certificate_qr_box_width === 'number' ? record.certificate_qr_box_width : DEFAULT_QR_SIZE.width,
+            height: typeof record.certificate_qr_box_height === 'number' ? record.certificate_qr_box_height : DEFAULT_QR_SIZE.height,
+        };
+
+        return { position, size };
+    }, [record.certificate_qr_box_height, record.certificate_qr_box_width, record.certificate_qr_position_x, record.certificate_qr_position_y]);
+    const certificateImageOverlays = useMemo(() => {
+        if (!Array.isArray(record.certificate_images) || record.certificate_images.length === 0) {
+            return [] as Array<{
+                key: string;
+                position: { x: number; y: number };
+                size: { width: number; height: number };
+                imageUrl: string | null;
+                label: string | null;
+                zIndex: number;
+            }>;
+        }
+
+        return record.certificate_images
+            .filter((value): value is App.Data.Course.CourseCertificateImageData => Boolean(value) && typeof value === 'object')
+            .map((overlay, index) => ({
+                key: `overlay-${overlay.id ?? index}`,
+                position: {
+                    x: typeof overlay.position_x === 'number' ? overlay.position_x : DEFAULT_OVERLAY_POSITION.x,
+                    y: typeof overlay.position_y === 'number' ? overlay.position_y : DEFAULT_OVERLAY_POSITION.y,
+                },
+                size: {
+                    width: typeof overlay.width === 'number' ? overlay.width : DEFAULT_OVERLAY_SIZE.width,
+                    height: typeof overlay.height === 'number' ? overlay.height : DEFAULT_OVERLAY_SIZE.height,
+                },
+                imageUrl: typeof overlay.file_url === 'string' ? overlay.file_url : null,
+                label: typeof overlay.label === 'string' ? overlay.label : null,
+                zIndex: typeof overlay.z_index === 'number' ? overlay.z_index : 0,
+            }))
+            .sort((a, b) => a.zIndex - b.zIndex);
+    }, [record.certificate_images]);
+    const certificatePosition = useMemo(() => {
+        return {
+            x: certificateNamePosition.x,
+            y: certificateNamePosition.y,
+            previewX: certificateNamePosition.x,
+            previewY: certificateNamePosition.y,
+        };
+    }, [certificateNamePosition]);
+    const noopPositionChange = useCallback((_: { x: number; y: number }) => undefined, []);
+    const noopSizeChange = useCallback((_: { width: number; height: number }) => undefined, []);
+    const hasCertificateTemplate = Boolean(record.certification_enabled && record.certificate_template_url);
+    let enrollmentTitle = 'Belum Terdaftar';
+    let enrollmentDescription = 'Kirim permintaan pendaftaran untuk mengikuti kursus ini.';
+    let enrollmentActionLabel = hasRejectedRequest ? 'Ajukan ulang' : 'Ajukan pendaftaran';
+    let showEnrollmentAction = canRequestEnrollment;
+    let enrollmentBadge: { label: string; className: string } | null = {
+        label: 'Belum terdaftar',
+        className: 'border border-primary/20 bg-primary/10 text-primary',
+    };
+
+    if (isEnrolledViewer) {
+        enrollmentTitle = 'Anda sudah terdaftar';
+        enrollmentDescription = 'Nikmati seluruh materi kursus dan pantau progres pembelajaran Anda.';
+        showEnrollmentAction = false;
+        enrollmentBadge = {
+            label: 'Terdaftar',
+            className: 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-500',
+        };
+    } else if (hasPendingRequest) {
+        enrollmentTitle = 'Permintaan sedang diproses';
+        enrollmentDescription = 'Instruktur sedang meninjau permintaan Anda. Kami akan memberi tahu saat ada keputusan.';
+        showEnrollmentAction = false;
+        enrollmentBadge = {
+            label: 'Menunggu',
+            className: 'border border-amber-500/20 bg-amber-500/10 text-amber-500',
+        };
+    } else if (hasApprovedRequest) {
+        enrollmentTitle = 'Permintaan disetujui';
+        enrollmentDescription = 'Anda akan segera ditambahkan sebagai peserta. Silakan cek halaman ini lagi dalam beberapa saat.';
+        showEnrollmentAction = false;
+        enrollmentBadge = {
+            label: 'Disetujui',
+            className: 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-500',
+        };
+    } else if (hasRejectedRequest) {
+        enrollmentTitle = 'Permintaan ditolak';
+        enrollmentDescription = 'Anda dapat mengajukan ulang dengan pesan tambahan agar instruktur memahami kebutuhan Anda.';
+        showEnrollmentAction = true;
+        enrollmentActionLabel = 'Ajukan ulang';
+        enrollmentBadge = {
+            label: 'Ditolak',
+            className: 'border border-rose-500/20 bg-rose-500/10 text-rose-500',
+        };
+    }
+
+    const latestRequestMessage =
+        typeof latestRequest?.message === 'string' && latestRequest.message.trim().length > 0 ? latestRequest.message.trim() : null;
+    const enrollmentStatusLinkVisible = latestRequest !== null;
+
+    const openEnrollmentDialog = useCallback((): void => {
+        enrollmentForm.reset();
+        enrollmentForm.clearErrors();
+        setEnrollmentDialogOpen(true);
+    }, [enrollmentForm]);
+
+    const handleEnrollmentDialogOpenChange = (open: boolean): void => {
+        setEnrollmentDialogOpen(open);
+        if (!open) {
+            enrollmentForm.reset();
+            enrollmentForm.clearErrors();
+        }
+    };
+
+    const handleEnrollmentMessageChange = (event: ChangeEvent<HTMLTextAreaElement>): void => {
+        enrollmentForm.setData('message', event.target.value);
+    };
+
+    const handleEnrollmentSubmit = (event: FormEvent<HTMLFormElement>): void => {
+        event.preventDefault();
+
+        enrollmentForm.submit(CourseController.requestEnrollment({ course: courseSlug }), {
+            preserveScroll: true,
+            onSuccess: () => {
+                enrollmentForm.reset();
+                enrollmentForm.clearErrors();
+                setEnrollmentDialogOpen(false);
+            },
+        });
+    };
 
     const fetchUserOptions = async ({ search }: { search?: string }) => {
         const params: Record<string, unknown> = {};
@@ -110,39 +433,234 @@ export default function CourseShow({ record }: CourseShowProps) {
         });
     };
 
-    return (
-        <AppLayout>
+    const handleUnassignStudent = (value: number | string) => {
+        if (!canUnassignStudents) {
+            return;
+        }
+
+        const numeric = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
+
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+            return;
+        }
+
+        setRemovingStudentId(numeric);
+
+        router.delete(CourseController.unassignStudent.url({ course: courseSlug, student: numeric }), {
+            preserveScroll: true,
+            onFinish: () => {
+                setRemovingStudentId(null);
+            },
+        });
+    };
+
+    useEffect(() => {
+        if (hasAutoOpenedModal || !isStudentViewer || !canRequestEnrollment) {
+            return;
+        }
+
+        const [, queryString = ''] = page.url.split('?');
+        const params = new URLSearchParams(queryString);
+
+        if (params.get('enroll') === '1') {
+            openEnrollmentDialog();
+            setHasAutoOpenedModal(true);
+        }
+    }, [canRequestEnrollment, hasAutoOpenedModal, isStudentViewer, openEnrollmentDialog, page.url]);
+
+    const backLink = useMemo(() => {
+        if (isGuestViewer || isStudentViewer) {
+            return CourseController.explore.url();
+        }
+
+        if (isInstructorOrAdminViewer) {
+            return CourseController.index().url;
+        }
+
+        return CourseController.explore.url();
+    }, [isGuestViewer, isInstructorOrAdminViewer, isStudentViewer]);
+
+    const layoutContent = (
+        <>
             <Head title={record.title || 'Detail Kursus'} />
 
-            {/* Hero Section with Thumbnail */}
-            <div className='relative'>
+            {/* Hero Section with Enhanced Thumbnail */}
+            <div className='relative overflow-hidden'>
                 {record.thumbnail ? (
-                    <div className='relative h-[400px] w-full overflow-hidden bg-gradient-to-br from-primary/20 via-primary/10 to-background'>
-                        <div className='absolute inset-0 z-10 bg-gradient-to-t from-background via-background/80 to-transparent' />
-                        <img
-                            src={record.thumbnail.startsWith('http') ? record.thumbnail : `/storage/${record.thumbnail}`}
-                            alt={record.title || 'Course Thumbnail'}
-                            className='h-full w-full object-cover opacity-40'
+                    <div className='relative h-[500px] w-full overflow-hidden lg:h-[600px]'>
+                        {/* Base Image Layer */}
+                        <div className='absolute inset-0'>
+                            <img
+                                src={record.thumbnail.startsWith('http') ? record.thumbnail : `/storage/${record.thumbnail}`}
+                                alt={record.title || 'Course Thumbnail'}
+                                className='h-full w-full object-cover'
+                            />
+                        </div>
+
+                        {/* Multi-layered Dark Gradients */}
+                        <div className='absolute inset-0 bg-gradient-to-t from-background via-background/95 to-background/40' />
+                        <div className='absolute inset-0 bg-gradient-to-br from-primary/30 via-transparent to-background/50' />
+                        <div className='absolute inset-0 bg-gradient-to-tr from-background/80 via-transparent to-background/60' />
+
+                        {/* Subtle Pattern Overlay */}
+                        <div
+                            className='absolute inset-0 opacity-5'
+                            style={{
+                                backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)',
+                                backgroundSize: '24px 24px',
+                            }}
                         />
+
+                        {/* Vignette Effect */}
+                        <div className='absolute inset-0' style={{ boxShadow: 'inset 0 0 200px rgba(0,0,0,0.5)' }} />
                     </div>
                 ) : (
-                    <div className='relative h-[300px] w-full bg-gradient-to-br from-primary/20 via-primary/10 to-background' />
+                    <div className='relative h-[400px] w-full overflow-hidden lg:h-[500px]'>
+                        <div className='absolute inset-0 bg-gradient-to-br from-primary/20 via-background to-primary/10' />
+                        <div className='absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:4rem_4rem]' />
+                        <div className='absolute inset-0 bg-gradient-to-t from-background via-background/90 to-transparent' />
+                    </div>
                 )}
 
-                {/* Back Button */}
-                <div className='absolute top-8 left-8 z-20'>
-                    <Button variant='secondary' size='sm' asChild className='gap-2 bg-background/80 shadow-lg backdrop-blur-sm'>
-                        <Link href={CourseController.index().url}>
+                {/* Navigation Buttons */}
+                <div className='absolute top-6 right-6 left-6 z-20 flex items-center justify-between lg:top-8 lg:right-8 lg:left-8'>
+                    <Button
+                        variant='secondary'
+                        size='lg'
+                        asChild
+                        className='gap-2 rounded-xl bg-background/90 shadow-2xl backdrop-blur-md hover:bg-background'
+                    >
+                        <Link href={backLink}>
                             <ArrowLeft className='h-4 w-4' />
                             Kembali
                         </Link>
                     </Button>
+                    {canAssignStudents ? (
+                        <Button variant='default' size='lg' asChild className='gap-2 rounded-xl shadow-2xl'>
+                            <Link href={CourseController.students.url({ course: courseSlug })}>
+                                <UserPlus className='h-4 w-4' />
+                                Kelola peserta
+                            </Link>
+                        </Button>
+                    ) : null}
+                </div>
+
+                {/* Hero Content Overlay */}
+                <div className='absolute inset-x-0 bottom-0 z-10 px-6 pb-12 lg:px-12 lg:pb-16'>
+                    <div className='mx-auto max-w-5xl'>
+                        <div className='space-y-6'>
+                            {/* Badges */}
+                            <div className='flex flex-wrap items-center gap-3'>
+                                {record.level && (
+                                    <Badge className='gap-1.5 rounded-xl bg-background/90 px-4 py-2 text-sm font-semibold text-foreground backdrop-blur-md'>
+                                        <BookOpen className='h-4 w-4' />
+                                        {record.level}
+                                    </Badge>
+                                )}
+                                {record.certification_enabled && (
+                                    <Badge className='gap-1.5 rounded-xl bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white backdrop-blur-md'>
+                                        <Award className='h-4 w-4' />
+                                        Bersertifikat
+                                    </Badge>
+                                )}
+                            </div>
+
+                            {/* Title */}
+                            <h1 className='max-w-4xl text-4xl leading-tight font-bold tracking-tight text-white drop-shadow-2xl md:text-5xl lg:text-6xl'>
+                                {record.title || 'Untitled Course'}
+                            </h1>
+
+                            {/* Meta Info */}
+                            <div className='flex flex-wrap items-center gap-6 text-white/90'>
+                                {record.duration_formatted && (
+                                    <div className='flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 backdrop-blur-md'>
+                                        <Clock className='h-4 w-4' />
+                                        <span className='text-sm font-medium'>{record.duration_formatted}</span>
+                                    </div>
+                                )}
+                                {instructors.length > 0 && (
+                                    <div className='flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 backdrop-blur-md'>
+                                        <Users className='h-4 w-4' />
+                                        <span className='text-sm font-medium'>{instructors.length} instruktur</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             {/* Main Content */}
             <div className='relative z-10 mx-auto -mt-32 max-w-5xl px-4 pb-12'>
                 <div className='space-y-8'>
+                    {isStudentViewer ? (
+                        <div className='rounded-2xl border bg-card p-6 shadow-lg'>
+                            <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
+                                <div className='space-y-2'>
+                                    <div className='flex flex-wrap items-center gap-2'>
+                                        {enrollmentBadge ? (
+                                            <Badge variant='outline' className={`px-3 py-1 text-xs font-medium ${enrollmentBadge.className}`}>
+                                                {enrollmentBadge.label}
+                                            </Badge>
+                                        ) : null}
+                                        {latestRequestCreatedAt ? (
+                                            <span className='text-xs text-muted-foreground'>Diperbarui {latestRequestCreatedAt}</span>
+                                        ) : null}
+                                    </div>
+                                    <h2 className='text-xl font-semibold text-foreground'>{enrollmentTitle}</h2>
+                                    <p className='text-sm text-muted-foreground'>{enrollmentDescription}</p>
+                                    {latestRequestMessage ? <p className='text-sm text-muted-foreground italic'>“{latestRequestMessage}”</p> : null}
+                                </div>
+                                <div className='flex w-full flex-col gap-2 sm:w-auto sm:items-end'>
+                                    {isEnrolledViewer ? (
+                                        <Button asChild className='w-full sm:w-auto'>
+                                            <Link href={workspaceUrl}>Masuk ke ruang belajar</Link>
+                                        </Button>
+                                    ) : null}
+                                    {enrollmentStatusLinkVisible ? (
+                                        <Button variant='outline' asChild className='w-full sm:w-auto'>
+                                            <Link href={EnrollmentRequestController.index().url}>Lihat permintaan</Link>
+                                        </Button>
+                                    ) : null}
+                                    {showEnrollmentAction ? (
+                                        <Button type='button' className='w-full sm:w-auto' onClick={openEnrollmentDialog}>
+                                            {enrollmentActionLabel}
+                                        </Button>
+                                    ) : null}
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {isGuestViewer ? (
+                        <div className='rounded-2xl border bg-card p-6 shadow-lg'>
+                            <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
+                                <div className='space-y-2'>
+                                    <Badge variant='outline' className='border border-primary/20 bg-primary/10 text-primary'>
+                                        Butuh akun
+                                    </Badge>
+                                    <h2 className='text-xl font-semibold text-foreground'>Masuk untuk mengajukan pendaftaran</h2>
+                                    <p className='text-sm text-muted-foreground'>
+                                        Masuk atau buat akun siswa untuk mengirim permintaan pendaftaran. Setelah autentikasi, Anda akan kembali ke
+                                        halaman ini dengan formulir pendaftaran yang siap digunakan.
+                                    </p>
+                                </div>
+                                <div className='flex w-full flex-col gap-2 sm:w-auto sm:items-end'>
+                                    <Button
+                                        type='button'
+                                        className='w-full sm:w-auto'
+                                        onClick={() => router.visit(loginUrl, { preserveScroll: true })}
+                                    >
+                                        Ajukan pendaftaran
+                                    </Button>
+                                    <Button asChild variant='outline' className='w-full sm:w-auto'>
+                                        <Link href={registerUrl}>Buat akun siswa</Link>
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+
                     {/* Title Card */}
                     <div className='rounded-2xl border bg-card p-8 shadow-2xl md:p-10'>
                         <div className='space-y-6'>
@@ -282,6 +800,265 @@ export default function CourseShow({ record }: CourseShowProps) {
                         </div>
                     </div>
 
+                    {/* Certificate Preview */}
+                    {hasCertificateTemplate ? (
+                        <div className='rounded-2xl border bg-card p-6 shadow-lg'>
+                            <div className='space-y-6'>
+                                <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                                    <div>
+                                        <h3 className='text-lg font-semibold'>Pratinjau Sertifikat</h3>
+                                        <p className='text-sm text-muted-foreground'>
+                                            Posisi nama peserta dapat disesuaikan melalui halaman edit kursus.
+                                        </p>
+                                    </div>
+                                    <span className='inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary'>
+                                        Aktif
+                                    </span>
+                                </div>
+                                <div className='relative overflow-hidden rounded-xl border border-dashed border-border/70 bg-muted/20 p-3'>
+                                    <div className='relative mx-auto w-full max-w-3xl'>
+                                        <img
+                                            src={record.certificate_template_url as string}
+                                            alt='Template Sertifikat Kursus'
+                                            className='h-full w-full rounded-lg object-contain'
+                                        />
+                                        <CertificateTemplateOverlay
+                                            enabled={hasCertificateTemplate}
+                                            nameOverlay={{
+                                                editable: false,
+                                                position: certificateNamePosition,
+                                                size: certificateNameBoxSize,
+                                                onPositionChange: noopPositionChange,
+                                                onSizeChange: noopSizeChange,
+                                                sampleText: certificatePreviewName,
+                                                fontFamily: certificateNameFontFamily,
+                                                fontWeight: certificateNameFontWeight,
+                                                textAlign: certificateNameTextAlign,
+                                                textColor: certificateNameTextColor,
+                                                letterSpacing: certificateNameLetterSpacing,
+                                            }}
+                                            qrOverlay={{
+                                                editable: false,
+                                                position: certificateQrOverlay.position,
+                                                size: certificateQrOverlay.size,
+                                                onPositionChange: noopPositionChange,
+                                                onSizeChange: noopSizeChange,
+                                            }}
+                                            imageOverlays={certificateImageOverlays.map((overlay) => ({
+                                                key: overlay.key,
+                                                editable: false,
+                                                position: overlay.position,
+                                                size: overlay.size,
+                                                onPositionChange: noopPositionChange,
+                                                onSizeChange: noopSizeChange,
+                                                imageUrl: overlay.imageUrl,
+                                                label: overlay.label,
+                                            }))}
+                                        />
+                                    </div>
+                                </div>
+                                <dl className='grid gap-4 text-sm text-muted-foreground sm:grid-cols-3'>
+                                    <div>
+                                        <dt className='font-medium text-foreground'>Batas Karakter</dt>
+                                        <dd>{record.certificate_name_max_length ?? 'Tidak diatur'}</dd>
+                                    </div>
+                                    <div>
+                                        <dt className='font-medium text-foreground'>Posisi Horizontal</dt>
+                                        <dd>
+                                            {certificatePosition.x ?? 'Belum diatur'}
+                                            {certificatePosition.x !== null ? '%' : ''}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt className='font-medium text-foreground'>Posisi Vertikal</dt>
+                                        <dd>
+                                            {certificatePosition.y ?? 'Belum diatur'}
+                                            {certificatePosition.y !== null ? '%' : ''}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        </div>
+                    ) : record.certification_enabled ? (
+                        <div className='rounded-2xl border border-dashed bg-card/40 p-6 text-sm text-muted-foreground shadow-inner'>
+                            Sertifikat diaktifkan, tetapi template belum diunggah. Unggah template di halaman edit kursus untuk menampilkan pratinjau.
+                        </div>
+                    ) : null}
+
+                    {/* Modules Section */}
+                    <div className='rounded-2xl border bg-card p-6 shadow-lg'>
+                        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                            <div>
+                                <h3 className='text-lg font-semibold'>Modul Pembelajaran</h3>
+                                <p className='text-sm text-muted-foreground'>Urutan materi dan evaluasi yang perlu diselesaikan peserta.</p>
+                            </div>
+                            {canManageModules ? (
+                                <Button asChild size='sm' className='gap-2'>
+                                    <Link href={moduleCreateUrl} preserveScroll>
+                                        <Plus className='h-4 w-4' />
+                                        Modul baru
+                                    </Link>
+                                </Button>
+                            ) : null}
+                        </div>
+                        <div className='mt-6 space-y-4'>
+                            {modules.length === 0 ? (
+                                <div className='rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground'>
+                                    Belum ada modul yang diatur untuk kursus ini.
+                                </div>
+                            ) : (
+                                modules.map((moduleRecord, moduleIndex) => {
+                                    const rawId = moduleRecord?.id ?? null;
+                                    const moduleId = typeof rawId === 'number' ? rawId : Number.parseInt(String(rawId ?? ''), 10);
+                                    const moduleOrder =
+                                        typeof moduleRecord?.order === 'number' && Number.isFinite(moduleRecord.order)
+                                            ? moduleRecord.order
+                                            : moduleIndex + 1;
+                                    const moduleDurationLabel = formatMinutes(moduleRecord?.duration ?? null);
+                                    const stageRecords = normalizeDataCollection<ModuleStageRecord>(moduleRecord?.module_stages ?? []);
+                                    const stageCount = stageRecords.length;
+
+                                    return (
+                                        <div
+                                            key={`course-module-${moduleId || moduleIndex}`}
+                                            className='rounded-xl border border-border/60 p-5 shadow-sm'
+                                        >
+                                            <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                                                <div className='space-y-1'>
+                                                    <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                                                        <span className='inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 font-medium text-primary ring-1 ring-primary/20 ring-inset'>
+                                                            <Layers className='h-3.5 w-3.5' />
+                                                            Modul {moduleOrder}
+                                                        </span>
+                                                        <span className='inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 font-medium text-foreground/70 ring-1 ring-border'>
+                                                            {stageCount} konten
+                                                        </span>
+                                                        {moduleDurationLabel ? (
+                                                            <span className='inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 font-medium text-foreground/70 ring-1 ring-border'>
+                                                                <Clock className='h-3.5 w-3.5' />
+                                                                {moduleDurationLabel}
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+                                                    <h4 className='text-lg font-semibold text-foreground'>
+                                                        {moduleRecord?.title && moduleRecord.title.trim().length > 0
+                                                            ? moduleRecord.title
+                                                            : `Modul ${moduleOrder}`}
+                                                    </h4>
+                                                    {moduleRecord?.description ? (
+                                                        <p className='text-sm text-muted-foreground'>{moduleRecord.description}</p>
+                                                    ) : null}
+                                                </div>
+                                                {canManageModules && Number.isFinite(moduleId) && moduleId > 0 ? (
+                                                    <Button asChild variant='outline' size='sm' className='gap-2'>
+                                                        <Link href={moduleContentsUrl(moduleId)} preserveScroll>
+                                                            Kelola konten
+                                                        </Link>
+                                                    </Button>
+                                                ) : null}
+                                            </div>
+                                            <ul className='mt-5 space-y-3'>
+                                                {stageRecords.length === 0 ? (
+                                                    <li className='rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground'>
+                                                        Konten pembelajaran belum ditambahkan ke modul ini.
+                                                    </li>
+                                                ) : (
+                                                    stageRecords.map((stageRecord, stageIndex) => {
+                                                        const stageOrder =
+                                                            typeof stageRecord?.order === 'number' && Number.isFinite(stageRecord.order)
+                                                                ? stageRecord.order
+                                                                : stageIndex + 1;
+                                                        const isQuizStage = stageRecord?.module_able === 'quiz';
+                                                        const content = stageRecord?.module_content as ModuleContentRecord | null;
+                                                        const quiz = stageRecord?.module_quiz as QuizRecord | null;
+                                                        const stageDurationLabel = formatMinutes(
+                                                            isQuizStage ? (quiz?.duration ?? null) : (content?.duration ?? null),
+                                                        );
+                                                        const badgeLabel = isQuizStage ? 'Kuis' : 'Konten';
+                                                        const badgeClass = isQuizStage
+                                                            ? 'bg-amber-500/10 text-amber-600 ring-amber-500/20'
+                                                            : 'bg-primary/10 text-primary ring-primary/20';
+                                                        const title = isQuizStage
+                                                            ? (quiz?.name ?? `Kuis ${stageOrder}`)
+                                                            : (content?.title ?? `Konten ${stageOrder}`);
+                                                        const description = isQuizStage ? quiz?.description : content?.description;
+                                                        const contentType = !isQuizStage ? content?.content_type : undefined;
+                                                        const contentUrl = !isQuizStage ? content?.content_url : undefined;
+                                                        const hasAttachment =
+                                                            !isQuizStage && typeof content?.file_path === 'string' && content.file_path.length > 0;
+
+                                                        return (
+                                                            <li
+                                                                key={`module-${moduleId || moduleIndex}-stage-${stageRecord?.id ?? stageIndex}`}
+                                                                className='flex flex-col gap-4 rounded-lg border border-border px-4 py-4 sm:flex-row sm:items-start sm:justify-between'
+                                                            >
+                                                                <div className='flex items-start gap-3'>
+                                                                    <div
+                                                                        className={`mt-1 flex h-9 w-9 items-center justify-center rounded-full ${
+                                                                            isQuizStage
+                                                                                ? 'bg-amber-500/10 text-amber-600'
+                                                                                : 'bg-primary/10 text-primary'
+                                                                        }`}
+                                                                    >
+                                                                        {isQuizStage ? (
+                                                                            <Layers className='h-4 w-4' />
+                                                                        ) : (
+                                                                            <FileText className='h-4 w-4' />
+                                                                        )}
+                                                                    </div>
+                                                                    <div className='space-y-1'>
+                                                                        <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                                                                            <span className='font-medium text-foreground'>Konten {stageOrder}</span>
+                                                                            <span
+                                                                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-medium ring-1 ring-inset ${badgeClass}`}
+                                                                            >
+                                                                                {badgeLabel}
+                                                                            </span>
+                                                                            {!isQuizStage && contentType ? (
+                                                                                <span className='inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-medium text-foreground/70 ring-1 ring-border'>
+                                                                                    {contentType}
+                                                                                </span>
+                                                                            ) : null}
+                                                                            {stageDurationLabel ? (
+                                                                                <span className='inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-medium text-foreground/70 ring-1 ring-border'>
+                                                                                    <Clock className='h-3.5 w-3.5' />
+                                                                                    {stageDurationLabel}
+                                                                                </span>
+                                                                            ) : null}
+                                                                        </div>
+                                                                        <p className='text-sm font-semibold text-foreground'>{title}</p>
+                                                                        {description ? (
+                                                                            <p className='text-xs text-muted-foreground'>{description}</p>
+                                                                        ) : null}
+                                                                        {!isQuizStage && (contentUrl || hasAttachment) ? (
+                                                                            <div className='flex flex-wrap items-center gap-3 text-xs text-muted-foreground'>
+                                                                                {contentUrl ? (
+                                                                                    <a
+                                                                                        href={contentUrl}
+                                                                                        target='_blank'
+                                                                                        rel='noopener noreferrer'
+                                                                                        className='text-primary hover:underline'
+                                                                                    >
+                                                                                        Buka tautan
+                                                                                    </a>
+                                                                                ) : null}
+                                                                                {hasAttachment ? <span>Lampiran tersedia</span> : null}
+                                                                            </div>
+                                                                        ) : null}
+                                                                    </div>
+                                                                </div>
+                                                            </li>
+                                                        );
+                                                    })
+                                                )}
+                                            </ul>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+
                     {/* Instructors Management */}
                     <div className='rounded-2xl border bg-card p-6 shadow-lg'>
                         <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
@@ -289,17 +1066,21 @@ export default function CourseShow({ record }: CourseShowProps) {
                                 <h3 className='text-lg font-semibold'>Instruktur</h3>
                                 <p className='text-sm text-muted-foreground'>Kelola instruktur yang mengajar kursus ini.</p>
                             </div>
-                            <GenericDataSelector<App.Data.User.UserData>
-                                id='attach-instructor-selector'
-                                placeholder={isAttaching ? 'Menambahkan…' : 'Tambah instruktur'}
-                                fetchData={fetchUserOptions}
-                                dataMapper={(response) => response.data.users.data}
-                                selectedDataId={pendingInstructorId}
-                                setSelectedData={handleAttachInstructor}
-                                buttonClassName={`w-full sm:w-auto ${isAttaching ? 'pointer-events-none opacity-60' : ''}`}
-                                renderItem={(item) => String((item as any).name ?? (item as any).title ?? (item as any).email ?? (item as any).id)}
-                                disabledSearchState={isAttaching}
-                            />
+                            {canAssignStudents ? (
+                                <GenericDataSelector<App.Data.User.UserData>
+                                    id='attach-instructor-selector'
+                                    placeholder={isAttaching ? 'Menambahkan…' : 'Tambah instruktur'}
+                                    fetchData={fetchUserOptions}
+                                    dataMapper={(response) => response.data.users.data}
+                                    selectedDataId={pendingInstructorId}
+                                    setSelectedData={handleAttachInstructor}
+                                    buttonClassName={`w-full sm:w-auto ${isAttaching ? 'pointer-events-none opacity-60' : ''}`}
+                                    renderItem={(item) =>
+                                        String((item as any).name ?? (item as any).title ?? (item as any).email ?? (item as any).id)
+                                    }
+                                    disabledSearchState={isAttaching}
+                                />
+                            ) : null}
                         </div>
                         <ul className='mt-6 space-y-3'>
                             {instructors.length === 0 ? (
@@ -335,7 +1116,7 @@ export default function CourseShow({ record }: CourseShowProps) {
                                                     {email ? <span className='text-xs text-muted-foreground'>{email}</span> : null}
                                                 </div>
                                             </div>
-                                            {identifier ? (
+                                            {identifier && canAssignStudents ? (
                                                 <Button
                                                     type='button'
                                                     variant='ghost'
@@ -354,8 +1135,101 @@ export default function CourseShow({ record }: CourseShowProps) {
                             )}
                         </ul>
                     </div>
+
+                    {/* Participants Section */}
+                    <div className='rounded-2xl border bg-card p-6 shadow-lg'>
+                        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                            <div>
+                                <h3 className='text-lg font-semibold'>Peserta Terdaftar</h3>
+                                <p className='text-sm text-muted-foreground'>Daftar siswa yang saat ini terdaftar pada kursus ini.</p>
+                            </div>
+                        </div>
+                        <ul className='mt-6 space-y-3'>
+                            {students.length === 0 ? (
+                                <li className='rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground'>
+                                    Belum ada siswa yang terdaftar pada kursus ini.
+                                </li>
+                            ) : (
+                                students.map((student) => {
+                                    const rawId = student?.id ?? null;
+                                    const numericId = typeof rawId === 'number' ? rawId : Number.parseInt(String(rawId ?? ''), 10);
+                                    const isRemoving = removingStudentId === numericId;
+
+                                    const displayName = typeof student?.name === 'string' && student.name.length > 0 ? student.name : 'Tanpa nama';
+                                    const email = typeof student?.email === 'string' ? student.email : '';
+
+                                    return (
+                                        <li
+                                            key={`student-${String(rawId)}`}
+                                            className='flex flex-col gap-3 rounded-lg border border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between'
+                                        >
+                                            <div>
+                                                <p className='text-sm font-semibold text-foreground'>{displayName}</p>
+                                                {email.length > 0 ? <p className='text-sm text-muted-foreground'>{email}</p> : null}
+                                            </div>
+                                            {canUnassignStudents ? (
+                                                <Button
+                                                    type='button'
+                                                    variant='outline'
+                                                    size='sm'
+                                                    className='gap-2'
+                                                    disabled={!Number.isFinite(numericId) || numericId <= 0 || isRemoving}
+                                                    onClick={() => handleUnassignStudent(numericId)}
+                                                >
+                                                    <Trash2 className='h-4 w-4' />
+                                                    {isRemoving ? 'Menghapus...' : 'Hapus peserta'}
+                                                </Button>
+                                            ) : null}
+                                        </li>
+                                    );
+                                })
+                            )}
+                        </ul>
+                    </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
+    );
+
+    return (
+        <>
+            {isGuestViewer ? <GuestLayout>{layoutContent}</GuestLayout> : <AppLayout>{layoutContent}</AppLayout>}
+            <Dialog open={enrollmentDialogOpen} onOpenChange={handleEnrollmentDialogOpenChange}>
+                <DialogContent showCloseIcon>
+                    <DialogHeader>
+                        <DialogTitle>Ajukan pendaftaran</DialogTitle>
+                        <DialogDescription>Kirim permintaan ke instruktur untuk mengikuti kursus ini. Pesan bersifat opsional.</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleEnrollmentSubmit} className='space-y-4'>
+                        <div className='space-y-2'>
+                            <label htmlFor='enrollment-message' className='text-sm font-medium text-foreground'>
+                                Pesan untuk instruktur
+                            </label>
+                            <Textarea
+                                id='enrollment-message'
+                                name='message'
+                                value={enrollmentForm.data.message ?? ''}
+                                onChange={handleEnrollmentMessageChange}
+                                placeholder='Ceritakan motivasi atau kebutuhan belajar Anda (opsional)'
+                                disabled={enrollmentForm.processing}
+                                rows={4}
+                            />
+                            <p className='text-xs text-muted-foreground'>Pesan ini akan membantu instruktur memahami kebutuhan Anda.</p>
+                            {enrollmentForm.errors.message ? <p className='text-sm text-destructive'>{enrollmentForm.errors.message}</p> : null}
+                        </div>
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button type='button' variant='ghost' disabled={enrollmentForm.processing}>
+                                    Batal
+                                </Button>
+                            </DialogClose>
+                            <Button type='submit' disabled={enrollmentForm.processing}>
+                                {enrollmentForm.processing ? 'Mengirim…' : 'Kirim permintaan'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }

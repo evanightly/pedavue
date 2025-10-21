@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { type ReactNode, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, X, FileImage } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,8 @@ interface ImageDropzoneProps {
     maxSize?: number;
     disabled?: boolean;
     className?: string;
+    previewOverlay?: ReactNode;
+    previewOverlayClassName?: string;
 }
 
 export function ImageDropzone({
@@ -25,6 +27,8 @@ export function ImageDropzone({
     maxSize = 2097152, // 2MB
     disabled = false,
     className,
+    previewOverlay,
+    previewOverlayClassName,
 }: ImageDropzoneProps) {
     const handleDrop = useCallback(
         (acceptedFiles: File[]) => {
@@ -48,14 +52,19 @@ export function ImageDropzone({
 
     if (preview) {
         return (
-            <div className={cn('relative rounded-lg border-2 border-muted-foreground/25 bg-muted/5 p-2', className)}>
-                <img src={preview} alt='Preview' className='max-h-96 w-full rounded object-contain' />
+            <div className={cn('relative w-fit rounded-lg border-2 border-muted-foreground/25 bg-muted/5', className)}>
+                <div className='relative w-fit m-2 overflow-hidden rounded-lg'>
+                    <img src={preview} alt='Preview' className='block max-h-96 w-full object-contain' />
+                    {previewOverlay ? (
+                        <div className={cn('absolute inset-0', previewOverlayClassName)}>{previewOverlay}</div>
+                    ) : null}
+                </div>
                 <Button
                     type='button'
                     variant='destructive'
                     size='icon'
                     onClick={onRemove}
-                    className='absolute right-4 top-4 shadow-lg'
+                    className='absolute right-4 top-4 z-20 shadow-lg'
                     aria-label='Hapus gambar'
                 >
                     <X className='h-4 w-4' />
