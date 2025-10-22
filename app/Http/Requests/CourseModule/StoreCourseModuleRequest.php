@@ -67,7 +67,7 @@ class StoreCourseModuleRequest extends FormRequest {
             'stages.*.content.content_type' => ['nullable', 'string', 'max:100'],
             'stages.*.content.duration' => ['nullable', 'integer', 'min:1'],
             'stages.*.content.content_url' => ['nullable', 'url', 'max:2048'],
-            'stages.*.content.file' => ['nullable', 'file', 'max:20480'],
+            'stages.*.content.file' => ['nullable', 'file', 'max:204800'],
         ];
     }
 

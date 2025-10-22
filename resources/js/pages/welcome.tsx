@@ -1,4 +1,5 @@
 import CourseController from '@/actions/App/Http/Controllers/CourseController';
+import DashboardController from '@/actions/App/Http/Controllers/DashboardController';
 import { AnimatedThemeSelector } from '@/components/ui/animated-theme-selector';
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { MagicCard } from '@/components/ui/magic-card';
 import { login, register } from '@/routes';
 import { type SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/react';
-import { ArrowRight, Award, BookOpen, GraduationCap, Sparkles, SwatchBook, TrendingUp, Users, Zap } from 'lucide-react';
+import { ArrowRight, Award, BookOpen, GraduationCap, LayoutDashboard, Sparkles, SwatchBook, TrendingUp, Users, Zap } from 'lucide-react';
 
 export default function Welcome() {
     const { auth } = usePage<SharedData>().props;
@@ -55,12 +56,20 @@ export default function Welcome() {
                             <AnimatedThemeToggler />
                         </div>
                         {isAuthenticated ? (
-                            <Button asChild variant='default' className='gap-2 rounded-xl shadow-lg'>
-                                <Link href={CourseController.explore.url()}>
-                                    <Sparkles className='h-4 w-4' />
-                                    Eksplor Kursus
-                                </Link>
-                            </Button>
+                            <div className='flex flex-wrap items-center gap-2'>
+                                <Button asChild variant='secondary' className='gap-2 rounded-xl shadow-lg'>
+                                    <Link href={DashboardController.index.url()}>
+                                        <LayoutDashboard className='h-4 w-4' />
+                                        Dasbor
+                                    </Link>
+                                </Button>
+                                <Button asChild variant='default' className='gap-2 rounded-xl shadow-lg'>
+                                    <Link href={CourseController.explore.url()}>
+                                        <Sparkles className='h-4 w-4' />
+                                        Eksplor Kursus
+                                    </Link>
+                                </Button>
+                            </div>
                         ) : (
                             <>
                                 <Button asChild variant='ghost' className='rounded-xl'>
@@ -102,12 +111,20 @@ export default function Welcome() {
 
                             <div className='flex flex-col gap-4 sm:flex-row'>
                                 {isAuthenticated ? (
-                                    <Button asChild size='lg' className='gap-2 text-base shadow-xl'>
-                                        <Link href={CourseController.explore.url()}>
-                                            Mulai Belajar
-                                            <ArrowRight className='h-5 w-5' />
-                                        </Link>
-                                    </Button>
+                                    <>
+                                        <Button asChild size='lg' className='gap-2 text-base shadow-xl'>
+                                            <Link href={CourseController.explore.url()}>
+                                                Mulai Belajar
+                                                <ArrowRight className='h-5 w-5' />
+                                            </Link>
+                                        </Button>
+                                        <Button asChild size='lg' variant='outline' className='gap-2 text-base'>
+                                            <Link href={DashboardController.index.url()}>
+                                                Ke Dasbor
+                                                <LayoutDashboard className='h-5 w-5' />
+                                            </Link>
+                                        </Button>
+                                    </>
                                 ) : (
                                     <>
                                         <Button asChild size='lg' className='gap-2 text-base shadow-xl'>

@@ -61,6 +61,9 @@ interface QuizFormState {
     questions: QuizQuestionState[];
 }
 
+const MAX_CONTENT_FILE_SIZE_BYTES = 200 * 1024 * 1024;
+const MAX_CONTENT_FILE_SIZE_LABEL = '200 MB';
+
 const buildEmptyOption = (isFirst = false): QuizOptionState => ({
     option_text: '',
     is_correct: isFirst,
@@ -438,6 +441,15 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const [file] = event.target.files ?? [];
+
+        if (file && file.size > MAX_CONTENT_FILE_SIZE_BYTES) {
+            form.setError('content.file', `Ukuran berkas melebihi ${MAX_CONTENT_FILE_SIZE_LABEL}. Pilih berkas yang lebih kecil.`);
+            event.target.value = '';
+
+            return;
+        }
+
+        form.clearErrors('content.file');
         setContentField('file', file ?? null);
     };
 
@@ -705,8 +717,19 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
 
     const handleEditFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const [file] = event.target.files ?? [];
+
+        if (file && file.size > MAX_CONTENT_FILE_SIZE_BYTES) {
+            editForm.setError('content.file', `Ukuran berkas melebihi ${MAX_CONTENT_FILE_SIZE_LABEL}. Pilih berkas yang lebih kecil.`);
+            event.target.value = '';
+
+            return;
+        }
+
+        editForm.clearErrors('content.file');
         setEditContentField('file', file ?? null);
-        setEditContentField('remove_file', false);
+        if (file) {
+            setEditContentField('remove_file', false);
+        }
     };
 
     const handleEditRemoveFileToggle = (checked: boolean) => {
@@ -1117,6 +1140,7 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                                 Jika berkas diunggah, pratinjau utama akan menggunakan berkas tersebut.
                                             </p>
                                         )}
+                                        <p className='text-xs text-muted-foreground'>Batas ukuran berkas {MAX_CONTENT_FILE_SIZE_LABEL}.</p>
                                     </div>
                                 </div>
                             ) : (
@@ -1534,6 +1558,10 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                     <Label>Berkas pendukung</Label>
                                     <Input type='file' onChange={handleEditFileChange} disabled={editForm.processing} />
                                     <InputError message={getEditError('content.file')} />
+                                    {editForm.data.content.file ? (
+                                        <p className='text-xs text-muted-foreground'>Berkas terpilih: {editForm.data.content.file.name}</p>
+                                    ) : null}
+                                    <p className='text-xs text-muted-foreground'>Batas ukuran berkas {MAX_CONTENT_FILE_SIZE_LABEL}.</p>
                                     <div className='flex items-center gap-2 text-xs text-muted-foreground'>
                                         <Checkbox
                                             id='remove-file-checkbox'

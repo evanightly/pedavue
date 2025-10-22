@@ -88,3 +88,70 @@ it('rejects out of range correct answer selections', function () {
     expect($errors)->toHaveKey('rows.7.correct_answer');
     expect($errors['file'])->toContain('tidak dapat diproses');
 });
+
+it('builds column configuration without optional image columns', function () {
+    $service = new QuizImportService;
+
+    $method = new \ReflectionMethod($service, 'buildColumnConfiguration');
+    $method->setAccessible(true);
+
+    $headings = [
+        1 => 'Soal / Pertanyaan*',
+        2 => 'Opsi 1*',
+        3 => 'Opsi 2*',
+        4 => 'Opsi 3*',
+        5 => 'Jawaban Benar*',
+    ];
+
+    $configuration = $method->invokeArgs($service, [$headings, 5]);
+
+    expect($configuration['question'])->toBe(1);
+    expect($configuration['question_image'])->toBeNull();
+    expect($configuration['options'])->toHaveCount(3);
+    expect($configuration['options'][0])->toMatchArray([
+        'number' => 1,
+        'text' => 2,
+        'image' => null,
+    ]);
+});
+
+it('detects option image columns when available', function () {
+    $service = new QuizImportService;
+
+    $method = new \ReflectionMethod($service, 'buildColumnConfiguration');
+    $method->setAccessible(true);
+
+    $headings = [
+        1 => 'Soal / Pertanyaan*',
+        2 => 'Gambar Pertanyaan (opsional)',
+        3 => 'Opsi 1 - Benar*',
+        4 => 'Gambar Opsi 1 (opsional)',
+        5 => 'Opsi 2*',
+        6 => 'Gambar Opsi 2 (opsional)',
+        7 => 'Opsi 3*',
+        8 => 'Jawaban Benar*',
+    ];
+
+    $configuration = $method->invokeArgs($service, [$headings, 8]);
+
+    expect($configuration['question'])->toBe(1);
+    expect($configuration['question_image'])->toBe(2);
+    expect($configuration['options'])->toHaveCount(3);
+    expect($configuration['options'][0])->toMatchArray([
+        'number' => 1,
+        'text' => 3,
+        'image' => 4,
+    ]);
+});
+
+it('formats option slot labels in spreadsheet notation', function () {
+    $service = new QuizImportService;
+
+    $method = new \ReflectionMethod($service, 'optionSlotLabel');
+    $method->setAccessible(true);
+
+    expect($method->invokeArgs($service, [0]))->toBe('A');
+    expect($method->invokeArgs($service, [1]))->toBe('B');
+    expect($method->invokeArgs($service, [25]))->toBe('Z');
+    expect($method->invokeArgs($service, [26]))->toBe('AA');
+});

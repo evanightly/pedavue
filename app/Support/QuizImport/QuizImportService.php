@@ -12,18 +12,15 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use RuntimeException;
 
 class QuizImportService {
-    private const REQUIRED_HEADINGS = [
-        'Soal / Pertanyaan*',
-        'Gambar Pertanyaan (opsional)',
-        'Opsi 1*',
-        'Gambar Opsi 1 (opsional)',
-        'Opsi 2*',
-        'Gambar Opsi 2 (opsional)',
-        'Opsi 3*',
-        'Gambar Opsi 3 (opsional)',
-    ];
+    private const QUESTION_HEADING = 'Soal / Pertanyaan*';
+
+    private const QUESTION_IMAGE_HEADING = 'Gambar Pertanyaan (opsional)';
 
     private const CORRECT_ANSWER_HEADING = 'Jawaban Benar*';
+
+    private const OPTION_HEADING_PATTERN = '/^Opsi\s*(\d+)/i';
+
+    private const OPTION_IMAGE_HEADING_PATTERN = '/^Gambar\s+Opsi\s*(\d+)/i';
 
     private const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -41,7 +38,12 @@ class QuizImportService {
 
         $headings = $this->resolveHeadings($sheet);
         $correctAnswerColumnIndex = $this->resolveCorrectAnswerColumnIndex($headings);
-        $this->assertHeadings($headings, $correctAnswerColumnIndex);
+
+        if ($correctAnswerColumnIndex === null) {
+            throw new RuntimeException('Kolom Jawaban Benar tidak ditemukan pada template impor.');
+        }
+
+        $columnConfiguration = $this->buildColumnConfiguration($headings, $correctAnswerColumnIndex);
 
         $drawingMap = $this->prepareDrawingMap($sheet);
         $highestRow = $sheet->getHighestRow();
@@ -54,51 +56,48 @@ class QuizImportService {
         for ($row = 2; $row <= $highestRow; $row++) {
             $rowHasErrors = false;
 
-            $questionText = $this->cellStringValue($sheet, 1, $row);
+            $questionText = $this->cellStringValue($sheet, $columnConfiguration['question'], $row);
             $questionImageKey = 'rows.' . $row . '.question_image';
-            $questionImage = $this->validateImage(
-                image: $this->drawingForCell($drawingMap, 2, $row),
-                contextLabel: 'pertanyaan',
-                row: $row,
-                errorKey: $questionImageKey,
-                errors: $errors,
+            $questionImageCandidate = $this->retrieveImageFromColumns(
+                $drawingMap,
+                [$columnConfiguration['question_image'], $columnConfiguration['question']],
+                $row,
             );
+            $questionImage = null;
 
-            if (array_key_exists($questionImageKey, $errors)) {
-                $rowHasErrors = true;
-            }
-
-            $options = [];
-            for ($col = 3; $col < $correctAnswerColumnIndex; $col += 2) {
-                $optionText = $this->cellStringValue($sheet, $col, $row);
-                $optionColumnIndex = intdiv($col - 1, 2);
-                $optionImageKey = 'rows.' . $row . '.options.' . $optionColumnIndex . '.image';
-                $optionImage = $this->validateImage(
-                    image: $this->drawingForCell($drawingMap, $col + 1, $row),
-                    contextLabel: 'opsi ' . $optionColumnIndex,
+            if ($questionImageCandidate !== null) {
+                $questionImage = $this->validateImage(
+                    image: $questionImageCandidate,
+                    contextLabel: 'pertanyaan',
                     row: $row,
-                    errorKey: $optionImageKey,
+                    errorKey: $questionImageKey,
                     errors: $errors,
                 );
 
-                if (array_key_exists($optionImageKey, $errors)) {
+                if (array_key_exists($questionImageKey, $errors)) {
                     $rowHasErrors = true;
                 }
+            }
 
-                $isEmpty = ($optionText === null || $optionText === '') && $optionImage === null;
-                if ($isEmpty) {
-                    continue;
+            $optionSlots = $this->extractOptionSlots(
+                $sheet,
+                $columnConfiguration['options'],
+                $drawingMap,
+                $row,
+                $errors,
+                $rowHasErrors,
+            );
+
+            $nonEmptyOptionCount = 0;
+            foreach ($optionSlots as $slot) {
+                if ($slot['has_content']) {
+                    $nonEmptyOptionCount++;
                 }
-                $options[] = [
-                    'option_text' => $optionText,
-                    'is_correct' => false,
-                    'image' => $optionImage,
-                ];
             }
 
             $isQuestionEmpty = ($questionText === null || $questionText === '') && $questionImage === null;
 
-            if ($isQuestionEmpty && count($options) === 0) {
+            if ($isQuestionEmpty && $nonEmptyOptionCount === 0) {
                 $consecutiveEmptyRows++;
                 if ($consecutiveEmptyRows >= 5) {
                     break;
@@ -109,8 +108,7 @@ class QuizImportService {
 
             $consecutiveEmptyRows = 0;
 
-            $optionCount = count($options);
-            if ($optionCount < 2) {
+            if ($nonEmptyOptionCount < 2) {
                 $this->recordRowError(
                     $errors,
                     'rows.' . $row . '.options',
@@ -123,26 +121,55 @@ class QuizImportService {
                 continue;
             }
 
+            $options = [];
+            $slotToOptionIndex = [];
+
+            foreach ($optionSlots as $slotIndex => $slot) {
+                if (!$slot['has_content']) {
+                    continue;
+                }
+
+                $slotToOptionIndex[$slotIndex] = count($options);
+                $options[] = [
+                    'option_text' => $slot['text'],
+                    'is_correct' => false,
+                    'image' => $slot['image'],
+                ];
+            }
+
             $correctAnswerKey = 'rows.' . $row . '.correct_answer';
             $correctAnswerValue = $this->cellStringValue($sheet, $correctAnswerColumnIndex, $row);
-            $selectedCorrectIndexes = $this->resolveCorrectAnswerSelection(
+            $selectedSlots = $this->resolveCorrectAnswerSelection(
                 $correctAnswerValue,
-                $optionCount,
+                count($optionSlots),
                 $row,
                 $correctAnswerKey,
                 $errors,
             );
 
-            if ($selectedCorrectIndexes === null) {
+            if ($selectedSlots === null) {
                 continue;
             }
 
-            foreach ($selectedCorrectIndexes as $selectedIndex) {
-                if (!isset($options[$selectedIndex])) {
+            $invalidSelection = false;
+            foreach ($selectedSlots as $slotIndex) {
+                if (!isset($slotToOptionIndex[$slotIndex])) {
+                    $this->recordRowError(
+                        $errors,
+                        $correctAnswerKey,
+                        'Opsi ' . $this->optionSlotLabel($slotIndex) . ' pada baris ' . $row . ' tidak memiliki konten. Perbarui kolom Jawaban Benar Anda.',
+                    );
+                    $invalidSelection = true;
+                    $rowHasErrors = true;
+
                     continue;
                 }
 
-                $options[$selectedIndex]['is_correct'] = true;
+                $options[$slotToOptionIndex[$slotIndex]]['is_correct'] = true;
+            }
+
+            if ($invalidSelection) {
+                continue;
             }
 
             $hasCorrectOption = false;
@@ -261,18 +288,102 @@ class QuizImportService {
 
     /**
      * @param  array<int, string>  $headings
+     * @return array{question:int,question_image:int|null,options:array<int, array{number:int,text:int,image:int|null}>}
      */
-    private function assertHeadings(array $headings, ?int $correctAnswerColumnIndex): void {
-        foreach (self::REQUIRED_HEADINGS as $index => $expectedHeading) {
-            $columnIndex = $index + 1;
-            if (!isset($headings[$columnIndex]) || Str::lower($headings[$columnIndex]) !== Str::lower($expectedHeading)) {
-                throw new RuntimeException('Format kolom tidak sesuai dengan template impor terbaru.');
+    private function buildColumnConfiguration(array $headings, int $correctAnswerColumnIndex): array {
+        $questionColumnIndex = $this->findColumnIndex($headings, self::QUESTION_HEADING);
+        if ($questionColumnIndex === null) {
+            throw new RuntimeException('Kolom Soal / Pertanyaan* tidak ditemukan pada template impor.');
+        }
+
+        $questionImageColumnIndex = $this->findColumnIndex($headings, self::QUESTION_IMAGE_HEADING);
+        $optionColumns = $this->buildOptionColumns($headings, $correctAnswerColumnIndex);
+
+        if (count($optionColumns) < 2) {
+            throw new RuntimeException('Template impor membutuhkan minimal dua kolom opsi sebelum kolom Jawaban Benar*.');
+        }
+
+        return [
+            'question' => $questionColumnIndex,
+            'question_image' => $questionImageColumnIndex,
+            'options' => $optionColumns,
+        ];
+    }
+
+    /**
+     * @param  array<int, string>  $headings
+     */
+    private function findColumnIndex(array $headings, string $target): ?int {
+        foreach ($headings as $index => $heading) {
+            if (Str::lower($heading) === Str::lower($target)) {
+                return $index;
             }
         }
 
-        if ($correctAnswerColumnIndex === null) {
-            throw new RuntimeException('Kolom Jawaban Benar tidak ditemukan pada template impor.');
+        return null;
+    }
+
+    /**
+     * @param  array<int, string>  $headings
+     * @return array<int, array{number:int,text:int,image:int|null}>
+     */
+    private function buildOptionColumns(array $headings, int $correctAnswerColumnIndex): array {
+        $options = [];
+
+        foreach ($headings as $index => $heading) {
+            if ($index >= $correctAnswerColumnIndex) {
+                continue;
+            }
+
+            if (preg_match(self::OPTION_HEADING_PATTERN, $heading, $matches)) {
+                $optionNumber = (int) $matches[1];
+                if (!isset($options[$optionNumber])) {
+                    $options[$optionNumber] = [
+                        'number' => $optionNumber,
+                        'text' => $index,
+                        'image' => null,
+                    ];
+                } else {
+                    $options[$optionNumber]['text'] = $index;
+                }
+
+                continue;
+            }
+
+            if (preg_match(self::OPTION_IMAGE_HEADING_PATTERN, $heading, $matches)) {
+                $optionNumber = (int) $matches[1];
+                if (!isset($options[$optionNumber])) {
+                    $options[$optionNumber] = [
+                        'number' => $optionNumber,
+                        'text' => null,
+                        'image' => $index,
+                    ];
+                } else {
+                    $options[$optionNumber]['image'] = $index;
+                }
+            }
         }
+
+        $validOptions = array_filter(
+            $options,
+            static fn (array $option): bool => isset($option['text']) && $option['text'] !== null,
+        );
+
+        usort(
+            $validOptions,
+            static fn (array $left, array $right): int => $left['text'] <=> $right['text'],
+        );
+
+        return array_values(
+            array_map(
+                static fn (array $option): array => [
+                    'number' => $option['number'],
+                    'text' => (int) $option['text'],
+                    'image' => $option['image'] ?? null,
+                ],
+                $validOptions,
+            ),
+        );
     }
 
     private function resolveCorrectAnswerColumnIndex(array $headings): ?int {
@@ -290,12 +401,12 @@ class QuizImportService {
      */
     private function resolveCorrectAnswerSelection(
         ?string $value,
-        int $optionCount,
+        int $optionSlotCount,
         int $row,
         string $errorKey,
         array &$errors,
     ): ?array {
-        if ($optionCount === 0) {
+        if ($optionSlotCount === 0) {
             return [];
         }
 
@@ -329,7 +440,7 @@ class QuizImportService {
                 return null;
             }
 
-            if ($index < 1 || $index > $optionCount) {
+            if ($index < 1 || $index > $optionSlotCount) {
                 $this->recordRowError(
                     $errors,
                     $errorKey,
@@ -347,6 +458,91 @@ class QuizImportService {
         }
 
         return array_values(array_unique($normalizedIndexes));
+    }
+
+    /**
+     * @param  array<int, array{number:int,text:int,image:int|null}>  $optionColumns
+     * @param  array<string, array{data:string,mime_type:string,extension:string,original_name:string}>  $drawingMap
+     * @return array<int, array{number:int,text:?string,image:?array{data:string,mime_type:string,extension:string,original_name:string},has_content:bool}>
+     */
+    private function extractOptionSlots(
+        Worksheet $sheet,
+        array $optionColumns,
+        array $drawingMap,
+        int $row,
+        array &$errors,
+        bool &$rowHasErrors,
+    ): array {
+        $slots = [];
+
+        foreach ($optionColumns as $slotIndex => $column) {
+            $optionText = $this->cellStringValue($sheet, $column['text'], $row);
+            $optionImageKey = 'rows.' . $row . '.options.' . $slotIndex . '.image';
+
+            $optionImageCandidate = $this->retrieveImageFromColumns(
+                $drawingMap,
+                [$column['image'], $column['text']],
+                $row,
+            );
+
+            $optionImage = null;
+            if ($optionImageCandidate !== null) {
+                $optionImage = $this->validateImage(
+                    image: $optionImageCandidate,
+                    contextLabel: 'opsi ' . $column['number'],
+                    row: $row,
+                    errorKey: $optionImageKey,
+                    errors: $errors,
+                );
+
+                if (array_key_exists($optionImageKey, $errors)) {
+                    $rowHasErrors = true;
+                }
+            }
+
+            $hasContent = ($optionText !== null && $optionText !== '') || $optionImage !== null;
+
+            $slots[] = [
+                'number' => $column['number'],
+                'text' => $optionText,
+                'image' => $optionImage,
+                'has_content' => $hasContent,
+            ];
+        }
+
+        return $slots;
+    }
+
+    /**
+     * @param  array<string, array{data:string,mime_type:string,extension:string,original_name:string}>  $drawingMap
+     * @param  array<int|null>  $columns
+     * @return array{data:string,mime_type:string,extension:string,original_name:string}|null
+     */
+    private function retrieveImageFromColumns(array $drawingMap, array $columns, int $row): ?array {
+        foreach ($columns as $column) {
+            if ($column === null) {
+                continue;
+            }
+
+            $image = $this->drawingForCell($drawingMap, $column, $row);
+            if ($image !== null) {
+                return $image;
+            }
+        }
+
+        return null;
+    }
+
+    private function optionSlotLabel(int $slotIndex): string {
+        $label = '';
+        $index = $slotIndex;
+
+        do {
+            $label = chr(ord('A') + ($index % 26)) . $label;
+            $index = intdiv($index, 26) - 1;
+        } while ($index >= 0);
+
+        return $label;
     }
 
     /**
