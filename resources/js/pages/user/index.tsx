@@ -1,4 +1,5 @@
 import UserController from '@/actions/App/Http/Controllers/UserController';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnFilterMeta, DataTableFilters, PaginationMeta } from '@/components/ui/data-table-types';
@@ -54,12 +55,20 @@ export default function UserIndex({ users, filters = null, sort = null, filtered
                 id: 'name',
                 accessorKey: 'name',
                 header: 'Name',
-                cell: ({ getValue }) => {
+                cell: ({ getValue, row }) => {
                     const value = getValue() as unknown;
                     if (value === null || value === undefined) {
                         return '—';
                     }
-                    return String(value);
+                    return (
+                        <div className='flex items-center gap-2'>
+                            <Avatar>
+                                <AvatarImage className='object-cover' src={row.original?.avatar_url ?? ''} alt={row.original?.name ?? ''} />
+                                <AvatarFallback>{row.original?.name?.charAt(0).toUpperCase() ?? '?'}</AvatarFallback>
+                            </Avatar>
+                            {String(value)}
+                        </div>
+                    );
                 },
                 enableSorting: true,
                 enableFiltering: true,
