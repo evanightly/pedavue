@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Data\Quiz\QuizData;
 use App\Data\QuizImport\QuizImportPreviewData;
-use App\Exports\Quiz\QuizzesTemplateExport;
+use App\Exports\QuizQuestion\QuizQuestionTemplateExport;
 use App\Http\Requests\Quiz\QuizImportConfirmRequest;
 use App\Http\Requests\Quiz\QuizImportPreviewRequest;
 use App\Models\Quiz;
@@ -76,7 +76,7 @@ class QuizImportController extends Controller {
             }
         }
 
-        return (new QuizzesTemplateExport($dataset))->download($fileName);
+        return (new QuizQuestionTemplateExport($dataset))->download($fileName);
     }
 
     public function preview(QuizImportPreviewRequest $request, Quiz $quiz): Response|RedirectResponse {
