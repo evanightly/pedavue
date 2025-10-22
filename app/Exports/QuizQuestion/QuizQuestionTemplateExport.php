@@ -19,7 +19,7 @@ class QuizQuestionTemplateExport implements FromArray, ShouldAutoSize, WithEvent
     use Exportable;
 
     /**
-     * @var array<int, array{question:?string, options: array<int, array{option_text:?string}>}>
+     * @var array<int, array{question:?string, options: array<int, array{option_text:?string,is_correct?:bool}>}>
      */
     private array $dataset;
 
@@ -27,12 +27,12 @@ class QuizQuestionTemplateExport implements FromArray, ShouldAutoSize, WithEvent
     private int $columnCount;
 
     /**
-     * @param  array<int, array{question:?string, options: array<int, array{option_text:?string}>}>  $questions
+     * @param  array<int, array{question:?string, options: array<int, array{option_text:?string,is_correct?:bool}>}>  $questions
      */
     public function __construct(array $questions = []) {
         $this->dataset = $questions === [] ? self::defaultQuestions() : $questions;
         $this->maxOptions = max(3, $this->resolveMaxOptions($this->dataset));
-        $this->columnCount = 2 + ($this->maxOptions * 2);
+        $this->columnCount = 2 + ($this->maxOptions * 2) + 1;
     }
 
     public function headings(): array {
@@ -43,11 +43,14 @@ class QuizQuestionTemplateExport implements FromArray, ShouldAutoSize, WithEvent
 
         for ($index = 1; $index <= $this->maxOptions; $index++) {
             $suffix = $index <= 3 ? '*' : '';
-            $label = 'Opsi ' . $index . ($index === 1 ? ' - Benar' : '') . $suffix;
+            $optionLabel = $this->optionLabel($index - 1);
+            $label = 'Jawaban ' . $optionLabel . ($index === 1 ? ' - Benar' : '') . $suffix;
 
             $headings[] = $label;
-            $headings[] = 'Gambar Opsi ' . $index . ' (opsional)';
+            $headings[] = 'Gambar Jawaban ' . $optionLabel . ' (opsional)';
         }
+
+        $headings[] = 'Jawaban Benar*';
 
         return $headings;
     }
@@ -81,7 +84,7 @@ class QuizQuestionTemplateExport implements FromArray, ShouldAutoSize, WithEvent
                 $sheet->addTable($table);
 
                 $comment = $sheet->getComment($lastColumn . '1');
-                $comment->getText()->createTextRun("Opsi 1 otomatis dianggap jawaban benar. Tambahkan pasangan kolom teks dan gambar di kanan bila perlu lebih banyak opsi.\n");
+                $comment->getText()->createTextRun("Isi kolom Jawaban Benar dengan huruf (A, B, C, ...) atau angka (1, 2, 3, ...) dari opsi yang benar. Pisahkan lebih dari satu jawaban dengan tanda /.\n");
                 $comment->setWidth('220pt');
                 $comment->setHeight('150pt');
             },
@@ -97,12 +100,22 @@ class QuizQuestionTemplateExport implements FromArray, ShouldAutoSize, WithEvent
                 null,
             ];
 
+            $correctLabels = [];
             for ($index = 0; $index < $this->maxOptions; $index++) {
                 $option = $question['options'][$index] ?? null;
-                $row[] = $option['option_text'] ?? null;
+                $row[] = is_array($option) ? ($option['option_text'] ?? null) : null;
                 $row[] = null;
+
+                if (is_array($option) && (($option['is_correct'] ?? false) === true)) {
+                    $correctLabels[] = $this->optionLabel($index);
+                }
             }
 
+            if ($correctLabels === []) {
+                $correctLabels[] = $this->optionLabel(0);
+            }
+
+            $row[] = implode('/', $correctLabels);
             $rows[] = $row;
         }
 
@@ -110,7 +123,7 @@ class QuizQuestionTemplateExport implements FromArray, ShouldAutoSize, WithEvent
     }
 
     /**
-     * @param  array<int, array{question:?string, options: array<int, array{option_text:?string}>}>  $questions
+     * @param  array<int, array{question:?string, options: array<int, array{option_text:?string,is_correct?:bool}>}>  $questions
      */
     private function resolveMaxOptions(array $questions): int {
         $collection = Collection::make($questions);
@@ -121,26 +134,38 @@ class QuizQuestionTemplateExport implements FromArray, ShouldAutoSize, WithEvent
             ->max() ?? 0;
     }
 
+    private function optionLabel(int $zeroBasedIndex): string {
+        $index = max(0, $zeroBasedIndex);
+        $label = '';
+
+        do {
+            $label = chr(ord('A') + ($index % 26)) . $label;
+            $index = intdiv($index, 26) - 1;
+        } while ($index >= 0);
+
+        return $label;
+    }
+
     /**
-     * @return array<int, array{question:?string, options: array<int, array{option_text:?string}>}>
+     * @return array<int, array{question:?string, options: array<int, array{option_text:?string,is_correct?:bool}>}>
      */
     private static function defaultQuestions(): array {
         return [
             [
                 'question' => 'Contoh: Apa tujuan utama sesi pembelajaran ini?',
                 'options' => [
-                    ['option_text' => 'Memahami konsep dasar yang dibahas pada modul ini'],
-                    ['option_text' => 'Menebak topik secara acak'],
-                    ['option_text' => 'Menghafal jawaban tanpa memahami materi'],
-                    ['option_text' => 'Tidak ada tujuan yang jelas'],
+                    ['option_text' => 'Memahami konsep dasar yang dibahas pada modul ini', 'is_correct' => true],
+                    ['option_text' => 'Menebak topik secara acak', 'is_correct' => false],
+                    ['option_text' => 'Menghafal jawaban tanpa memahami materi', 'is_correct' => false],
+                    ['option_text' => 'Tidak ada tujuan yang jelas', 'is_correct' => false],
                 ],
             ],
             [
                 'question' => 'Contoh: Materi apa yang ditinjau pada evaluasi Bab 1?',
                 'options' => [
-                    ['option_text' => 'Seluruh pokok bahasan yang sudah dipelajari pada modul 1'],
-                    ['option_text' => 'Materi dari modul lain yang belum dipelajari'],
-                    ['option_text' => 'Topik yang tidak berhubungan dengan kursus'],
+                    ['option_text' => 'Seluruh pokok bahasan yang sudah dipelajari pada modul 1', 'is_correct' => true],
+                    ['option_text' => 'Materi dari modul lain yang belum dipelajari', 'is_correct' => false],
+                    ['option_text' => 'Topik yang tidak berhubungan dengan kursus', 'is_correct' => false],
                 ],
             ],
         ];

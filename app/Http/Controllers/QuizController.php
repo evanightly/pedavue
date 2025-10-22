@@ -13,8 +13,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 
-class QuizController extends BaseResourceController
-{
+class QuizController extends BaseResourceController {
     use AuthorizesRequests;
 
     protected string $modelClass = Quiz::class;
@@ -31,8 +30,7 @@ class QuizController extends BaseResourceController
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
-    {
+    public function index(Request $request) {
         $filteredData = [];
 
         $query = $this->buildIndexQuery($request);
@@ -54,20 +52,19 @@ class QuizController extends BaseResourceController
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
-    {
+    public function create() {
         if (request()->has('download')) {
-            return (new QuizQuestionTemplateExport())->download('quiz_template.xlsx');
+            return (new QuizQuestionTemplateExport)->download('quiz_template.xlsx');
         }
+
         return Inertia::render('quiz/create');
-        
+
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(QuizData $quizData)
-    {
+    public function store(QuizData $quizData) {
         $data = $quizData->toArray();
         if (!filled($data['type'] ?? null)) {
             unset($data['type']);
@@ -77,40 +74,50 @@ class QuizController extends BaseResourceController
             $file = request()->file('import');
             Excel::import(new QuizQuestionImport($quiz), $file);
         }
+
         return $quiz;
     }
-    public function importQuestions(Request $request, Quiz $quiz)
-    {
+
+    public function importQuestions(Request $request, Quiz $quiz) {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls,csv']
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
         ]);
         // $data = $quizData->toArray();
         Excel::import(new QuizQuestionImport($quiz, $request['is_answer_shuffled'] ?? false), $request['file']);
+
         return $quiz->load('quiz_questions.quiz_question_options');
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(Quiz $quiz)
-    {
-        return QuizData::fromModel($quiz->load('quiz_questions.quiz_question_options'))->toArray();
-        // return Inertia::render('quiz/show', [
-        //     'record' => QuizData::fromModel($quiz)->toArray(),
-        // ]);
+    public function show(Request $request, Quiz $quiz) {
+        $quiz->load('quiz_questions.quiz_question_options');
+        $quizData = QuizData::fromModel($quiz);
+
+        if ($request->wantsJson()) {
+            return response()->json($quizData);
+        }
+
+        return Inertia::render('quiz/show', [
+            'quiz' => $quizData,
+            'templateUrl' => route('quizzes.import.template', ['quiz' => $quiz->getKey()]),
+            'importUrl' => route('quizzes.import.show', ['quiz' => $quiz->getKey()]),
+            'questionsCount' => $quizData->quiz_questions?->count() ?? 0,
+        ]);
     }
-    public function questions(Quiz $quiz)
-    {
+
+    public function questions(Quiz $quiz) {
         return QuizQuestionData::collect($quiz->quiz_questions->load('quiz_question_options'))->toArray();
     }
-    public function addQuestion(QuizQuestionData $quizQuestionData, Quiz $quiz)
-    {
+
+    public function addQuestion(QuizQuestionData $quizQuestionData, Quiz $quiz) {
         $quizQuestionData->quiz_id = $quiz->id;
         if (!filled($quizQuestionData->order ?? null)) {
             $quizQuestionData->order = $quiz->quiz_questions()->max('order') + 1;
         }
         $question = $quiz->quiz_questions()->create($quizQuestionData->toArray());
-        
+
         $question->quiz_question_options()->createMany($quizQuestionData->quiz_question_options->toArray());
 
         $options = QuizQuestionOption::whereQuizQuestionId($question->id);
@@ -124,24 +131,21 @@ class QuizController extends BaseResourceController
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Quiz $quiz)
-    {
+    public function edit(Quiz $quiz) {
         //
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(QuizData $quizData, Quiz $quiz)
-    {
+    public function update(QuizData $quizData, Quiz $quiz) {
         //
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Quiz $quiz)
-    {
+    public function destroy(Quiz $quiz) {
         //
     }
 }

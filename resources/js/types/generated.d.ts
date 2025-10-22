@@ -58,6 +58,61 @@ declare namespace App.Data.CourseInstructor {
         course: any;
     };
 }
+declare namespace App.Data.Dashboard {
+    export type ChartDistributionData = {
+        title: string;
+        description: string | null;
+        segments: any;
+        meta: Array<any>;
+    };
+    export type ChartSegmentData = {
+        key: string;
+        label: string;
+        value: number;
+        color: string | null;
+    };
+    export type CourseProgressSummaryData = {
+        course_id: number;
+        course_title: string;
+        total_students: number;
+        completed_count: number;
+        in_progress_count: number;
+        not_started_count: number;
+        students: any;
+    };
+    export type CourseStudentProgressData = {
+        student_id: number;
+        student_name: string;
+        student_email: string | null;
+        progress: number;
+        status: string;
+    };
+    export type DashboardData = {
+        user: any;
+        role_names: string[];
+        super_admin: any;
+        instructor: any;
+        student: any;
+        filters: Array<any>;
+    };
+    export type InstructorDashboardData = {
+        course_progress: any;
+        unique_students: number;
+        filters: Array<any>;
+    };
+    export type StudentDashboardData = {
+        recent_progress: any;
+        completed_count: number;
+        in_progress_count: number;
+        pending_count: number;
+        filters: Array<any>;
+    };
+    export type SuperAdminDashboardData = {
+        user_roles: App.Data.Dashboard.ChartDistributionData;
+        course_levels: App.Data.Dashboard.ChartDistributionData;
+        filters: Array<any>;
+    };
+}
 declare namespace App.Data.Enrollment {
     export type EnrollmentData = {
         id: any | number;
@@ -127,6 +182,18 @@ declare namespace App.Data.ModuleStage {
         module: any;
         module_content: any;
         module_quiz: any;
+    };
+}
+declare namespace App.Data.ModuleStageProgress {
+    export type ModuleStageProgressData = {
+        id: any | number;
+        status: string | null;
+        started_at: string | null;
+        completed_at: string | null;
+        state: Array<any>;
+        module_stage: any;
+        enrollment: any;
+        updated_at: string | null;
     };
 }
 declare namespace App.Data.Permission {

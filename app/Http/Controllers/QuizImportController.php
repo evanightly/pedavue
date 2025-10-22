@@ -4,13 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Data\Quiz\QuizData;
 use App\Data\QuizImport\QuizImportPreviewData;
-use App\Exports\Quiz\QuizzesTemplateExport;
+use App\Exports\QuizQuestion\QuizQuestionTemplateExport;
 use App\Http\Requests\Quiz\QuizImportConfirmRequest;
 use App\Http\Requests\Quiz\QuizImportPreviewRequest;
 use App\Models\Quiz;
 use App\Support\QuizImport\QuizImportPreviewStore;
 use App\Support\QuizImport\QuizImportService;
 use App\Support\QuizPayloadManager;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redirect;
@@ -21,20 +23,24 @@ use Inertia\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class QuizImportController extends Controller {
+    use AuthorizesRequests;
+
     public function __construct(
         private readonly QuizImportService $importService,
         private readonly QuizImportPreviewStore $previewStore,
         private readonly QuizPayloadManager $payloadManager,
     ) {}
 
-    public function show(Quiz $quiz): Response {
+    public function show(Request $request, Quiz $quiz): Response {
         $quizData = QuizData::fromModel($quiz->load('quiz_questions.quiz_question_options'));
+        $returnUrl = $this->resolveReturnUrl($request);
 
         return Inertia::render('quizzes/import', [
             'quiz' => $quizData,
             'step' => 'form',
             'templateUrl' => route('quizzes.import.template', ['quiz' => $quiz->getKey()]),
             'existingQuestionCount' => $quizData->quiz_questions?->count() ?? 0,
+            'returnUrl' => $returnUrl,
         ]);
     }
 
@@ -65,7 +71,10 @@ class QuizImportController extends Controller {
                         return [
                             'question' => $question->question,
                             'options' => $ordered
-                                ->map(fn ($option) => ['option_text' => $option->option_text])
+                                ->map(fn ($option) => [
+                                    'option_text' => $option->option_text,
+                                    'is_correct' => (bool) $option->is_correct,
+                                ])
                                 ->all(),
                         ];
                     })
@@ -73,12 +82,43 @@ class QuizImportController extends Controller {
             }
         }
 
-        return (new QuizzesTemplateExport($dataset))->download($fileName);
+        return (new QuizQuestionTemplateExport($dataset))->download($fileName);
+    }
+
+    public function parse(Request $request): JsonResponse {
+        $this->authorize('create', Quiz::class);
+
+        $validated = $request->validate(
+            [
+                'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:10240'],
+            ],
+            [
+                'file.required' => 'Pilih berkas Excel sebelum melanjutkan.',
+                'file.file' => 'Berkas Excel tidak valid. Coba pilih ulang berkas Anda.',
+                'file.mimes' => 'Format berkas harus .xlsx atau .xls.',
+                'file.max' => 'Berkas Excel melebihi batas 10 MB. Kurangi ukuran gambar di dalam file lalu coba lagi.',
+                'file.uploaded' => 'Berkas Excel gagal diunggah. Pastikan ukurannya tidak melebihi 10 MB dan file tidak sedang dibuka aplikasi lain.',
+            ],
+        );
+
+        /** @var \Illuminate\Http\UploadedFile $file */
+        $file = $validated['file'];
+        $parseResult = $this->importService->parse($file);
+
+        if ($parseResult->hasErrors()) {
+            return response()->json(['errors' => $parseResult->errors()], 422);
+        }
+
+        return response()->json([
+            'questions' => $parseResult->questions(),
+            'warnings' => $parseResult->warnings(),
+        ]);
     }
 
     public function preview(QuizImportPreviewRequest $request, Quiz $quiz): Response|RedirectResponse {
         $quiz->load('quiz_questions.quiz_question_options');
         $quizData = QuizData::fromModel($quiz);
+        $returnUrl = $this->resolveReturnUrl($request);
 
         if ($request->isMethod('get')) {
             $token = $request->string('token')->toString();
@@ -89,7 +129,8 @@ class QuizImportController extends Controller {
                     $this->previewStore->forget($token);
                 }
 
-                return Redirect::route('quizzes.import.show', $quiz)->with('error', 'Pratinjau impor tidak ditemukan atau sudah kedaluwarsa. Unggah ulang berkas Anda.');
+                return Redirect::route('quizzes.import.show', $this->appendReturnParam($quiz, $returnUrl))
+                    ->with('error', 'Pratinjau impor tidak ditemukan atau sudah kedaluwarsa. Unggah ulang berkas Anda.');
             }
 
             $preview = QuizImportPreviewData::fromPayload(
@@ -106,6 +147,7 @@ class QuizImportController extends Controller {
                 'templateUrl' => route('quizzes.import.template', ['quiz' => $quiz->getKey()]),
                 'preview' => $preview,
                 'existingQuestionCount' => $quizData->quiz_questions?->count() ?? 0,
+                'returnUrl' => $returnUrl,
             ]);
         }
 
@@ -123,13 +165,20 @@ class QuizImportController extends Controller {
             warnings: $parseResult->warnings(),
         );
 
-        return Redirect::route('quizzes.import.preview', [
+        $redirectParameters = [
             'quiz' => $quiz->getKey(),
             'token' => $token,
-        ]);
+        ];
+
+        if ($returnUrl !== null) {
+            $redirectParameters['return'] = $returnUrl;
+        }
+
+        return Redirect::route('quizzes.import.preview', $redirectParameters);
     }
 
     public function confirm(QuizImportConfirmRequest $request, Quiz $quiz): RedirectResponse {
+        $returnUrl = $this->resolveReturnUrl($request);
         $payload = $this->previewStore->retrieve($request->input('token'));
         if (!$payload) {
             throw ValidationException::withMessages([
@@ -162,7 +211,58 @@ class QuizImportController extends Controller {
             $this->previewStore->forget($token);
         }
 
-        return Redirect::route('quizzes.import.show', $quiz)->with('success', 'Pertanyaan dari file berhasil diimpor.');
+        return Redirect::route('quizzes.import.show', $this->appendReturnParam($quiz, $returnUrl))
+            ->with('success', 'Pertanyaan dari file berhasil diimpor.');
+    }
+
+    private function resolveReturnUrl(Request $request): ?string {
+        $raw = $request->query('return');
+
+        if (is_array($raw)) {
+            $raw = reset($raw) ?: null;
+        }
+
+        if ($raw === null) {
+            return null;
+        }
+
+        $value = trim((string) $raw);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (Str::startsWith($value, ['http://', 'https://'])) {
+            $parsed = parse_url($value);
+            if ($parsed === false) {
+                return null;
+            }
+
+            $host = $parsed['host'] ?? null;
+            if ($host !== $request->getHost()) {
+                return null;
+            }
+
+            $path = $parsed['path'] ?? '/';
+            $query = isset($parsed['query']) ? '?' . $parsed['query'] : '';
+
+            return $path . $query;
+        }
+
+        return Str::startsWith($value, '/') ? $value : '/' . ltrim($value, '/');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function appendReturnParam(Quiz $quiz, ?string $returnUrl): array {
+        $parameters = ['quiz' => $quiz->getKey()];
+
+        if ($returnUrl !== null) {
+            $parameters['return'] = $returnUrl;
+        }
+
+        return $parameters;
     }
 
     /**

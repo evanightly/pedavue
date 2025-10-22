@@ -21,8 +21,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ArrowDown, ArrowLeft, ArrowUp, Clipboard, Clock, FileText, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Clipboard, Clock, Download, FileText, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ChangeEvent, FormEvent, useCallback, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 type StageType = 'content' | 'quiz';
 
@@ -60,6 +61,30 @@ interface QuizFormState {
     type: string;
     questions: QuizQuestionState[];
 }
+
+interface ImportedImagePayload {
+    data?: string | null;
+    mime_type?: string | null;
+    extension?: string | null;
+    original_name?: string | null;
+}
+
+interface ImportedOptionPayload {
+    option_text?: string | null;
+    is_correct?: boolean | number | null;
+    image?: ImportedImagePayload | null;
+}
+
+interface ImportedQuestionPayload {
+    question?: string | null;
+    image?: ImportedImagePayload | null;
+    options?: ImportedOptionPayload[] | null;
+}
+
+const MAX_CONTENT_FILE_SIZE_BYTES = 200 * 1024 * 1024;
+const MAX_CONTENT_FILE_SIZE_LABEL = '200 MB';
+const MAX_IMPORT_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_IMPORT_FILE_SIZE_LABEL = '10 MB';
 
 const buildEmptyOption = (isFirst = false): QuizOptionState => ({
     option_text: '',
@@ -285,6 +310,12 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
         quiz: buildEmptyQuiz(),
     });
 
+    const [quizImportTarget, setQuizImportTarget] = useState<'create' | 'edit'>('create');
+    const [quizImportDialogOpen, setQuizImportDialogOpen] = useState(false);
+    const [quizImportFile, setQuizImportFile] = useState<File | null>(null);
+    const [quizImportProcessing, setQuizImportProcessing] = useState(false);
+    const [quizImportErrors, setQuizImportErrors] = useState<string[]>([]);
+
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [editingStage, setEditingStage] = useState<ModuleStageRecord | null>(null);
     const [deleteStage, setDeleteStage] = useState<ModuleStageRecord | null>(null);
@@ -396,6 +427,248 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
         );
     };
 
+    const openQuizImportDialog = (target: 'create' | 'edit') => {
+        setQuizImportTarget(target);
+        setQuizImportErrors([]);
+        setQuizImportFile(null);
+        setQuizImportProcessing(false);
+        setQuizImportDialogOpen(true);
+    };
+
+    const handleQuizImportDialogChange = (open: boolean) => {
+        setQuizImportDialogOpen(open);
+        if (open) {
+            setQuizImportErrors([]);
+        } else {
+            setQuizImportErrors([]);
+            setQuizImportFile(null);
+            setQuizImportProcessing(false);
+            setQuizImportTarget('create');
+        }
+    };
+
+    const getXsrfToken = (): string | null => {
+        if (typeof document === 'undefined') {
+            return null;
+        }
+
+        const tokenCookie = document.cookie.split('; ').find((cookie) => cookie.startsWith('XSRF-TOKEN='));
+        if (!tokenCookie) {
+            return null;
+        }
+
+        const [, value] = tokenCookie.split('=');
+
+        try {
+            return decodeURIComponent(value ?? '');
+        } catch {
+            return value ?? null;
+        }
+    };
+
+    const buildDataUrlFromImage = (image: ImportedImagePayload | null | undefined): string | null => {
+        if (!image || !image.data || image.data.trim() === '') {
+            return null;
+        }
+
+        const mime = image.mime_type && image.mime_type.trim() !== '' ? image.mime_type : image.extension ? `image/${image.extension}` : 'image/png';
+
+        return `data:${mime};base64,${image.data}`;
+    };
+
+    const createFileFromImagePayload = (image: ImportedImagePayload | null | undefined, fallbackName: string): File | null => {
+        if (!image || !image.data || image.data.trim() === '') {
+            return null;
+        }
+
+        try {
+            const atobFn = typeof window !== 'undefined' && typeof window.atob === 'function' ? window.atob : null;
+            if (!atobFn) {
+                return null;
+            }
+
+            const byteString = atobFn(image.data);
+            const byteLength = byteString.length;
+            const bytes = new Uint8Array(byteLength);
+
+            for (let index = 0; index < byteLength; index += 1) {
+                bytes[index] = byteString.charCodeAt(index);
+            }
+
+            const mime =
+                image.mime_type && image.mime_type.trim() !== '' ? image.mime_type : image.extension ? `image/${image.extension}` : 'image/png';
+            const extension = image.extension && image.extension.trim() !== '' ? image.extension : 'png';
+            const fileName = image.original_name && image.original_name.trim() !== '' ? image.original_name : `${fallbackName}.${extension}`;
+
+            return new File([bytes], fileName, { type: mime });
+        } catch (error) {
+            console.error('Gagal membuat berkas gambar dari hasil impor', error);
+
+            return null;
+        }
+    };
+
+    const mapImportedQuestionsToState = (importedQuestions: ImportedQuestionPayload[]): QuizQuestionState[] => {
+        if (!Array.isArray(importedQuestions) || importedQuestions.length === 0) {
+            return [buildEmptyQuestion()];
+        }
+
+        return importedQuestions.map((question, questionIndex) => {
+            const imagePayload = question?.image ?? null;
+            const questionImageFile = createFileFromImagePayload(imagePayload, `pertanyaan-${questionIndex + 1}`);
+
+            const rawOptions = Array.isArray(question?.options) ? question.options : [];
+            const mappedOptions = rawOptions.map((option, optionIndex) => {
+                const optionImagePayload = option?.image ?? null;
+                const optionImageFile = createFileFromImagePayload(optionImagePayload, `opsi-${questionIndex + 1}-${optionIndex + 1}`);
+
+                return {
+                    option_text: option?.option_text ?? '',
+                    is_correct: Boolean(option?.is_correct),
+                    option_image: optionImageFile,
+                    existing_option_image: null,
+                    option_image_url: buildDataUrlFromImage(optionImagePayload),
+                    remove_option_image: false,
+                } satisfies QuizOptionState;
+            });
+
+            const ensuredOptions =
+                mappedOptions.length >= 2
+                    ? mappedOptions
+                    : [
+                          ...mappedOptions,
+                          ...Array.from({ length: 2 - mappedOptions.length }, (_, optionIndex) =>
+                              buildEmptyOption(mappedOptions.length === 0 && optionIndex === 0),
+                          ),
+                      ];
+
+            return {
+                question: question?.question ?? '',
+                is_answer_shuffled: false,
+                question_image: questionImageFile,
+                existing_question_image: null,
+                question_image_url: buildDataUrlFromImage(imagePayload),
+                remove_question_image: false,
+                options: ensuredOptions,
+            } satisfies QuizQuestionState;
+        });
+    };
+
+    const handleQuizImportFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const [file] = event.target.files ?? [];
+
+        if (!file) {
+            setQuizImportFile(null);
+            setQuizImportErrors([]);
+
+            return;
+        }
+
+        if (file.size > MAX_IMPORT_FILE_SIZE_BYTES) {
+            setQuizImportErrors([`Ukuran berkas melebihi ${MAX_IMPORT_FILE_SIZE_LABEL}. Perkecil gambar di dalam Excel lalu coba lagi.`]);
+            setQuizImportFile(null);
+            event.target.value = '';
+
+            return;
+        }
+
+        setQuizImportErrors([]);
+        setQuizImportFile(file);
+    };
+
+    const handleQuizImportSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!quizImportFile) {
+            setQuizImportErrors(['Pilih berkas Excel terlebih dahulu.']);
+
+            return;
+        }
+
+        setQuizImportProcessing(true);
+        setQuizImportErrors([]);
+
+        try {
+            const formData = new FormData();
+            formData.append('file', quizImportFile);
+
+            const csrfToken = getXsrfToken();
+            const response = await fetch(QuizImportController.parse.url(), {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
+                },
+            });
+
+            if (!response.ok) {
+                if (response.status === 422) {
+                    const payload = await response.json();
+                    const errorMessages = Object.values(payload?.errors ?? {})
+                        .flat()
+                        .map((message) => String(message));
+
+                    setQuizImportErrors(
+                        errorMessages.length > 0 ? errorMessages : ['Berkas Excel tidak dapat diproses. Coba periksa isi berkas Anda.'],
+                    );
+
+                    return;
+                }
+
+                setQuizImportErrors(['Impor pertanyaan gagal diproses. Coba lagi nanti.']);
+
+                return;
+            }
+
+            const payload = (await response.json()) as {
+                questions?: ImportedQuestionPayload[];
+                warnings?: string[];
+            };
+
+            const mappedQuestions = mapImportedQuestionsToState(payload.questions ?? []);
+
+            if (mappedQuestions.length === 0) {
+                setQuizImportErrors(['Berkas tidak berisi pertanyaan yang dapat digunakan.']);
+
+                return;
+            }
+
+            if (quizImportTarget === 'edit') {
+                editForm.setData('quiz', {
+                    ...editForm.data.quiz,
+                    questions: mappedQuestions,
+                });
+                editForm.clearErrors('quiz.questions');
+            } else {
+                form.setData('quiz', {
+                    ...form.data.quiz,
+                    questions: mappedQuestions,
+                });
+                form.clearErrors('quiz.questions');
+            }
+
+            toast.success(
+                quizImportTarget === 'edit'
+                    ? 'Pertanyaan berhasil dimuat ke kuis. Simpan perubahan untuk menyimpannya.'
+                    : 'Pertanyaan berhasil dimuat ke formulir kuis. Simpan kuis untuk menyimpan perubahan.',
+            );
+            (payload.warnings ?? []).forEach((warning) => {
+                if (typeof warning === 'string' && warning.trim() !== '') {
+                    toast.warning(warning);
+                }
+            });
+
+            handleQuizImportDialogChange(false);
+        } catch (error) {
+            console.error('Gagal memproses impor kuis', error);
+            setQuizImportErrors(['Terjadi kesalahan saat memproses berkas. Coba lagi nanti.']);
+        } finally {
+            setQuizImportProcessing(false);
+        }
+    };
+
     const addQuizQuestion = () => {
         updateQuizQuestions((questions) => [...questions, buildEmptyQuestion()]);
     };
@@ -438,6 +711,15 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const [file] = event.target.files ?? [];
+
+        if (file && file.size > MAX_CONTENT_FILE_SIZE_BYTES) {
+            form.setError('content.file', `Ukuran berkas melebihi ${MAX_CONTENT_FILE_SIZE_LABEL}. Pilih berkas yang lebih kecil.`);
+            event.target.value = '';
+
+            return;
+        }
+
+        form.clearErrors('content.file');
         setContentField('file', file ?? null);
     };
 
@@ -705,8 +987,19 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
 
     const handleEditFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const [file] = event.target.files ?? [];
+
+        if (file && file.size > MAX_CONTENT_FILE_SIZE_BYTES) {
+            editForm.setError('content.file', `Ukuran berkas melebihi ${MAX_CONTENT_FILE_SIZE_LABEL}. Pilih berkas yang lebih kecil.`);
+            event.target.value = '';
+
+            return;
+        }
+
+        editForm.clearErrors('content.file');
         setEditContentField('file', file ?? null);
-        setEditContentField('remove_file', false);
+        if (file) {
+            setEditContentField('remove_file', false);
+        }
     };
 
     const handleEditRemoveFileToggle = (checked: boolean) => {
@@ -1117,6 +1410,7 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                                 Jika berkas diunggah, pratinjau utama akan menggunakan berkas tersebut.
                                             </p>
                                         )}
+                                        <p className='text-xs text-muted-foreground'>Batas ukuran berkas {MAX_CONTENT_FILE_SIZE_LABEL}.</p>
                                     </div>
                                 </div>
                             ) : (
@@ -1146,7 +1440,7 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                         <div className='space-y-1'>
                                             <p className='text-sm font-semibold text-foreground'>Gunakan impor Excel</p>
                                             <p className='text-xs text-muted-foreground'>
-                                                Simpan kuis setelah membuatnya untuk mengimpor pertanyaan secara massal menggunakan template Excel.
+                                                Gunakan template Excel untuk menambahkan pertanyaan secara massal langsung ke formulir ini.
                                             </p>
                                         </div>
                                         <div className='flex flex-wrap items-center gap-2'>
@@ -1159,8 +1453,9 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                                 type='button'
                                                 variant='secondary'
                                                 size='sm'
-                                                disabled
-                                                title='Simpan kuis terlebih dahulu untuk menggunakan fitur impor.'
+                                                className='gap-2'
+                                                onClick={() => openQuizImportDialog('create')}
+                                                disabled={form.processing}
                                             >
                                                 Impor pertanyaan
                                             </Button>
@@ -1434,6 +1729,79 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                 </div>
             </div>
 
+            <Dialog open={quizImportDialogOpen} onOpenChange={handleQuizImportDialogChange}>
+                <DialogContent className='max-w-lg'>
+                    <DialogHeader>
+                        <DialogTitle>Impor pertanyaan dari Excel</DialogTitle>
+                        <DialogDescription>
+                            Unggah file template untuk mengisi pertanyaan kuis ini secara otomatis. Pertanyaan akan langsung masuk ke formulir
+                            {quizImportTarget === 'edit' ? ' kuis yang sedang Anda ubah.' : ' kuis baru ini.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleQuizImportSubmit} className='space-y-5'>
+                        <div className='space-y-2'>
+                            <Label htmlFor='inline-quiz-import-file'>Berkas Excel</Label>
+                            <Input
+                                id='inline-quiz-import-file'
+                                type='file'
+                                accept='.xlsx,.xls'
+                                onChange={handleQuizImportFileChange}
+                                disabled={quizImportProcessing}
+                            />
+                            <p className='text-xs text-muted-foreground'>
+                                Kolom Jawaban A, Jawaban B, dan seterusnya didukung. Ukuran maksimum {MAX_IMPORT_FILE_SIZE_LABEL}.
+                            </p>
+                            {quizImportErrors.length > 0 ? (
+                                <div className='rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive'>
+                                    <ul className='list-inside list-disc space-y-1'>
+                                        {quizImportErrors.map((message) => (
+                                            <li key={message}>{message}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ) : null}
+                        </div>
+                        <div className='space-y-2 rounded-lg border border-dashed border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground'>
+                            <p className='font-semibold text-foreground'>Catatan singkat</p>
+                            <ul className='list-inside list-disc space-y-1'>
+                                <li>Setiap pertanyaan wajib memiliki minimal dua jawaban berisi teks atau gambar.</li>
+                                <li>Isi kolom Jawaban Benar dengan huruf (A, B, C, ...) atau angka (1, 2, 3, ...).</li>
+                                <li>
+                                    Gunakan opsi <span className='font-semibold text-foreground'>Move and size with cells</span> untuk gambar di
+                                    Excel.
+                                </li>
+                            </ul>
+                        </div>
+                        <DialogFooter className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                            <Button type='button' variant='outline' size='sm' asChild>
+                                <a
+                                    href={quizImportTarget === 'edit' ? editingTemplateUrl : QuizImportController.template.url()}
+                                    target='_blank'
+                                    rel='noreferrer'
+                                    className='flex items-center gap-2'
+                                >
+                                    <Download className='h-4 w-4' />
+                                    {quizImportTarget === 'edit' ? 'Unduh template saat ini' : 'Unduh template kosong'}
+                                </a>
+                            </Button>
+                            <div className='flex gap-2 sm:justify-end'>
+                                <Button
+                                    type='button'
+                                    variant='ghost'
+                                    onClick={() => handleQuizImportDialogChange(false)}
+                                    disabled={quizImportProcessing}
+                                >
+                                    Batal
+                                </Button>
+                                <Button type='submit' disabled={quizImportProcessing || !quizImportFile} className='gap-2'>
+                                    {quizImportProcessing ? 'Mengimpor…' : 'Gunakan pertanyaan'}
+                                </Button>
+                            </div>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={editDialogOpen} onOpenChange={(open) => (open ? null : closeEditDialog())}>
                 <DialogContent className='max-w-3xl'>
                     <DialogHeader>
@@ -1534,6 +1902,10 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                     <Label>Berkas pendukung</Label>
                                     <Input type='file' onChange={handleEditFileChange} disabled={editForm.processing} />
                                     <InputError message={getEditError('content.file')} />
+                                    {editForm.data.content.file ? (
+                                        <p className='text-xs text-muted-foreground'>Berkas terpilih: {editForm.data.content.file.name}</p>
+                                    ) : null}
+                                    <p className='text-xs text-muted-foreground'>Batas ukuran berkas {MAX_CONTENT_FILE_SIZE_LABEL}.</p>
                                     <div className='flex items-center gap-2 text-xs text-muted-foreground'>
                                         <Checkbox
                                             id='remove-file-checkbox'
@@ -1589,7 +1961,17 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                             type='button'
                                             variant='secondary'
                                             size='sm'
-                                            disabled={!hasEditingQuiz}
+                                            className='gap-2'
+                                            onClick={() => openQuizImportDialog('edit')}
+                                            disabled={editForm.processing}
+                                        >
+                                            Impor di halaman ini
+                                        </Button>
+                                        <Button
+                                            type='button'
+                                            variant='ghost'
+                                            size='sm'
+                                            className='gap-1 text-muted-foreground hover:text-foreground'
                                             onClick={() => {
                                                 if (hasEditingQuiz && editingQuizId) {
                                                     const url = QuizImportController.show.url({ quiz: editingQuizId });
@@ -1600,8 +1982,9 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                                     }
                                                 }
                                             }}
+                                            disabled={!hasEditingQuiz}
                                         >
-                                            Impor pertanyaan
+                                            Halaman impor lanjutan
                                         </Button>
                                     </div>
                                 </div>

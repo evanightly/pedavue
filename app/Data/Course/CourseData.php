@@ -181,9 +181,9 @@ class CourseData extends Data {
             //     ? $model->Certificates->pluck('id')->map(static fn ($id) => (int) $id)->all()
             //     : $model->Certificates()->pluck('Certificates.id')->map(static fn ($id) => (int) $id)->all(),
             title: $model->title,
-            slug: $model->slug,
+            slug: $model->slug ?? Optional::create(),
             description: $model->description,
-            certification_enabled: $model->certification_enabled,
+            certification_enabled: $model->certification_enabled ?? Optional::create(),
             thumbnail: $model->thumbnail,
             thumbnail_url: $thumbnailUrl,
             level: $model->level,
