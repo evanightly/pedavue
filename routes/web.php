@@ -48,6 +48,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // 2) Import flow (origin/main)
+    Route::post('quizzes/import/parse', [QuizImportController::class, 'parse'])->name('quizzes.import.parse');
     Route::get('quizzes/import/template', [QuizImportController::class, 'template'])->name('quizzes.import.template');
     Route::get('quizzes/{quiz}/import', [QuizImportController::class, 'show'])->name('quizzes.import.show');
     Route::match(['get', 'post'], 'quizzes/{quiz}/import/preview', [QuizImportController::class, 'preview'])->name('quizzes.import.preview');

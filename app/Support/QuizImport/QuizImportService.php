@@ -18,9 +18,9 @@ class QuizImportService {
 
     private const CORRECT_ANSWER_HEADING = 'Jawaban Benar*';
 
-    private const OPTION_HEADING_PATTERN = '/^Opsi\s*(\d+)/i';
+    private const OPTION_HEADING_PATTERN = '/^(?:Opsi|Jawaban)\s*([A-Z]+|\d+)/i';
 
-    private const OPTION_IMAGE_HEADING_PATTERN = '/^Gambar\s+Opsi\s*(\d+)/i';
+    private const OPTION_IMAGE_HEADING_PATTERN = '/^Gambar\s+(?:Opsi|Jawaban)\s*([A-Z]+|\d+)/i';
 
     private const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -288,7 +288,7 @@ class QuizImportService {
 
     /**
      * @param  array<int, string>  $headings
-     * @return array{question:int,question_image:int|null,options:array<int, array{number:int,text:int,image:int|null}>}
+     * @return array{question:int,question_image:int|null,options:array<int, array{number:int,label:string,text:int,image:int|null}>}
      */
     private function buildColumnConfiguration(array $headings, int $correctAnswerColumnIndex): array {
         $questionColumnIndex = $this->findColumnIndex($headings, self::QUESTION_HEADING);
@@ -325,7 +325,7 @@ class QuizImportService {
 
     /**
      * @param  array<int, string>  $headings
-     * @return array<int, array{number:int,text:int,image:int|null}>
+     * @return array<int, array{number:int,label:string,text:int,image:int|null}>
      */
     private function buildOptionColumns(array $headings, int $correctAnswerColumnIndex): array {
         $options = [];
@@ -336,7 +336,11 @@ class QuizImportService {
             }
 
             if (preg_match(self::OPTION_HEADING_PATTERN, $heading, $matches)) {
-                $optionNumber = (int) $matches[1];
+                $optionNumber = $this->normalizeOptionIndex($matches[1]);
+                if ($optionNumber === 0) {
+                    continue;
+                }
+
                 if (!isset($options[$optionNumber])) {
                     $options[$optionNumber] = [
                         'number' => $optionNumber,
@@ -351,7 +355,11 @@ class QuizImportService {
             }
 
             if (preg_match(self::OPTION_IMAGE_HEADING_PATTERN, $heading, $matches)) {
-                $optionNumber = (int) $matches[1];
+                $optionNumber = $this->normalizeOptionIndex($matches[1]);
+                if ($optionNumber === 0) {
+                    continue;
+                }
+
                 if (!isset($options[$optionNumber])) {
                     $options[$optionNumber] = [
                         'number' => $optionNumber,
@@ -376,14 +384,41 @@ class QuizImportService {
 
         return array_values(
             array_map(
-                static fn (array $option): array => [
+                fn (array $option): array => [
                     'number' => $option['number'],
+                    'label' => $this->optionSlotLabel(max(0, $option['number'] - 1)),
                     'text' => (int) $option['text'],
                     'image' => $option['image'] ?? null,
                 ],
                 $validOptions,
             ),
         );
+    }
+
+    private function normalizeOptionIndex(string $raw): int {
+        $normalized = strtoupper(trim($raw));
+
+        if ($normalized === '') {
+            return 0;
+        }
+
+        if (ctype_digit($normalized)) {
+            return (int) $normalized;
+        }
+
+        $length = strlen($normalized);
+        $value = 0;
+
+        for ($i = 0; $i < $length; $i++) {
+            $character = $normalized[$i];
+            if (!ctype_alpha($character)) {
+                break;
+            }
+
+            $value = ($value * 26) + (ord($character) - ord('A') + 1);
+        }
+
+        return $value;
     }
 
     private function resolveCorrectAnswerColumnIndex(array $headings): ?int {
@@ -461,9 +496,9 @@ class QuizImportService {
     }
 
     /**
-     * @param  array<int, array{number:int,text:int,image:int|null}>  $optionColumns
+     * @param  array<int, array{number:int,label:string,text:int,image:int|null}>  $optionColumns
      * @param  array<string, array{data:string,mime_type:string,extension:string,original_name:string}>  $drawingMap
-     * @return array<int, array{number:int,text:?string,image:?array{data:string,mime_type:string,extension:string,original_name:string},has_content:bool}>
+     * @return array<int, array{number:int,label:string,text:?string,image:?array{data:string,mime_type:string,extension:string,original_name:string},has_content:bool}>
      */
     private function extractOptionSlots(
         Worksheet $sheet,
@@ -489,7 +524,7 @@ class QuizImportService {
             if ($optionImageCandidate !== null) {
                 $optionImage = $this->validateImage(
                     image: $optionImageCandidate,
-                    contextLabel: 'opsi ' . $column['number'],
+                    contextLabel: 'opsi ' . $column['label'],
                     row: $row,
                     errorKey: $optionImageKey,
                     errors: $errors,
@@ -504,6 +539,7 @@ class QuizImportService {
 
             $slots[] = [
                 'number' => $column['number'],
+                'label' => $column['label'],
                 'text' => $optionText,
                 'image' => $optionImage,
                 'has_content' => $hasContent,

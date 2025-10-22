@@ -97,9 +97,9 @@ it('builds column configuration without optional image columns', function () {
 
     $headings = [
         1 => 'Soal / Pertanyaan*',
-        2 => 'Opsi 1*',
-        3 => 'Opsi 2*',
-        4 => 'Opsi 3*',
+        2 => 'Jawaban A*',
+        3 => 'Jawaban B*',
+        4 => 'Jawaban C*',
         5 => 'Jawaban Benar*',
     ];
 
@@ -110,6 +110,7 @@ it('builds column configuration without optional image columns', function () {
     expect($configuration['options'])->toHaveCount(3);
     expect($configuration['options'][0])->toMatchArray([
         'number' => 1,
+        'label' => 'A',
         'text' => 2,
         'image' => null,
     ]);
@@ -124,11 +125,11 @@ it('detects option image columns when available', function () {
     $headings = [
         1 => 'Soal / Pertanyaan*',
         2 => 'Gambar Pertanyaan (opsional)',
-        3 => 'Opsi 1 - Benar*',
-        4 => 'Gambar Opsi 1 (opsional)',
-        5 => 'Opsi 2*',
-        6 => 'Gambar Opsi 2 (opsional)',
-        7 => 'Opsi 3*',
+        3 => 'Jawaban A - Benar*',
+        4 => 'Gambar Jawaban A (opsional)',
+        5 => 'Jawaban B*',
+        6 => 'Gambar Jawaban B (opsional)',
+        7 => 'Jawaban C*',
         8 => 'Jawaban Benar*',
     ];
 
@@ -139,8 +140,34 @@ it('detects option image columns when available', function () {
     expect($configuration['options'])->toHaveCount(3);
     expect($configuration['options'][0])->toMatchArray([
         'number' => 1,
+        'label' => 'A',
         'text' => 3,
         'image' => 4,
+    ]);
+});
+
+it('supports legacy opsi headings for backward compatibility', function () {
+    $service = new QuizImportService;
+
+    $method = new \ReflectionMethod($service, 'buildColumnConfiguration');
+    $method->setAccessible(true);
+
+    $headings = [
+        1 => 'Soal / Pertanyaan*',
+        2 => 'Opsi 1*',
+        3 => 'Opsi 2*',
+        4 => 'Opsi 3*',
+        5 => 'Jawaban Benar*',
+    ];
+
+    $configuration = $method->invokeArgs($service, [$headings, 5]);
+
+    expect($configuration['options'])->toHaveCount(3);
+    expect($configuration['options'][0])->toMatchArray([
+        'number' => 1,
+        'label' => 'A',
+        'text' => 2,
+        'image' => null,
     ]);
 });
 

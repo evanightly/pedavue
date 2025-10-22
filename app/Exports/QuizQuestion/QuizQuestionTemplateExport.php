@@ -43,10 +43,11 @@ class QuizQuestionTemplateExport implements FromArray, ShouldAutoSize, WithEvent
 
         for ($index = 1; $index <= $this->maxOptions; $index++) {
             $suffix = $index <= 3 ? '*' : '';
-            $label = 'Opsi ' . $index . ($index === 1 ? ' - Benar' : '') . $suffix;
+            $optionLabel = $this->optionLabel($index - 1);
+            $label = 'Jawaban ' . $optionLabel . ($index === 1 ? ' - Benar' : '') . $suffix;
 
             $headings[] = $label;
-            $headings[] = 'Gambar Opsi ' . $index . ' (opsional)';
+            $headings[] = 'Gambar Jawaban ' . $optionLabel . ' (opsional)';
         }
 
         $headings[] = 'Jawaban Benar*';
@@ -106,12 +107,12 @@ class QuizQuestionTemplateExport implements FromArray, ShouldAutoSize, WithEvent
                 $row[] = null;
 
                 if (is_array($option) && (($option['is_correct'] ?? false) === true)) {
-                    $correctLabels[] = chr(ord('A') + $index);
+                    $correctLabels[] = $this->optionLabel($index);
                 }
             }
 
             if ($correctLabels === []) {
-                $correctLabels[] = 'A';
+                $correctLabels[] = $this->optionLabel(0);
             }
 
             $row[] = implode('/', $correctLabels);
@@ -131,6 +132,18 @@ class QuizQuestionTemplateExport implements FromArray, ShouldAutoSize, WithEvent
             ->pluck('options')
             ->map(fn ($options) => is_array($options) ? count($options) : 0)
             ->max() ?? 0;
+    }
+
+    private function optionLabel(int $zeroBasedIndex): string {
+        $index = max(0, $zeroBasedIndex);
+        $label = '';
+
+        do {
+            $label = chr(ord('A') + ($index % 26)) . $label;
+            $index = intdiv($index, 26) - 1;
+        } while ($index >= 0);
+
+        return $label;
     }
 
     /**
