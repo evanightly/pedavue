@@ -147,10 +147,11 @@ jobs:
           protocol: ${{ env.FTP_PROTOCOL != '' && env.FTP_PROTOCOL || 'ftps' }}
           local-dir: deploy-htdocs/
           server-dir: ${{ env.SERVER_HTDOCS_DIR != '' && env.SERVER_HTDOCS_DIR || '/htdocs/' }}
-          dangerous-clean-slate: true
+          dangerous-clean-slate: false
+          state-name: deploy-sync-state.json
           timeout: 300000
           max-timeout: 600000
-          log-level: minimal
+          log-level: standard
           exclude: |
             **/.git*
             **/node_modules/**
