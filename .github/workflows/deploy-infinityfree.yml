@@ -1,0 +1,154 @@
+name: Deploy Laravel to InfinityFree
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      PHP_VERSION: '8.4'
+      NODE_VERSION: '22'
+      FTP_PROTOCOL: ${{ secrets.FTP_PROTOCOL }}
+      SERVER_HTDOCS_DIR: ${{ secrets.SERVER_HTDOCS_DIR }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          tools: composer:v2
+          coverage: none
+          extensions: mbstring, intl, fileinfo
+
+      - name: Install PHP dependencies
+        run: |
+          set -euo pipefail
+          composer install \
+            --no-dev \
+            --prefer-dist \
+            --no-interaction \
+            --no-progress \
+            --optimize-autoloader
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: |
+          set -euo pipefail
+          npm ci || npm install
+
+      - name: Build assets
+        run: |
+          set -euo pipefail
+          npm run build
+
+      - name: Sync build output into public/build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p public
+          if [[ -d build ]]; then
+            rm -rf public/build || true
+            rsync -a --delete build/ public/build/
+          fi
+
+      - name: Prepare deployable copy for shared hosting
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p deploy-htdocs
+
+          rsync -a --delete \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'node_modules/' \
+            --exclude 'vendor/bin/pint' \
+            --exclude 'tests/' \
+            --exclude 'storage/logs/' \
+            --exclude '.env' \
+            ./ deploy-htdocs/
+
+          rsync -a deploy-htdocs/public/ deploy-htdocs/
+          rm -rf deploy-htdocs/public/
+
+          if [[ -f deploy-htdocs/index.php ]]; then
+            sed -i "s|__DIR__.'/../vendor/autoload.php'|__DIR__.'/vendor/autoload.php'|g" deploy-htdocs/index.php
+            sed -i "s|__DIR__.'/../bootstrap/app.php'|__DIR__.'/bootstrap/app.php'|g" deploy-htdocs/index.php
+          fi
+
+          cat > deploy-htdocs/.htaccess <<'EOF'
+          <IfModule mod_rewrite.c>
+              RewriteEngine On
+
+              RewriteCond %{HTTP:Authorization} .
+              RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+              RewriteCond %{REQUEST_FILENAME} !-d
+              RewriteCond %{REQUEST_URI} (.+)/$
+              RewriteRule ^ %1 [L,R=301]
+
+              RewriteCond %{REQUEST_FILENAME} !-d
+              RewriteCond %{REQUEST_FILENAME} !-f
+              RewriteRule ^ index.php [L]
+
+              RewriteRule ^storage/(.*)$ storage/app/public/$1 [L]
+
+              <FilesMatch "(artisan|\.env|\.git|composer\.(json|lock)|package\.json|pint\.json|phpunit\.xml|vite\.config\.ts)">
+                  Require all denied
+              </FilesMatch>
+          </IfModule>
+
+          <IfModule mod_php.c>
+              php_value upload_max_filesize 10M
+              php_value post_max_size 12M
+          </IfModule>
+          EOF
+
+          mkdir -p deploy-htdocs/storage/framework/{cache,sessions,views}
+          mkdir -p deploy-htdocs/bootstrap/cache
+
+      - name: Write production env file
+        shell: bash
+        env:
+          SECRET_ENV: ${{ secrets.ENV_PRODUCTION }}
+        run: |
+          set -euo pipefail
+          mkdir -p deploy-htdocs
+          if [[ -z "${SECRET_ENV}" ]]; then
+            echo 'Missing secret ENV_PRODUCTION with your production .env contents.' >&2
+            exit 1
+          fi
+          printf '%s\n' "${SECRET_ENV}" > deploy-htdocs/.env
+          chmod 600 deploy-htdocs/.env || true
+
+      - name: Upload to InfinityFree
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          port: ${{ secrets.FTP_PORT || 21 }}
+          protocol: ${{ env.FTP_PROTOCOL != '' && env.FTP_PROTOCOL || 'ftps' }}
+          local-dir: deploy-htdocs/
+          server-dir: ${{ env.SERVER_HTDOCS_DIR != '' && env.SERVER_HTDOCS_DIR || '/htdocs/' }}
+          dangerous-clean-slate: true
+          exclude: |
+            **/.git*
+            **/node_modules/**
+            **/storage/logs/**
