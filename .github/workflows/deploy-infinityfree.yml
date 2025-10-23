@@ -87,9 +87,32 @@ jobs:
           rsync -a deploy-htdocs/public/ deploy-htdocs/
           rm -rf deploy-htdocs/public/
 
-          if [[ -f deploy-htdocs/index.php ]]; then
-            sed -i "s|__DIR__.'/../vendor/autoload.php'|__DIR__.'/vendor/autoload.php'|g" deploy-htdocs/index.php
-            sed -i "s|__DIR__.'/../bootstrap/app.php'|__DIR__.'/bootstrap/app.php'|g" deploy-htdocs/index.php
+          cat > deploy-htdocs/index.php <<'PHP'
+          <?php
+
+          use Illuminate\Foundation\Application;
+          use Illuminate\Http\Request;
+
+          define('LARAVEL_START', microtime(true));
+
+          // Determine if the application is in maintenance mode...
+          if (file_exists($maintenance = __DIR__ . '/../storage/framework/maintenance.php')) {
+              require $maintenance;
+          }
+
+          // Register the Composer autoloader...
+          require __DIR__ . '/vendor/autoload.php';
+
+          // Bootstrap Laravel and handle the request...
+          /** @var Application $app */
+          $app = require_once __DIR__ . '/bootstrap/app.php';
+
+          $app->handleRequest(Request::capture());
+          PHP
+
+          if [[ -d deploy-htdocs/build ]]; then
+            mkdir -p deploy-htdocs/public
+            rsync -a --delete deploy-htdocs/build/ deploy-htdocs/public/build/
           fi
 
           cat > deploy-htdocs/.htaccess <<'EOF'
