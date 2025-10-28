@@ -55,6 +55,7 @@ class UpdateCourseModuleContentRequest extends FormRequest {
             'quiz.type' => ['nullable', 'string', 'max:100'],
             'quiz.questions' => ['nullable', 'array'],
             'quiz.questions.*.question' => ['nullable', 'string'],
+            'quiz.questions.*.points' => ['nullable', 'integer', 'min:1'],
             'quiz.questions.*.is_answer_shuffled' => ['nullable', 'boolean'],
             'quiz.questions.*.order' => ['nullable', 'integer', 'min:1'],
             'quiz.questions.*.existing_question_image' => ['nullable', 'string'],
@@ -172,6 +173,13 @@ class UpdateCourseModuleContentRequest extends FormRequest {
                 $validator->errors()->add($questionPath . '.options', 'Setiap pertanyaan memerlukan minimal dua jawaban.');
 
                 continue;
+            }
+
+            $pointsValue = Arr::get($question, 'points');
+            if ($pointsValue !== null && filter_var($pointsValue, FILTER_VALIDATE_INT) === false) {
+                $validator->errors()->add($questionPath . '.points', 'Bobot poin harus berupa angka.');
+            } elseif ($pointsValue !== null && (int) $pointsValue < 1) {
+                $validator->errors()->add($questionPath . '.points', 'Bobot poin minimal 1.');
             }
 
             $hasCorrect = false;

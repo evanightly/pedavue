@@ -11,6 +11,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
 class QuizPayloadManager {
+    private const DEFAULT_POINTS = 10;
+
     /**
      * @param  array<string, mixed>  $payload
      */
@@ -80,6 +82,7 @@ class QuizPayloadManager {
                 'question' => $this->sanitizeString(Arr::get($questionData, 'question'), 'Pertanyaan ' . ($index + 1)),
                 'is_answer_shuffled' => (bool) Arr::get($questionData, 'is_answer_shuffled', false),
                 'order' => $this->sanitizeOrderValue(Arr::get($questionData, 'order'), $index + 1),
+                'points' => $this->sanitizePoints(Arr::get($questionData, 'points')),
             ]);
 
             $options = Arr::get($questionData, 'options', []);
@@ -212,5 +215,19 @@ class QuizPayloadManager {
         $order = (int) $value;
 
         return $order < 1 ? $fallback : $order;
+    }
+
+    private function sanitizePoints(mixed $value): int {
+        if ($value === null || $value === '') {
+            return self::DEFAULT_POINTS;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_INT) === false) {
+            return self::DEFAULT_POINTS;
+        }
+
+        $points = (int) $value;
+
+        return $points < 1 ? self::DEFAULT_POINTS : $points;
     }
 }

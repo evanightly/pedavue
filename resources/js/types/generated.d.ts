@@ -22,8 +22,11 @@ declare namespace App.Data.Course {
         level: string | null;
         duration: string | null;
         duration_formatted: string | null;
+        total_quiz_points: number | null;
         certificate_template: string | null;
         certificate_template_url: string | null;
+        certificate_required_points: number | null;
+        certificate_required_points_effective: number | null;
         certificate_name_position_x: number | null;
         certificate_name_position_y: number | null;
         certificate_name_max_length: number | null;
@@ -214,6 +217,7 @@ declare namespace App.Data.Quiz {
         duration: number | null;
         is_question_shuffled: any | boolean;
         type: string | null;
+        total_points: number | null;
         quiz_questions: App.Data.QuizQuestion.QuizQuestionData[] | null;
         created_at: string | null;
         updated_at: string | null;
@@ -253,6 +257,7 @@ declare namespace App.Data.QuizQuestion {
         question_image_url: string | null;
         is_answer_shuffled: any | boolean;
         order: number | null;
+        points: number | null;
         quiz: App.Data.Quiz.QuizData | null;
         quiz_question_options: App.Data.QuizQuestionOption.QuizQuestionOptionData[] | null;
         created_at: string | null;
@@ -308,6 +313,8 @@ declare namespace App.Data.QuizResult {
     export type QuizResultData = {
         id: any | number;
         score: number | null;
+        earned_points: number | null;
+        total_points: number | null;
         attempt: number | null;
         started_at: string | null;
         finished_at: string | null;

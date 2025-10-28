@@ -40,7 +40,7 @@ class WorkspaceModuleStageController extends Controller {
         $modulesPayload = null;
         $statsPayload = null;
         $currentStageId = $overview['current_stage_id'];
-        $enrollmentPayload = $this->formatEnrollmentData($enrollment);
+        $enrollmentPayload = $this->formatEnrollmentData($enrollment, $overview);
 
         if ($stageSummary === null) {
             abort(404);
@@ -72,7 +72,7 @@ class WorkspaceModuleStageController extends Controller {
                 $modulesPayload = $overview['modules'];
                 $statsPayload = $overview['stats'];
                 $currentStageId = $overview['current_stage_id'];
-                $enrollmentPayload = $this->formatEnrollmentData($enrollment);
+                $enrollmentPayload = $this->formatEnrollmentData($enrollment, $overview);
             }
 
             $payload = $this->buildQuizPayload($moduleStage, $progress);
@@ -145,7 +145,7 @@ class WorkspaceModuleStageController extends Controller {
             'stats' => $overview['stats'],
             'currentStageId' => $overview['current_stage_id'],
             'stage' => $overview['stage_summaries'][$moduleStage->getKey()] ?? null,
-            'enrollment' => $this->formatEnrollmentData($enrollment),
+            'enrollment' => $this->formatEnrollmentData($enrollment, $overview),
         ]);
     }
 
@@ -224,7 +224,7 @@ class WorkspaceModuleStageController extends Controller {
             'quiz' => $payload['quiz'],
             'result' => $result,
             'progress' => $payload['progress'],
-            'enrollment' => $this->formatEnrollmentData($enrollment),
+            'enrollment' => $this->formatEnrollmentData($enrollment, $overview),
         ]);
     }
 
@@ -337,12 +337,17 @@ class WorkspaceModuleStageController extends Controller {
         $questions = [];
         $questionMap = $quiz->quiz_questions->keyBy(static fn (QuizQuestion $question) => $question->getKey());
 
+        $totalPoints = 0;
+
         foreach ($questionOrder as $questionId) {
             /** @var QuizQuestion|null $question */
             $question = $questionMap->get((int) $questionId);
             if (!$question) {
                 continue;
             }
+
+            $questionPoints = max(0, (int) ($question->points ?? 0));
+            $totalPoints += $questionPoints;
 
             $options = [];
             $optionIds = $optionOrder[$question->getKey()] ?? $question->quiz_question_options->pluck('id')->all();
@@ -367,6 +372,7 @@ class WorkspaceModuleStageController extends Controller {
                 'question' => $question->question,
                 'question_image_url' => $this->resolveQuestionImageUrl($question->question_image),
                 'selection_mode' => $this->determineSelectionMode($question),
+                'points' => $questionPoints,
                 'options' => $options,
             ];
         }
@@ -381,6 +387,7 @@ class WorkspaceModuleStageController extends Controller {
                 'duration_minutes' => $quiz->duration,
                 'duration_label' => $this->formatDuration($quiz->duration),
                 'questions' => $questions,
+                'total_points' => $totalPoints,
             ],
             'progress' => [
                 'status' => $progress->status,
@@ -391,6 +398,8 @@ class WorkspaceModuleStageController extends Controller {
                 'answers' => $answers,
                 'score' => $progress->quiz_result?->score,
                 'attempt' => $progress->quiz_result?->attempt,
+                'earned_points' => $progress->quiz_result?->earned_points ?? 0,
+                'total_points' => $progress->quiz_result?->total_points ?? $totalPoints,
                 'read_only' => $progress->status === ModuleStageProgressStatus::Completed->value,
                 'result' => Arr::get($progress->state, 'result'),
             ],
@@ -474,6 +483,8 @@ class WorkspaceModuleStageController extends Controller {
             }
 
             $quizResult->score = $result['score'];
+            $quizResult->earned_points = $result['earned_points'];
+            $quizResult->total_points = $result['total_points'];
             $quizResult->started_at = $lockedProgress->started_at ?? now();
             $quizResult->finished_at = now();
             $quizResult->save();
@@ -492,6 +503,8 @@ class WorkspaceModuleStageController extends Controller {
                 'score' => $result['score'],
                 'correct' => $result['correct_answers'],
                 'total' => $result['total_questions'],
+                'earned_points' => $result['earned_points'],
+                'total_points' => $result['total_points'],
                 'auto_submitted' => $autoSubmission,
             ];
 
@@ -513,6 +526,8 @@ class WorkspaceModuleStageController extends Controller {
                 'score' => 0,
                 'total_questions' => 0,
                 'correct_answers' => 0,
+                'earned_points' => 0,
+                'total_points' => 0,
             ];
         }
 
@@ -520,6 +535,8 @@ class WorkspaceModuleStageController extends Controller {
 
         $totalQuestions = $quiz->quiz_questions->count();
         $correct = 0;
+        $totalPoints = 0;
+        $earnedPoints = 0;
 
         foreach ($quiz->quiz_questions as $question) {
             $correctOptionIds = $question->quiz_question_options
@@ -528,6 +545,9 @@ class WorkspaceModuleStageController extends Controller {
                 ->sort()
                 ->values()
                 ->all();
+
+            $questionPoints = max(0, (int) ($question->points ?? 0));
+            $totalPoints += $questionPoints;
 
             $selected = collect($answers[$question->getKey()] ?? [])
                 ->map(static fn ($value) => (int) $value)
@@ -538,15 +558,22 @@ class WorkspaceModuleStageController extends Controller {
 
             if ($selected === $correctOptionIds) {
                 $correct++;
+                $earnedPoints += $questionPoints;
             }
         }
 
-        $score = $totalQuestions === 0 ? 0 : (int) round(($correct / $totalQuestions) * 100);
+        if ($totalPoints <= 0) {
+            $score = $totalQuestions === 0 ? 0 : (int) round(($correct / $totalQuestions) * 100);
+        } else {
+            $score = (int) round(($earnedPoints / $totalPoints) * 100);
+        }
 
         return [
             'score' => $score,
             'total_questions' => $totalQuestions,
             'correct_answers' => $correct,
+            'earned_points' => $earnedPoints,
+            'total_points' => $totalPoints,
         ];
     }
 
@@ -645,13 +672,35 @@ class WorkspaceModuleStageController extends Controller {
     /**
      * @return array<string, mixed>
      */
-    private function formatEnrollmentData(Enrollment $enrollment): array {
-        return [
+    private function formatEnrollmentData(Enrollment $enrollment, ?array $overview = null): array {
+        $payload = [
             'id' => $enrollment->getKey(),
             'progress' => $enrollment->progress,
             'progress_label' => sprintf('%d%%', $enrollment->progress),
             'completed_at' => $enrollment->completed_at?->toIso8601String(),
         ];
+
+        if ($overview !== null) {
+            $quizPoints = Arr::get($overview, 'stats.quiz_points');
+            if (is_array($quizPoints)) {
+                $payload['quiz_points'] = [
+                    'earned' => (int) ($quizPoints['earned'] ?? 0),
+                    'total' => (int) ($quizPoints['total'] ?? 0),
+                    'required' => (int) ($quizPoints['required'] ?? 0),
+                ];
+            }
+
+            $certificate = Arr::get($overview, 'stats.certificate');
+            if (is_array($certificate)) {
+                $payload['certificate'] = [
+                    'enabled' => (bool) ($certificate['enabled'] ?? false),
+                    'required_points' => (int) ($certificate['required_points'] ?? 0),
+                    'eligible' => (bool) ($certificate['eligible'] ?? false),
+                ];
+            }
+        }
+
+        return $payload;
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Models\Module;
 use App\Models\ModuleStage;
 use App\Models\ModuleStageProgress;
 use App\Models\Quiz;
+use App\Models\QuizQuestion;
 use App\Models\User;
 use App\Support\Enums\ModuleStageProgressStatus;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -51,6 +52,26 @@ class WorkspaceProgressManager {
         unset($this->overviewCache[$enrollment->getKey()]);
     }
 
+    public function enrollmentHasMetCertificateRequirements(Enrollment $enrollment): bool {
+        $overview = $this->buildOverview($enrollment);
+        $certificate = Arr::get($overview, 'stats.certificate');
+
+        if (!is_array($certificate)) {
+            return true;
+        }
+
+        $requiredPoints = (int) ($certificate['required_points'] ?? 0);
+
+        if ($requiredPoints <= 0) {
+            return true;
+        }
+
+        $quizPoints = Arr::get($overview, 'stats.quiz_points');
+        $earnedPoints = is_array($quizPoints) ? (int) ($quizPoints['earned'] ?? 0) : 0;
+
+        return $earnedPoints >= $requiredPoints;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -77,6 +98,9 @@ class WorkspaceProgressManager {
             ])
             ->firstOrFail();
 
+        $totalQuizPoints = $course->totalQuizPoints();
+        $requiredQuizPoints = $course->certificateRequiredPointsEffective($totalQuizPoints);
+
         /** @var \Illuminate\Support\Collection<int, ModuleStageProgress> $progressRecords */
         $progressRecords = $enrollment
             ->module_stage_progresses()
@@ -89,6 +113,7 @@ class WorkspaceProgressManager {
 
         $completedStages = 0;
         $totalStages = 0;
+        $earnedQuizPoints = 0;
         $currentStageId = null;
         $previousModulesCompleted = true;
 
@@ -110,6 +135,15 @@ class WorkspaceProgressManager {
                 $status = $progress?->status ?? ModuleStageProgressStatus::Pending->value;
                 $statusEnum = ModuleStageProgressStatus::from($status);
                 $isCompleted = $statusEnum === ModuleStageProgressStatus::Completed;
+
+                $stageTotalPoints = $stage->module_able === 'quiz'
+                    ? $this->calculateStageTotalPoints($stage)
+                    : 0;
+
+                if ($stage->module_able === 'quiz') {
+                    $earned = max(0, (int) ($progress?->quiz_result?->earned_points ?? 0));
+                    $earnedQuizPoints += min($stageTotalPoints, $earned);
+                }
 
                 if ($isCompleted) {
                     $completedStages++;
@@ -148,8 +182,10 @@ class WorkspaceProgressManager {
                         'quiz_result_id' => $progress?->quiz_result_id,
                         'score' => $progress?->quiz_result?->score,
                         'attempt' => $progress?->quiz_result?->attempt,
+                        'earned_points' => $progress?->quiz_result?->earned_points,
+                        'total_points' => $stageTotalPoints,
                     ],
-                    'quiz' => $this->resolveQuizMeta($stage),
+                    'quiz' => $this->resolveQuizMeta($stage, $stageTotalPoints),
                     'content' => $this->resolveContentMeta($stage),
                 ];
 
@@ -182,6 +218,9 @@ class WorkspaceProgressManager {
             $previousModulesCompleted = $previousModulesCompleted && $moduleIsCompleted;
         }
 
+        $progressPercentage = $this->calculateProgressPercentage($completedStages, $totalStages);
+        $certificateEligible = $requiredQuizPoints <= 0 || $earnedQuizPoints >= $requiredQuizPoints;
+
         $overview = [
             'course' => $course,
             'modules' => $modules,
@@ -189,7 +228,17 @@ class WorkspaceProgressManager {
             'stats' => [
                 'completed_stages' => $completedStages,
                 'total_stages' => $totalStages,
-                'progress_percentage' => $this->calculateProgressPercentage($completedStages, $totalStages),
+                'progress_percentage' => $progressPercentage,
+                'quiz_points' => [
+                    'earned' => $earnedQuizPoints,
+                    'total' => $totalQuizPoints,
+                    'required' => $requiredQuizPoints,
+                ],
+                'certificate' => [
+                    'enabled' => (bool) $course->certification_enabled,
+                    'required_points' => $requiredQuizPoints,
+                    'eligible' => $certificateEligible,
+                ],
             ],
             'current_stage_id' => $currentStageId,
         ];
@@ -244,10 +293,27 @@ class WorkspaceProgressManager {
         };
     }
 
+    private function calculateStageTotalPoints(ModuleStage $stage): int {
+        if ($stage->module_able !== 'quiz') {
+            return 0;
+        }
+
+        $quiz = $stage->module_quiz;
+
+        if (!$quiz instanceof Quiz) {
+            return 0;
+        }
+
+        $quiz->loadMissing('quiz_questions');
+
+        return $quiz->quiz_questions
+            ->sum(static fn (QuizQuestion $question): int => max(0, (int) ($question->points ?? 0)));
+    }
+
     /**
      * @return array<string, mixed>|null
      */
-    private function resolveQuizMeta(ModuleStage $stage): ?array {
+    private function resolveQuizMeta(ModuleStage $stage, ?int $totalPoints = null): ?array {
         $quiz = $stage->module_quiz;
 
         if (!$quiz instanceof Quiz) {
@@ -258,6 +324,8 @@ class WorkspaceProgressManager {
             $quiz->loadCount('quiz_questions');
         }
 
+        $totalPoints ??= $this->calculateStageTotalPoints($stage);
+
         return [
             'id' => $quiz->getKey(),
             'name' => $quiz->name,
@@ -265,6 +333,7 @@ class WorkspaceProgressManager {
             'duration_minutes' => $quiz->duration,
             'duration_label' => $this->formatDuration($quiz->duration),
             'is_question_shuffled' => (bool) $quiz->is_question_shuffled,
+            'total_points' => $totalPoints,
         ];
     }
 

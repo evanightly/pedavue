@@ -39,6 +39,7 @@ class Course extends Model {
         'certificate_qr_position_y',
         'certificate_qr_box_width',
         'certificate_qr_box_height',
+        'certificate_required_points',
     ];
 
     /**
@@ -57,7 +58,39 @@ class Course extends Model {
             'certificate_qr_position_y' => 'integer',
             'certificate_qr_box_width' => 'integer',
             'certificate_qr_box_height' => 'integer',
+            'certificate_required_points' => 'integer',
         ];
+    }
+
+    public function totalQuizPoints(): int {
+        $this->loadMissing('modules.module_stages.module_quiz.quiz_questions');
+
+        return $this->modules
+            ->flatMap(static fn (Module $module) => $module->module_stages)
+            ->filter(static fn (ModuleStage $stage) => $stage->module_able === 'quiz' && $stage->module_quiz)
+            ->flatMap(static fn (ModuleStage $stage) => $stage->module_quiz->quiz_questions)
+            ->sum(static fn (QuizQuestion $question) => max(0, (int) ($question->points ?? 0)));
+    }
+
+    public function defaultCertificateRequiredPoints(?int $totalQuizPoints = null): int {
+        $points = $totalQuizPoints ?? $this->totalQuizPoints();
+
+        if ($points <= 0) {
+            return 0;
+        }
+
+        return (int) ceil($points * 0.5);
+    }
+
+    public function certificateRequiredPointsEffective(?int $totalQuizPoints = null): int {
+        $points = $totalQuizPoints ?? $this->totalQuizPoints();
+        $required = $this->certificate_required_points;
+
+        if ($required !== null) {
+            return max(0, (int) $required);
+        }
+
+        return $this->defaultCertificateRequiredPoints($points);
     }
 
     public function course_instructors(): BelongsToMany {

@@ -42,6 +42,10 @@ class CourseCertificateController extends Controller {
             abort(403, 'Selesaikan seluruh tahap untuk mengunduh sertifikat.');
         }
 
+        if (!$this->progressManager->enrollmentHasMetCertificateRequirements($enrollment)) {
+            abort(403, 'Kamu belum mencapai poin minimum untuk mendapatkan sertifikat.');
+        }
+
         $extension = pathinfo($templatePath, PATHINFO_EXTENSION) ?: 'png';
         $absolutePath = Storage::disk('public')->path($templatePath);
 
