@@ -93,10 +93,24 @@ interface ModuleSummary {
     total_stage_count: number;
 }
 
+interface QuizPointsStats {
+    earned: number;
+    total: number;
+    required: number;
+}
+
+interface CertificateStats {
+    enabled: boolean;
+    required_points: number;
+    eligible: boolean;
+}
+
 interface StatsPayload {
     completed_stages: number;
     total_stages: number;
     progress_percentage: number;
+    quiz_points?: QuizPointsStats | null;
+    certificate?: CertificateStats | null;
 }
 
 interface EnrollmentPayload {
@@ -321,8 +335,57 @@ export default function WorkspaceCourseShowPage({
     const [lastAction, setLastAction] = useState<StageAction | null>(null);
     const [answers, setAnswers] = useState<AnswerMap>({});
 
-    const certificateEnabled = Boolean(course.certification_enabled && course.certificate_template_url);
-    const certificateReady = certificateEnabled && Boolean(enrollment.completed_at);
+    const numberFormatter = useMemo(() => new Intl.NumberFormat('id-ID'), []);
+    const quizPoints = stats?.quiz_points ?? null;
+    const earnedPoints = Math.max(0, quizPoints?.earned ?? 0);
+    const totalQuizPoints = quizPoints?.total;
+    const certificateStats = stats?.certificate ?? null;
+    const certificateRequiredPoints = Math.max(0, certificateStats?.required_points ?? quizPoints?.required ?? 0);
+    const certificateFeatureEnabled = certificateStats?.enabled ?? Boolean(course.certification_enabled);
+    const certificateEnabled = Boolean(course.certification_enabled && course.certificate_template_url && certificateFeatureEnabled);
+    const progressComplete = Boolean(enrollment.completed_at);
+    const meetsPointRequirement = certificateStats?.eligible ?? true;
+    const certificateReady = certificateEnabled && progressComplete && meetsPointRequirement;
+    const certificateBlockedByPoints = certificateEnabled && progressComplete && !meetsPointRequirement && certificateRequiredPoints > 0;
+
+    const certificateHelperText = useMemo(() => {
+        if (!certificateEnabled) {
+            return 'Instruktur belum mengaktifkan sertifikat untuk kursus ini.';
+        }
+
+        if (certificateReady) {
+            return 'Selamat! Sertifikat siap diunduh.';
+        }
+
+        if (!progressComplete) {
+            return 'Selesaikan seluruh tahap untuk membuka sertifikat.';
+        }
+
+        if (certificateBlockedByPoints) {
+            const formattedRequired = numberFormatter.format(certificateRequiredPoints);
+            const formattedEarned = numberFormatter.format(earnedPoints);
+            const hasTotal = typeof totalQuizPoints === 'number' && Number.isFinite(totalQuizPoints) && totalQuizPoints > 0;
+
+            if (hasTotal) {
+                const formattedTotal = numberFormatter.format(totalQuizPoints);
+
+                return `Kamu membutuhkan minimal ${formattedRequired} poin kuis untuk membuka sertifikat. Saat ini kamu baru mengumpulkan ${formattedEarned} poin dari total ${formattedTotal} poin.`;
+            }
+
+            return `Kamu membutuhkan minimal ${formattedRequired} poin kuis untuk membuka sertifikat. Saat ini kamu baru mengumpulkan ${formattedEarned} poin.`;
+        }
+
+        return 'Sertifikat belum tersedia.';
+    }, [
+        certificateBlockedByPoints,
+        certificateEnabled,
+        certificateReady,
+        certificateRequiredPoints,
+        earnedPoints,
+        numberFormatter,
+        progressComplete,
+        totalQuizPoints,
+    ]);
 
     const autosaveTimeoutRef = useRef<number | null>(null);
     const lastSavedAnswersRef = useRef<AnswerMap>({});
@@ -1143,13 +1206,7 @@ export default function WorkspaceCourseShowPage({
                                 {isDownloadingCertificate ? <Loader2 className='h-4 w-4 animate-spin' /> : <Award className='h-4 w-4' />}
                                 Unduh sertifikat
                             </Button>
-                            <p className='text-xs text-muted-foreground'>
-                                {certificateEnabled
-                                    ? certificateReady
-                                        ? 'Selamat! Sertifikat siap diunduh.'
-                                        : 'Selesaikan seluruh tahap untuk membuka sertifikat.'
-                                    : 'Instruktur belum mengaktifkan sertifikat untuk kursus ini.'}
-                            </p>
+                            <p className='text-xs text-muted-foreground'>{certificateHelperText}</p>
                         </div>
                     </CardHeader>
                 </Card>

@@ -45,6 +45,7 @@ interface QuizOptionState {
 
 interface QuizQuestionState {
     question: string;
+    points: string;
     is_answer_shuffled: boolean;
     question_image: File | null;
     existing_question_image: string | null;
@@ -77,6 +78,7 @@ interface ImportedOptionPayload {
 
 interface ImportedQuestionPayload {
     question?: string | null;
+    points?: number | string | null;
     image?: ImportedImagePayload | null;
     options?: ImportedOptionPayload[] | null;
 }
@@ -97,6 +99,7 @@ const buildEmptyOption = (isFirst = false): QuizOptionState => ({
 
 const buildEmptyQuestion = (): QuizQuestionState => ({
     question: '',
+    points: '10',
     is_answer_shuffled: false,
     question_image: null,
     existing_question_image: null,
@@ -120,22 +123,28 @@ const mapQuizStateToPayload = (quiz: QuizFormState) => ({
     duration: quiz.duration ? Number.parseInt(quiz.duration, 10) : null,
     is_question_shuffled: quiz.is_question_shuffled,
     type: quiz.type.trim() === '' ? null : quiz.type,
-    questions: quiz.questions.map((question, questionIndex) => ({
-        question: question.question,
-        question_image: question.question_image,
-        existing_question_image: question.existing_question_image,
-        remove_question_image: question.remove_question_image,
-        is_answer_shuffled: question.is_answer_shuffled,
-        order: questionIndex + 1,
-        options: question.options.map((option, optionIndex) => ({
-            option_text: option.option_text,
-            is_correct: option.is_correct,
-            order: optionIndex + 1,
-            option_image: option.option_image,
-            existing_option_image: option.existing_option_image,
-            remove_option_image: option.remove_option_image,
-        })),
-    })),
+    questions: quiz.questions.map((question, questionIndex) => {
+        const numericPoints = Number.parseInt(question.points.trim(), 10);
+        const points = Number.isNaN(numericPoints) ? null : Math.max(0, numericPoints);
+
+        return {
+            question: question.question,
+            question_image: question.question_image,
+            existing_question_image: question.existing_question_image,
+            remove_question_image: question.remove_question_image,
+            is_answer_shuffled: question.is_answer_shuffled,
+            order: questionIndex + 1,
+            points,
+            options: question.options.map((option, optionIndex) => ({
+                option_text: option.option_text,
+                is_correct: option.is_correct,
+                order: optionIndex + 1,
+                option_image: option.option_image,
+                existing_option_image: option.existing_option_image,
+                remove_option_image: option.remove_option_image,
+            })),
+        };
+    }),
 });
 
 const mapQuizRecordToState = (quiz: QuizRecord | null): QuizFormState => {
@@ -165,8 +174,13 @@ const mapQuizRecordToState = (quiz: QuizRecord | null): QuizFormState => {
                       ),
                   ];
 
+        const rawPoints = questionRecord.points ?? null;
+        const numericPoints = typeof rawPoints === 'number' && Number.isFinite(rawPoints) ? rawPoints : Number.parseInt(String(rawPoints ?? ''), 10);
+        const resolvedPoints = Number.isNaN(numericPoints) || numericPoints < 0 ? 10 : numericPoints;
+
         return {
             question: questionRecord.question ?? '',
+            points: String(resolvedPoints),
             question_image: null,
             existing_question_image: questionRecord.question_image ?? null,
             question_image_url: questionRecord.question_image_url ?? null,
@@ -516,6 +530,10 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
         return importedQuestions.map((question, questionIndex) => {
             const imagePayload = question?.image ?? null;
             const questionImageFile = createFileFromImagePayload(imagePayload, `pertanyaan-${questionIndex + 1}`);
+            const rawPoints = question?.points ?? null;
+            const numericPoints =
+                typeof rawPoints === 'number' && Number.isFinite(rawPoints) ? rawPoints : Number.parseInt(String(rawPoints ?? ''), 10);
+            const resolvedPoints = Number.isNaN(numericPoints) || numericPoints < 0 ? 10 : numericPoints;
 
             const rawOptions = Array.isArray(question?.options) ? question.options : [];
             const mappedOptions = rawOptions.map((option, optionIndex) => {
@@ -544,6 +562,7 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
 
             return {
                 question: question?.question ?? '',
+                points: String(resolvedPoints),
                 is_answer_shuffled: false,
                 question_image: questionImageFile,
                 existing_question_image: null,
@@ -1572,6 +1591,29 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                                                 </Button>
                                                             )}
                                                         </div>
+                                                        <div className='grid gap-2 sm:max-w-xs'>
+                                                            <Label htmlFor={`quiz-question-${questionIndex}-points`}>Poin pertanyaan</Label>
+                                                            <Input
+                                                                id={`quiz-question-${questionIndex}-points`}
+                                                                type='text'
+                                                                inputMode='numeric'
+                                                                pattern='[0-9]*'
+                                                                value={question.points}
+                                                                onChange={(event) =>
+                                                                    setQuizQuestionField(
+                                                                        questionIndex,
+                                                                        'points',
+                                                                        event.target.value.replace(/[^\d]/g, ''),
+                                                                    )
+                                                                }
+                                                                placeholder='10'
+                                                                disabled={form.processing}
+                                                            />
+                                                            <InputError message={getError(`quiz.questions.${questionIndex}.points`)} />
+                                                            <p className='text-xs text-muted-foreground'>
+                                                                Tentukan bobot poin yang diberikan ketika jawaban benar.
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                     <Button
                                                         type='button'
@@ -2095,6 +2137,29 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                                                 Hapus gambar
                                                             </Button>
                                                         )}
+                                                    </div>
+                                                    <div className='grid gap-2 sm:max-w-xs'>
+                                                        <Label htmlFor={`edit-quiz-question-${questionIndex}-points`}>Poin pertanyaan</Label>
+                                                        <Input
+                                                            id={`edit-quiz-question-${questionIndex}-points`}
+                                                            type='text'
+                                                            inputMode='numeric'
+                                                            pattern='[0-9]*'
+                                                            value={question.points}
+                                                            onChange={(event) =>
+                                                                setEditQuizQuestionField(
+                                                                    questionIndex,
+                                                                    'points',
+                                                                    event.target.value.replace(/[^\d]/g, ''),
+                                                                )
+                                                            }
+                                                            placeholder='10'
+                                                            disabled={editForm.processing}
+                                                        />
+                                                        <InputError message={getEditError(`quiz.questions.${questionIndex}.points`)} />
+                                                        <p className='text-xs text-muted-foreground'>
+                                                            Tentukan bobot poin yang diberikan ketika jawaban benar.
+                                                        </p>
                                                     </div>
                                                 </div>
                                                 <Button
