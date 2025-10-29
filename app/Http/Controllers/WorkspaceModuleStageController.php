@@ -62,7 +62,7 @@ class WorkspaceModuleStageController extends Controller {
             },
         ]);
 
-        if ($moduleStage->module_able === 'quiz') {
+        if ($moduleStage->isQuiz()) {
             $progress = $this->initializeQuizProgress($enrollment, $moduleStage);
 
             if ($this->quizHasExpired($moduleStage, $progress)) {
@@ -256,7 +256,7 @@ class WorkspaceModuleStageController extends Controller {
         $this->authorize('accessWorkspace', $course);
         $this->ensureHierarchy($course, $module, $moduleStage);
 
-        if ($moduleStage->module_able !== 'quiz') {
+        if (!$moduleStage->isQuiz()) {
             abort(422, 'Tahap ini tidak memiliki kuis.');
         }
 
@@ -518,7 +518,7 @@ class WorkspaceModuleStageController extends Controller {
     }
 
     private function calculateDeadline(ModuleStage $stage, ModuleStageProgress $progress): ?Carbon {
-        if ($stage->module_able !== 'quiz') {
+        if (!$stage->isQuiz()) {
             return null;
         }
 
@@ -572,7 +572,7 @@ class WorkspaceModuleStageController extends Controller {
             return $currentAttempt;
         }
 
-        if ($stage->module_able !== 'quiz') {
+        if (!$stage->isQuiz()) {
             return 1;
         }
 
@@ -603,7 +603,7 @@ class WorkspaceModuleStageController extends Controller {
     }
 
     private function nextAttemptNumber(Enrollment $enrollment, ModuleStage $stage): int {
-        if ($stage->module_able !== 'quiz') {
+        if (!$stage->isQuiz()) {
             return 1;
         }
 

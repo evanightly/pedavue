@@ -146,11 +146,11 @@ class WorkspaceProgressManager {
                 $statusEnum = ModuleStageProgressStatus::from($status);
                 $isCompleted = $statusEnum === ModuleStageProgressStatus::Completed;
 
-                $stageTotalPoints = $stage->module_able === 'quiz'
+                $stageTotalPoints = $stage->isQuiz()
                     ? $this->calculateStageTotalPoints($stage)
                     : 0;
 
-                if ($stage->module_able === 'quiz') {
+                if ($stage->isQuiz()) {
                     $earned = max(0, (int) ($progress?->quiz_result?->earned_points ?? 0));
                     $earnedQuizPoints += min($stageTotalPoints, $earned);
                 }
@@ -185,7 +185,7 @@ class WorkspaceProgressManager {
                     'id' => $stage->getKey(),
                     'module_id' => $module->getKey(),
                     'order' => (int) $stage->order,
-                    'type' => $stage->module_able,
+                    'type' => $stage->moduleType(),
                     'title' => $stageTitle,
                     'description' => $stageDescription,
                     'duration_minutes' => $durationMinutes,
@@ -218,7 +218,7 @@ class WorkspaceProgressManager {
                 $stageSummaries[$stage->getKey()] = $stageSummary;
 
                 $previousStageCompleted = $previousStageCompleted && $isCompleted;
-                $moduleCompleted = $moduleCompleted && ($isCompleted || $stage->module_able === null);
+                $moduleCompleted = $moduleCompleted && ($isCompleted || $stage->moduleType() === null);
             }
 
             $moduleIsCompleted = $moduleStageCount === 0 ? true : $moduleCompleted;
@@ -290,31 +290,43 @@ class WorkspaceProgressManager {
     }
 
     private function resolveStageTitle(ModuleStage $stage): string {
-        return match ($stage->module_able) {
-            'content' => $stage->module_content?->title ?? 'Materi',
-            'quiz' => $stage->module_quiz?->name ?? 'Kuis',
-            default => 'Tahap',
-        };
+        if ($stage->isContent()) {
+            return $stage->module_content?->title ?? 'Materi';
+        }
+
+        if ($stage->isQuiz()) {
+            return $stage->module_quiz?->name ?? 'Kuis';
+        }
+
+        return 'Tahap';
     }
 
     private function resolveStageDescription(ModuleStage $stage): ?string {
-        return match ($stage->module_able) {
-            'content' => $stage->module_content?->description,
-            'quiz' => $stage->module_quiz?->description,
-            default => null,
-        };
+        if ($stage->isContent()) {
+            return $stage->module_content?->description;
+        }
+
+        if ($stage->isQuiz()) {
+            return $stage->module_quiz?->description;
+        }
+
+        return null;
     }
 
     private function resolveStageDuration(ModuleStage $stage): ?int {
-        return match ($stage->module_able) {
-            'content' => $stage->module_content?->duration,
-            'quiz' => $stage->module_quiz?->duration,
-            default => null,
-        };
+        if ($stage->isContent()) {
+            return $stage->module_content?->duration;
+        }
+
+        if ($stage->isQuiz()) {
+            return $stage->module_quiz?->duration;
+        }
+
+        return null;
     }
 
     private function calculateStageTotalPoints(ModuleStage $stage): int {
-        if ($stage->module_able !== 'quiz') {
+        if (!$stage->isQuiz()) {
             return 0;
         }
 
@@ -411,7 +423,7 @@ class WorkspaceProgressManager {
     }
 
     private function resolveAttemptNumber(ModuleStage $stage, ?ModuleStageProgress $progress, array $attemptMap): ?int {
-        if ($stage->module_able !== 'quiz') {
+        if (!$stage->isQuiz()) {
             return null;
         }
 
@@ -442,7 +454,7 @@ class WorkspaceProgressManager {
     private function resolveTimeline(ModuleStage $stage, ?ModuleStageProgress $progress): array {
         $deadline = null;
 
-        if ($progress && $progress->started_at && $stage->module_able === 'quiz') {
+        if ($progress && $progress->started_at && $stage->isQuiz()) {
             $duration = $stage->module_quiz?->duration;
 
             if ($duration !== null && $duration > 0) {

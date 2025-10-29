@@ -67,7 +67,7 @@ class Course extends Model {
 
         return $this->modules
             ->flatMap(static fn (Module $module) => $module->module_stages)
-            ->filter(static fn (ModuleStage $stage) => $stage->module_able === 'quiz' && $stage->module_quiz)
+            ->filter(static fn (ModuleStage $stage) => $stage->isQuiz() && $stage->module_quiz)
             ->flatMap(static fn (ModuleStage $stage) => $stage->module_quiz->quiz_questions)
             ->sum(static fn (QuizQuestion $question) => max(0, (int) ($question->points ?? 0)));
     }

@@ -10,6 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
+/**
+ * @property-read null|'content'|'quiz' $module_able
+ */
 class ModuleStage extends Model {
     use HasFactory;
 
@@ -76,6 +79,22 @@ class ModuleStage extends Model {
 
             return $relation instanceof Quiz ? $relation : null;
         });
+    }
+
+    public function moduleType(): ?string {
+        return $this->module_able;
+    }
+
+    public function matchesModuleType(?string $type): bool {
+        return $this->moduleType() === $type;
+    }
+
+    public function isQuiz(): bool {
+        return $this->matchesModuleType('quiz');
+    }
+
+    public function isContent(): bool {
+        return $this->matchesModuleType('content');
     }
 
     public static function moduleAbleTypeForKey(?string $key): ?string {

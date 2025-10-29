@@ -20,12 +20,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
+import type { ModuleStageType } from '@/lib/module-stage';
+import { isModuleStageQuiz } from '@/lib/module-stage';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { ArrowDown, ArrowLeft, ArrowUp, Clipboard, Clock, Download, FileText, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ChangeEvent, FormEvent, useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-type StageType = 'content' | 'quiz';
+type StageType = ModuleStageType;
 
 type ModuleRecord = App.Data.Module.ModuleData;
 type ModuleStageRecord = App.Data.ModuleStage.ModuleStageData;
@@ -272,7 +274,7 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                 record: stage,
                 id: Number.isFinite(id) && id > 0 ? id : null,
                 order,
-                isQuiz: stage?.module_able === 'quiz',
+                isQuiz: isModuleStageQuiz(stage),
             } satisfies NormalizedStage;
         });
     }, [stageRecords]);
@@ -849,7 +851,7 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                 return;
             }
 
-            const isQuiz = stage.module_able === 'quiz';
+            const isQuiz = isModuleStageQuiz(stage);
             const orderValue = typeof stage.order === 'number' && Number.isFinite(stage.order) ? String(stage.order) : '';
             const content = stage.module_content as ModuleContentRecord | null;
             const quiz = stage.module_quiz as QuizRecord | null;

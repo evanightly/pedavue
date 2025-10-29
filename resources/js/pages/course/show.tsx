@@ -12,6 +12,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import GuestLayout from '@/layouts/guest-layout';
+import { isModuleStageQuiz } from '@/lib/module-stage';
 import { login, register } from '@/routes';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import axios from 'axios';
@@ -976,7 +977,7 @@ export default function CourseShow({ record, modules: modulesProp = null, abilit
                                                             typeof stageRecord?.order === 'number' && Number.isFinite(stageRecord.order)
                                                                 ? stageRecord.order
                                                                 : stageIndex + 1;
-                                                        const isQuizStage = stageRecord?.module_able === 'quiz';
+                                                        const isQuizStage = isModuleStageQuiz(stageRecord);
                                                         const content = stageRecord?.module_content as ModuleContentRecord | null;
                                                         const quiz = stageRecord?.module_quiz as QuizRecord | null;
                                                         const stageDurationLabel = formatMinutes(

@@ -41,7 +41,7 @@ class ModuleStageData extends Data {
         return new self(
             id: $model->getKey(),
             module_id: $model->module_id !== null ? (int) $model->module_id : null,
-            module_able: $model->module_able,
+            module_able: $model->moduleType(),
             module_able_type: $model->module_able_type,
             module_able_id: $model->module_able_id !== null ? (int) $model->module_able_id : null,
             order: $model->order !== null ? (int) $model->order : null,
