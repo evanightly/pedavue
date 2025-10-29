@@ -21,9 +21,11 @@ import {
     CircleDot,
     Clock,
     Flame,
+    History,
     Loader2,
     Lock,
     PlayCircle,
+    RotateCcw,
     Square,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -39,6 +41,8 @@ interface StageProgressMeta {
     quiz_result_id?: number | null;
     score?: number | null;
     attempt?: number | null;
+    earned_points?: number | null;
+    total_points?: number | null;
     read_only?: boolean;
     answers?: Record<number, number[]>;
     result?: {
@@ -47,7 +51,19 @@ interface StageProgressMeta {
         total: number;
         auto_submitted?: boolean;
     } | null;
+    attempt_history?: Array<{
+        attempt: number;
+        score: number;
+        correct: number;
+        total: number;
+        earned_points: number;
+        total_points: number;
+        auto_submitted?: boolean;
+        finished_at?: string | null;
+    }>;
 }
+
+type AttemptHistoryEntry = NonNullable<StageProgressMeta['attempt_history']>[number];
 
 interface StageSummary {
     id: number;
@@ -329,6 +345,7 @@ export default function WorkspaceCourseShowPage({
     const [isStageLoading, setIsStageLoading] = useState(false);
     const [isCompletingStage, setIsCompletingStage] = useState(false);
     const [isSubmittingQuiz, setIsSubmittingQuiz] = useState(false);
+    const [isReattemptingQuiz, setIsReattemptingQuiz] = useState(false);
     const [isSavingAnswers, setIsSavingAnswers] = useState(false);
     const [isDownloadingCertificate, setIsDownloadingCertificate] = useState(false);
     const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
@@ -336,6 +353,14 @@ export default function WorkspaceCourseShowPage({
     const [answers, setAnswers] = useState<AnswerMap>({});
 
     const numberFormatter = useMemo(() => new Intl.NumberFormat('id-ID'), []);
+    const dateTimeFormatter = useMemo(
+        () =>
+            new Intl.DateTimeFormat('id-ID', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+            }),
+        [],
+    );
     const quizPoints = stats?.quiz_points ?? null;
     const earnedPoints = Math.max(0, quizPoints?.earned ?? 0);
     const totalQuizPoints = quizPoints?.total;
@@ -850,6 +875,32 @@ export default function WorkspaceCourseShowPage({
         [answers, applyOverviewUpdate, courseSlug, initialiseCountdown, persistAnswers, stageDetail],
     );
 
+    const handleReattemptQuiz = useCallback(async (): Promise<void> => {
+        if (!stageDetail?.quiz) {
+            return;
+        }
+
+        setIsReattemptingQuiz(true);
+
+        try {
+            const response = await axios.post<StageDetailPayload>(
+                WorkspaceModuleStageController.reattemptQuiz.url({
+                    course: courseSlug,
+                    module: stageDetail.stage.module_id,
+                    module_stage: stageDetail.stage.id,
+                }),
+            );
+
+            handleStageDetailResponse(response.data);
+            const attemptLabel = response.data.progress?.attempt ?? 1;
+            toast.success(`Percobaan ke-${attemptLabel} dimulai. Selamat mencoba!`);
+        } catch (error) {
+            toast.error('Gagal memulai percobaan baru. Silakan coba lagi.');
+        } finally {
+            setIsReattemptingQuiz(false);
+        }
+    }, [courseSlug, handleStageDetailResponse, stageDetail]);
+
     const handleToggleOption = useCallback((questionId: number, optionId: number, mode: 'single' | 'multiple') => {
         setAnswers((previous) => {
             const current = previous[questionId] ?? [];
@@ -1045,6 +1096,20 @@ export default function WorkspaceCourseShowPage({
     const renderQuizStage = (stage: StageSummary, quiz: QuizPayload, progress: StageProgressMeta | null | undefined) => {
         const readOnly = Boolean(progress?.read_only);
         const result = progress?.result ?? null;
+        const attemptNumber = progress?.attempt ?? 1;
+        const rawHistory = progress?.attempt_history;
+        const attemptHistory: AttemptHistoryEntry[] = Array.isArray(rawHistory) ? rawHistory : [];
+        const hasHistory = attemptHistory.length > 0;
+        const sortedHistory = [...attemptHistory].sort((left, right) => right.attempt - left.attempt);
+        const attemptStatusText = readOnly
+            ? `Kuis selesai pada percobaan ke-${attemptNumber}. Kamu dapat mencoba lagi untuk memperbaiki hasil.`
+            : `Kamu sedang menjalani percobaan ke-${attemptNumber}. Pastikan semua jawaban tepat sebelum mengirim.`;
+        const renderReattemptButton = () => (
+            <Button type='button' onClick={handleReattemptQuiz} disabled={isReattemptingQuiz} className='gap-2'>
+                {isReattemptingQuiz ? <Loader2 className='h-4 w-4 animate-spin' /> : <RotateCcw className='h-4 w-4' />}
+                Mulai percobaan baru
+            </Button>
+        );
 
         return (
             <div className='space-y-6'>
@@ -1083,6 +1148,58 @@ export default function WorkspaceCourseShowPage({
                             </div>
                         ) : null}
                     </CardHeader>
+                    <CardContent className='space-y-4 border-t border-dashed pt-4'>
+                        <div className='space-y-2'>
+                            <div className='flex items-center gap-2 text-sm font-medium text-muted-foreground'>
+                                <History className='h-4 w-4 text-primary' />
+                                Percobaan ke-{attemptNumber}
+                            </div>
+                            <p className='text-xs text-muted-foreground'>{attemptStatusText}</p>
+                        </div>
+                        {hasHistory ? (
+                            <div className='space-y-2'>
+                                <div className='text-xs font-semibold tracking-wide text-muted-foreground uppercase'>Riwayat percobaan</div>
+                                <div className='space-y-2'>
+                                    {sortedHistory.map((entry) => {
+                                        const finishedLabel = entry.finished_at ? dateTimeFormatter.format(new Date(entry.finished_at)) : null;
+
+                                        return (
+                                            <div
+                                                key={`attempt-${entry.attempt}`}
+                                                className='rounded-lg border border-dashed border-border bg-muted/30 p-3 text-sm'
+                                            >
+                                                <div className='flex flex-wrap items-center justify-between gap-2'>
+                                                    <span className='font-medium'>Percobaan ke-{entry.attempt}</span>
+                                                    <Badge variant='outline' className='flex items-center gap-1 text-xs'>
+                                                        <CheckCircle2 className='h-3 w-3 text-primary' />
+                                                        Skor {entry.score}
+                                                    </Badge>
+                                                </div>
+                                                <div className='mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground'>
+                                                    <span>
+                                                        {entry.correct} benar dari {entry.total} soal
+                                                    </span>
+                                                    {entry.total_points > 0 ? (
+                                                        <span>
+                                                            {entry.earned_points}/{entry.total_points} poin
+                                                        </span>
+                                                    ) : null}
+                                                    {finishedLabel ? <span>Selesai {finishedLabel}</span> : null}
+                                                    {entry.auto_submitted ? (
+                                                        <span className='flex items-center gap-1 text-amber-600 dark:text-amber-400'>
+                                                            <AlertTriangle className='h-3 w-3' />
+                                                            Dikirim otomatis
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ) : null}
+                        {readOnly ? <div className='pt-2'>{renderReattemptButton()}</div> : null}
+                    </CardContent>
                 </Card>
 
                 <div className='space-y-4'>
@@ -1158,18 +1275,24 @@ export default function WorkspaceCourseShowPage({
                 </div>
 
                 <div className='flex flex-wrap items-center gap-3'>
-                    <Button variant='outline' onClick={handleManualSave} disabled={readOnly || isSavingAnswers || isSubmittingQuiz} className='gap-2'>
-                        {isSavingAnswers ? <Loader2 className='h-4 w-4 animate-spin' /> : <Flame className='h-4 w-4' />}
-                        Simpan jawaban sementara
-                    </Button>
-                    <Button onClick={() => handleSubmitQuiz(false)} disabled={readOnly || isSubmittingQuiz} className='gap-2'>
-                        {isSubmittingQuiz && lastAction !== 'autosubmit' ? (
-                            <Loader2 className='h-4 w-4 animate-spin' />
-                        ) : (
-                            <CheckCircle2 className='h-4 w-4' />
-                        )}
-                        Kirim jawaban
-                    </Button>
+                    {readOnly ? (
+                        renderReattemptButton()
+                    ) : (
+                        <>
+                            <Button variant='outline' onClick={handleManualSave} disabled={isSavingAnswers || isSubmittingQuiz} className='gap-2'>
+                                {isSavingAnswers ? <Loader2 className='h-4 w-4 animate-spin' /> : <Flame className='h-4 w-4' />}
+                                Simpan jawaban sementara
+                            </Button>
+                            <Button onClick={() => handleSubmitQuiz(false)} disabled={isSubmittingQuiz} className='gap-2'>
+                                {isSubmittingQuiz && lastAction !== 'autosubmit' ? (
+                                    <Loader2 className='h-4 w-4 animate-spin' />
+                                ) : (
+                                    <CheckCircle2 className='h-4 w-4' />
+                                )}
+                                Kirim jawaban
+                            </Button>
+                        </>
+                    )}
                 </div>
             </div>
         );

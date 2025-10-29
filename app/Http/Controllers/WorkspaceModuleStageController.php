@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Workspace\CompleteStageRequest;
+use App\Http\Requests\Workspace\ReattemptStageQuizRequest;
 use App\Http\Requests\Workspace\SaveStageQuizProgressRequest;
 use App\Http\Requests\Workspace\SubmitStageQuizRequest;
 use App\Models\Course;
@@ -84,7 +85,7 @@ class WorkspaceModuleStageController extends Controller {
                 $enrollmentPayload = $this->formatEnrollmentData($enrollment, $overview);
             }
 
-            $payload = $this->buildQuizPayload($moduleStage, $progress);
+            $payload = $this->buildQuizPayload($enrollment, $moduleStage, $progress);
 
             return response()->json([
                 'stage' => $stageSummary,
@@ -237,7 +238,7 @@ class WorkspaceModuleStageController extends Controller {
         $this->progressManager->syncEnrollmentProgress($enrollment, $overview);
         $enrollment->refresh();
 
-        $payload = $this->buildQuizPayload($moduleStage, $progress);
+        $payload = $this->buildQuizPayload($enrollment, $moduleStage, $progress);
 
         return response()->json([
             'modules' => $overview['modules'],
@@ -247,6 +248,46 @@ class WorkspaceModuleStageController extends Controller {
             'quiz' => $payload['quiz'],
             'result' => $result,
             'progress' => $payload['progress'],
+            'enrollment' => $this->formatEnrollmentData($enrollment, $overview),
+        ]);
+    }
+
+    public function reattemptQuiz(ReattemptStageQuizRequest $request, Course $course, Module $module, ModuleStage $moduleStage): JsonResponse {
+        $this->authorize('accessWorkspace', $course);
+        $this->ensureHierarchy($course, $module, $moduleStage);
+
+        if ($moduleStage->module_able !== 'quiz') {
+            abort(422, 'Tahap ini tidak memiliki kuis.');
+        }
+
+        $enrollment = $request->enrollment();
+
+        $moduleStage->loadMissing([
+            'moduleAble' => static function (MorphTo $morphTo): void {
+                $morphTo->morphWith([
+                    ModuleContent::class => [],
+                    Quiz::class => ['quiz_questions.quiz_question_options'],
+                ]);
+            },
+        ]);
+
+        $this->resetQuizProgress($enrollment, $moduleStage);
+        $progress = $this->initializeQuizProgress($enrollment, $moduleStage);
+
+        $this->progressManager->forgetOverview($enrollment);
+        $overview = $this->progressManager->buildOverview($enrollment);
+        $this->progressManager->syncEnrollmentProgress($enrollment, $overview);
+        $enrollment->refresh();
+
+        $payload = $this->buildQuizPayload($enrollment, $moduleStage, $progress);
+
+        return response()->json([
+            'stage' => $overview['stage_summaries'][$moduleStage->getKey()] ?? null,
+            'quiz' => $payload['quiz'],
+            'progress' => $payload['progress'],
+            'modules' => $overview['modules'],
+            'stats' => $overview['stats'],
+            'currentStageId' => $overview['current_stage_id'],
             'enrollment' => $this->formatEnrollmentData($enrollment, $overview),
         ]);
     }
@@ -281,6 +322,15 @@ class WorkspaceModuleStageController extends Controller {
             }
 
             $progress = $this->ensureQuizState($progress, $stage);
+
+            $state = $progress->state ?? [];
+            $currentAttempt = (int) ($state['current_attempt'] ?? 0);
+
+            if ($currentAttempt <= 0) {
+                $state['current_attempt'] = $this->determineAttemptNumber($enrollment, $stage, $progress);
+                $progress->state = $state;
+                $progress->save();
+            }
 
             return $progress->fresh(['quiz_result']);
         });
@@ -343,7 +393,7 @@ class WorkspaceModuleStageController extends Controller {
     /**
      * @return array<string, mixed>
      */
-    private function buildQuizPayload(ModuleStage $stage, ModuleStageProgress $progress): array {
+    private function buildQuizPayload(Enrollment $enrollment, ModuleStage $stage, ModuleStageProgress $progress): array {
         $quiz = $stage->module_quiz;
 
         if (!$quiz instanceof Quiz) {
@@ -401,6 +451,8 @@ class WorkspaceModuleStageController extends Controller {
         }
 
         $deadline = $this->calculateDeadline($stage, $progress);
+        $attemptNumber = $this->determineAttemptNumber($enrollment, $stage, $progress);
+        $attemptHistory = Arr::get($progress->state, 'attempt_history', []);
 
         return [
             'quiz' => [
@@ -420,11 +472,12 @@ class WorkspaceModuleStageController extends Controller {
                 'server_now' => now()->toIso8601String(),
                 'answers' => $answers,
                 'score' => $progress->quiz_result?->score,
-                'attempt' => $progress->quiz_result?->attempt,
+                'attempt' => $attemptNumber,
                 'earned_points' => $progress->quiz_result?->earned_points ?? 0,
                 'total_points' => $progress->quiz_result?->total_points ?? $totalPoints,
                 'read_only' => $progress->status === ModuleStageProgressStatus::Completed->value,
                 'result' => Arr::get($progress->state, 'result'),
+                'attempt_history' => is_array($attemptHistory) ? $attemptHistory : [],
             ],
         ];
     }
@@ -482,6 +535,92 @@ class WorkspaceModuleStageController extends Controller {
         return $progress->started_at->copy()->addMinutes($duration);
     }
 
+    private function resetQuizProgress(Enrollment $enrollment, ModuleStage $stage): void {
+        DB::transaction(function () use ($enrollment, $stage): void {
+            $progress = ModuleStageProgress::query()
+                ->where('enrollment_id', $enrollment->getKey())
+                ->where('module_stage_id', $stage->getKey())
+                ->lockForUpdate()
+                ->first();
+
+            if (!$progress) {
+                return;
+            }
+
+            $state = $progress->state ?? [];
+            $history = $state['attempt_history'] ?? [];
+            $state['attempt_history'] = is_array($history) ? array_values($history) : [];
+
+            unset($state['answers'], $state['result'], $state['question_order'], $state['option_order']);
+
+            $state['current_attempt'] = $this->nextAttemptNumber($enrollment, $stage);
+
+            $progress->state = $state;
+            $progress->status = ModuleStageProgressStatus::InProgress->value;
+            $progress->quiz_result_id = null;
+            $progress->completed_at = null;
+            $progress->started_at = now();
+            $progress->save();
+        });
+    }
+
+    private function determineAttemptNumber(Enrollment $enrollment, ModuleStage $stage, ModuleStageProgress $progress): int {
+        $state = $progress->state ?? [];
+        $currentAttempt = (int) ($state['current_attempt'] ?? 0);
+
+        if ($currentAttempt > 0) {
+            return $currentAttempt;
+        }
+
+        if ($stage->module_able !== 'quiz') {
+            return 1;
+        }
+
+        $quiz = $stage->module_quiz;
+
+        if (!$quiz instanceof Quiz) {
+            return 1;
+        }
+
+        if ($progress->quiz_result) {
+            $attempt = (int) ($progress->quiz_result->attempt ?? 0);
+
+            if ($attempt > 0) {
+                return $attempt;
+            }
+        }
+
+        $maxAttempt = (int) QuizResult::query()
+            ->where('user_id', $enrollment->user_id)
+            ->where('quiz_id', $quiz->getKey())
+            ->max('attempt');
+
+        if ($progress->status === ModuleStageProgressStatus::Completed->value) {
+            return max(1, $maxAttempt);
+        }
+
+        return max(1, $maxAttempt + 1);
+    }
+
+    private function nextAttemptNumber(Enrollment $enrollment, ModuleStage $stage): int {
+        if ($stage->module_able !== 'quiz') {
+            return 1;
+        }
+
+        $quiz = $stage->module_quiz;
+
+        if (!$quiz instanceof Quiz) {
+            return 1;
+        }
+
+        $maxAttempt = (int) QuizResult::query()
+            ->where('user_id', $enrollment->user_id)
+            ->where('quiz_id', $quiz->getKey())
+            ->max('attempt');
+
+        return max(1, $maxAttempt + 1);
+    }
+
     /**
      * @return array{0: ModuleStageProgress, 1: array<string, int>}
      */
@@ -503,31 +642,54 @@ class WorkspaceModuleStageController extends Controller {
             $sanitizedAnswers = $this->sanitizeAnswers($answers, $stage);
             $result = $this->gradeQuiz($stage, $sanitizedAnswers);
 
+            $state = $lockedProgress->state ?? [];
+            $currentAttempt = (int) ($state['current_attempt'] ?? 0);
+
+            if ($currentAttempt <= 0) {
+                $currentAttempt = $this->determineAttemptNumber($enrollment, $stage, $lockedProgress);
+            }
+
             $quizResult = $lockedProgress->quiz_result;
 
             if (!$quizResult instanceof QuizResult) {
                 $quizResult = new QuizResult;
                 $quizResult->user_id = $enrollment->user_id;
                 $quizResult->quiz_id = $stage->module_quiz?->getKey();
-                $quizResult->attempt = 1;
             }
 
+            $finishedAt = now();
+            $startedAt = $lockedProgress->started_at ?? $finishedAt;
+
+            $quizResult->attempt = $currentAttempt;
             $quizResult->score = $result['score'];
             $quizResult->earned_points = $result['earned_points'];
             $quizResult->total_points = $result['total_points'];
-            $quizResult->started_at = $lockedProgress->started_at ?? now();
-            $quizResult->finished_at = now();
+            $quizResult->started_at = $startedAt;
+            $quizResult->finished_at = $finishedAt;
             $quizResult->save();
 
             $lockedProgress->quiz_result_id = $quizResult->getKey();
             $lockedProgress->status = ModuleStageProgressStatus::Completed->value;
-            $lockedProgress->completed_at = now();
+            $lockedProgress->completed_at = $finishedAt;
 
             if ($lockedProgress->started_at === null) {
                 $lockedProgress->started_at = $quizResult->started_at;
             }
 
-            $state = $lockedProgress->state ?? [];
+            $history = $state['attempt_history'] ?? [];
+            $history = is_array($history) ? $history : [];
+
+            $history[] = [
+                'attempt' => $currentAttempt,
+                'score' => $result['score'],
+                'correct' => $result['correct_answers'],
+                'total' => $result['total_questions'],
+                'earned_points' => $result['earned_points'],
+                'total_points' => $result['total_points'],
+                'auto_submitted' => $autoSubmission,
+                'finished_at' => $finishedAt->toIso8601String(),
+            ];
+
             $state['answers'] = $sanitizedAnswers;
             $state['result'] = [
                 'score' => $result['score'],
@@ -537,6 +699,8 @@ class WorkspaceModuleStageController extends Controller {
                 'total_points' => $result['total_points'],
                 'auto_submitted' => $autoSubmission,
             ];
+            $state['current_attempt'] = $currentAttempt;
+            $state['attempt_history'] = array_values($history);
 
             $lockedProgress->state = $state;
             $lockedProgress->save();

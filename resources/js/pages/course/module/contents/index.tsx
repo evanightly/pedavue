@@ -87,6 +87,8 @@ const MAX_CONTENT_FILE_SIZE_BYTES = 200 * 1024 * 1024;
 const MAX_CONTENT_FILE_SIZE_LABEL = '200 MB';
 const MAX_IMPORT_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_IMPORT_FILE_SIZE_LABEL = '10 MB';
+const MAX_SUBTITLE_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_SUBTITLE_FILE_SIZE_LABEL = '5 MB';
 
 const buildEmptyOption = (isFirst = false): QuizOptionState => ({
     option_text: '',
@@ -244,10 +246,11 @@ type ContentState = {
     duration: string;
     content_url: string;
     file: File | null;
+    subtitle_file: File | null;
     remove_file?: boolean;
 };
 
-type EditableContentState = ContentState & { remove_file: boolean };
+type EditableContentState = ContentState & { remove_file: boolean; remove_subtitle: boolean };
 
 export default function CourseModuleContentsPage({ course, module, abilities = null }: ModuleContentsProps) {
     const moduleId = useMemo(() => {
@@ -305,6 +308,7 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
             duration: '',
             content_url: '',
             file: null as File | null,
+            subtitle_file: null as File | null,
         } satisfies ContentState,
         quiz: buildEmptyQuiz(),
     });
@@ -320,6 +324,8 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
             content_url: '',
             file: null as File | null,
             remove_file: false,
+            subtitle_file: null as File | null,
+            remove_subtitle: false,
         } satisfies EditableContentState,
         quiz: buildEmptyQuiz(),
     });
@@ -337,9 +343,11 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
     const [reorderingStageId, setReorderingStageId] = useState<number | null>(null);
 
     const setContentField = (field: keyof ContentState, value: string | File | null) => {
+        const isFileField = field === 'file' || field === 'subtitle_file';
+
         form.setData('content', {
             ...form.data.content,
-            [field]: field === 'file' ? (value as File | null) : (value as string),
+            [field]: isFileField ? (value as File | null) : (value as string),
         });
     };
 
@@ -714,6 +722,7 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
             duration: '',
             content_url: '',
             file: null,
+            subtitle_file: null,
         });
     };
 
@@ -742,6 +751,20 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
         setContentField('file', file ?? null);
     };
 
+    const handleSubtitleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const [file] = event.target.files ?? [];
+
+        if (file && file.size > MAX_SUBTITLE_FILE_SIZE_BYTES) {
+            form.setError('content.subtitle_file', `Ukuran subtitel melebihi ${MAX_SUBTITLE_FILE_SIZE_LABEL}. Pilih berkas yang lebih kecil.`);
+            event.target.value = '';
+
+            return;
+        }
+
+        form.clearErrors('content.subtitle_file');
+        setContentField('subtitle_file', file ?? null);
+    };
+
     const getError = useCallback(
         (field: string): string | undefined => form.errors[field as keyof typeof form.errors] as string | undefined,
         [form.errors],
@@ -767,6 +790,7 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                           duration: data.content.duration ? Number.parseInt(data.content.duration, 10) : null,
                           content_url: data.content.content_url,
                           file: data.content.file,
+                          subtitle_file: data.content.subtitle_file,
                       }
                     : null,
             quiz: data.type === 'quiz' ? mapQuizStateToPayload(data.quiz) : null,
@@ -842,6 +866,8 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                     content_url: content?.content_url ?? '',
                     file: null,
                     remove_file: false,
+                    subtitle_file: null,
+                    remove_subtitle: false,
                 },
                 quiz: isQuiz ? mapQuizRecordToState(quiz) : buildEmptyQuiz(),
             });
@@ -869,6 +895,8 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                 content_url: '',
                 file: null,
                 remove_file: false,
+                subtitle_file: null,
+                remove_subtitle: false,
             });
             editForm.setData('quiz', buildEmptyQuiz());
         } else {
@@ -877,9 +905,11 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
     };
 
     const setEditContentField = (field: keyof EditableContentState, value: string | File | boolean | null) => {
+        const isFileField = field === 'file' || field === 'subtitle_file';
+
         editForm.setData('content', {
             ...editForm.data.content,
-            [field]: field === 'file' ? (value as File | null) : (value as EditableContentState[keyof EditableContentState]),
+            [field]: isFileField ? (value as File | null) : (value as EditableContentState[keyof EditableContentState]),
         });
     };
 
@@ -1021,11 +1051,36 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
         }
     };
 
+    const handleEditSubtitleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const [file] = event.target.files ?? [];
+
+        if (file && file.size > MAX_SUBTITLE_FILE_SIZE_BYTES) {
+            editForm.setError('content.subtitle_file', `Ukuran subtitel melebihi ${MAX_SUBTITLE_FILE_SIZE_LABEL}. Pilih berkas yang lebih kecil.`);
+            event.target.value = '';
+
+            return;
+        }
+
+        editForm.clearErrors('content.subtitle_file');
+        setEditContentField('subtitle_file', file ?? null);
+        if (file) {
+            setEditContentField('remove_subtitle', false);
+        }
+    };
+
     const handleEditRemoveFileToggle = (checked: boolean) => {
         setEditContentField('remove_file', checked);
         if (checked) {
             setEditContentField('file', null);
         }
+    };
+
+    const handleEditRemoveSubtitleToggle = (checked: boolean) => {
+        setEditContentField('remove_subtitle', checked);
+        if (checked) {
+            setEditContentField('subtitle_file', null);
+        }
+        editForm.clearErrors('content.subtitle_file');
     };
 
     const handleEditSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -1049,6 +1104,8 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                           content_url: data.content.content_url,
                           file: data.content.file,
                           remove_file: Boolean(data.content.remove_file),
+                          subtitle_file: data.content.subtitle_file,
+                          remove_subtitle: Boolean(data.content.remove_subtitle),
                       }
                     : null,
             quiz: data.type === 'quiz' ? mapQuizStateToPayload(data.quiz) : null,
@@ -1430,6 +1487,17 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                             </p>
                                         )}
                                         <p className='text-xs text-muted-foreground'>Batas ukuran berkas {MAX_CONTENT_FILE_SIZE_LABEL}.</p>
+                                    </div>
+                                    <div className='grid gap-2'>
+                                        <Label>Subtitel (opsional)</Label>
+                                        <Input type='file' accept='.vtt,.srt' onChange={handleSubtitleFileChange} disabled={form.processing} />
+                                        <InputError message={getError('content.subtitle_file')} />
+                                        {form.data.content.subtitle_file ? (
+                                            <p className='text-xs text-muted-foreground'>Subtitel terpilih: {form.data.content.subtitle_file.name}</p>
+                                        ) : (
+                                            <p className='text-xs text-muted-foreground'>Unggah berkas .vtt atau .srt untuk subtitel video.</p>
+                                        )}
+                                        <p className='text-xs text-muted-foreground'>Batas ukuran subtitel {MAX_SUBTITLE_FILE_SIZE_LABEL}.</p>
                                     </div>
                                 </div>
                             ) : (
@@ -1959,6 +2027,34 @@ export default function CourseModuleContentsPage({ course, module, abilities = n
                                             Hapus berkas yang sudah diunggah
                                         </Label>
                                     </div>
+                                </div>
+                                <div className='grid gap-2'>
+                                    <Label>Subtitel</Label>
+                                    <Input type='file' accept='.vtt,.srt' onChange={handleEditSubtitleFileChange} disabled={editForm.processing} />
+                                    <InputError message={getEditError('content.subtitle_file')} />
+                                    {editForm.data.content.subtitle_file ? (
+                                        <p className='text-xs text-muted-foreground'>Subtitel terpilih: {editForm.data.content.subtitle_file.name}</p>
+                                    ) : editingStage?.module_content?.subtitle_url ? (
+                                        <p className='text-xs text-muted-foreground'>
+                                            Subtitel saat ini akan digantikan jika Anda mengunggah berkas baru.
+                                        </p>
+                                    ) : (
+                                        <p className='text-xs text-muted-foreground'>Unggah berkas .vtt atau .srt untuk subtitel video.</p>
+                                    )}
+                                    <p className='text-xs text-muted-foreground'>Batas ukuran subtitel {MAX_SUBTITLE_FILE_SIZE_LABEL}.</p>
+                                    {editingStage?.module_content?.subtitle_url ? (
+                                        <div className='flex items-center gap-2 text-xs text-muted-foreground'>
+                                            <Checkbox
+                                                id='remove-subtitle-checkbox'
+                                                checked={Boolean(editForm.data.content.remove_subtitle)}
+                                                onCheckedChange={(checked) => handleEditRemoveSubtitleToggle(Boolean(checked))}
+                                                disabled={editForm.processing}
+                                            />
+                                            <Label htmlFor='remove-subtitle-checkbox' className='text-xs text-muted-foreground'>
+                                                Hapus subtitel yang sudah diunggah
+                                            </Label>
+                                        </div>
+                                    ) : null}
                                 </div>
                                 {editingStage && editForm.data.type === 'content' ? (
                                     <ModuleStagePreview content={editingStage.module_content as ModuleContentRecord | null} className='mt-2' />

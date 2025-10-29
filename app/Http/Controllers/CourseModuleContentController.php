@@ -90,12 +90,18 @@ class CourseModuleContentController extends Controller {
             if ($type === 'content') {
                 $content = $payload['content'] ?? [];
                 $file = $request->file('content.file');
+                $subtitleFile = $request->file('content.subtitle_file');
                 $storedPath = null;
+                $storedSubtitlePath = null;
 
                 if ($file) {
                     $storedPath = $file->store('courses/modules/contents', 'public');
                 } elseif (!empty($content['file_path'])) {
                     $storedPath = $content['file_path'];
+                }
+
+                if ($subtitleFile) {
+                    $storedSubtitlePath = $subtitleFile->store('courses/modules/subtitles', 'public');
                 }
 
                 $contentUrl = $content['content_url'] ?? null;
@@ -116,6 +122,7 @@ class CourseModuleContentController extends Controller {
                     'title' => $content['title'] ?? null,
                     'description' => $content['description'] ?? null,
                     'file_path' => $storedPath,
+                    'subtitle_path' => $storedSubtitlePath,
                     'content_url' => $contentUrl,
                     'duration' => Arr::has($content, 'duration') ? (int) $content['duration'] : null,
                     'content_type' => $contentType,
@@ -200,10 +207,13 @@ class CourseModuleContentController extends Controller {
             if ($type === 'content') {
                 $contentPayload = $payload['content'] ?? [];
                 $file = $request->file('content.file');
+                $subtitleFile = $request->file('content.subtitle_file');
                 $removeFile = (bool) Arr::get($contentPayload, 'remove_file', false);
+                $removeSubtitle = (bool) Arr::get($contentPayload, 'remove_subtitle', false);
 
                 $existingContent = $moduleStage->module_content;
                 $storedPath = $existingContent?->file_path;
+                $subtitlePath = $existingContent?->subtitle_path;
 
                 if ($file) {
                     if ($storedPath && Storage::disk('public')->exists($storedPath)) {
@@ -217,6 +227,20 @@ class CourseModuleContentController extends Controller {
                     }
 
                     $storedPath = null;
+                }
+
+                if ($subtitleFile) {
+                    if ($subtitlePath && Storage::disk('public')->exists($subtitlePath)) {
+                        Storage::disk('public')->delete($subtitlePath);
+                    }
+
+                    $subtitlePath = $subtitleFile->store('courses/modules/subtitles', 'public');
+                } elseif ($removeSubtitle && $subtitlePath) {
+                    if (Storage::disk('public')->exists($subtitlePath)) {
+                        Storage::disk('public')->delete($subtitlePath);
+                    }
+
+                    $subtitlePath = null;
                 }
 
                 $contentUrl = Arr::get($contentPayload, 'content_url');
@@ -245,6 +269,7 @@ class CourseModuleContentController extends Controller {
                         'title' => Arr::get($contentPayload, 'title'),
                         'description' => Arr::get($contentPayload, 'description'),
                         'file_path' => $storedPath,
+                        'subtitle_path' => $subtitlePath,
                         'content_url' => $contentUrl,
                         'duration' => $duration,
                         'content_type' => $contentType,
@@ -254,6 +279,7 @@ class CourseModuleContentController extends Controller {
                         'title' => Arr::get($contentPayload, 'title'),
                         'description' => Arr::get($contentPayload, 'description'),
                         'file_path' => $storedPath,
+                        'subtitle_path' => $subtitlePath,
                         'content_url' => $contentUrl,
                         'duration' => $duration,
                         'content_type' => $contentType,
@@ -538,6 +564,10 @@ class CourseModuleContentController extends Controller {
 
         if ($content->file_path && Storage::disk('public')->exists($content->file_path)) {
             Storage::disk('public')->delete($content->file_path);
+        }
+
+        if ($content->subtitle_path && Storage::disk('public')->exists($content->subtitle_path)) {
+            Storage::disk('public')->delete($content->subtitle_path);
         }
 
         $content->delete();

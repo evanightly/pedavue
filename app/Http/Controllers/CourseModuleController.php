@@ -74,6 +74,7 @@ class CourseModuleController extends Controller {
                             : null,
                         'content_url' => Arr::get($stage, 'content.content_url'),
                         'file_path' => Arr::get($stage, 'content.file_path'),
+                        'subtitle_path' => Arr::get($stage, 'content.subtitle_path'),
                     ] : null,
                 ];
             });
@@ -109,12 +110,20 @@ class CourseModuleController extends Controller {
 
                 if ($stage['type'] === 'content' && $stage['content'] !== null) {
                     $file = $request->file("stages.$index.content.file");
+                    $subtitleFile = $request->file("stages.$index.content.subtitle_file");
                     $storedPath = null;
+                    $storedSubtitlePath = null;
 
                     if ($file) {
                         $storedPath = $file->store('courses/modules/contents', 'public');
                     } elseif (!empty($stage['content']['file_path'])) {
                         $storedPath = $stage['content']['file_path'];
+                    }
+
+                    if ($subtitleFile) {
+                        $storedSubtitlePath = $subtitleFile->store('courses/modules/subtitles', 'public');
+                    } elseif (!empty($stage['content']['subtitle_path'])) {
+                        $storedSubtitlePath = $stage['content']['subtitle_path'];
                     }
 
                     $contentType = $this->resolveContentType(
@@ -128,6 +137,7 @@ class CourseModuleController extends Controller {
                         'title' => $stage['content']['title'],
                         'description' => $stage['content']['description'],
                         'file_path' => $storedPath,
+                        'subtitle_path' => $storedSubtitlePath,
                         'content_url' => $stage['content']['content_url'],
                         'duration' => $stage['content']['duration'],
                         'content_type' => $contentType,

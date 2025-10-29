@@ -90,6 +90,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 Route::post('modules/{module}/stages/{module_stage}/complete', [WorkspaceModuleStageController::class, 'complete'])->name('courses.workspace.stages.complete');
                 Route::post('modules/{module}/stages/{module_stage}/quiz/progress', [WorkspaceModuleStageController::class, 'saveQuizProgress'])->name('courses.workspace.stages.quiz.progress');
                 Route::post('modules/{module}/stages/{module_stage}/quiz/submit', [WorkspaceModuleStageController::class, 'submitQuiz'])->name('courses.workspace.stages.quiz.submit');
+                Route::post('modules/{module}/stages/{module_stage}/quiz/reattempt', [WorkspaceModuleStageController::class, 'reattemptQuiz'])->name('courses.workspace.stages.quiz.reattempt');
             });
         });
     });

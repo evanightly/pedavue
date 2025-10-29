@@ -22,8 +22,10 @@ type ModuleContentRecord = Partial<App.Data.ModuleContent.ModuleContentData> & {
     title?: string | null;
     description?: string | null;
     file_path?: string | null;
+    subtitle_path?: string | null;
     content_url?: string | null;
     file_url?: string | null;
+    subtitle_url?: string | null;
     content_type?: string | null;
 };
 
@@ -113,7 +115,11 @@ export default function ModuleStagePreview({ content = null, className }: Module
     if (previewType === 'video') {
         return (
             <MediaPlayer className={cn('relative h-96 overflow-hidden rounded-lg bg-black', className)} autoHide>
-                <MediaPlayerVideo src={fileUrl ?? undefined} preload='metadata' className='h-full' />
+                <MediaPlayerVideo src={fileUrl ?? undefined} preload='metadata' className='h-full'>
+                    {content?.subtitle_url ? (
+                        <track key='subtitle' kind='subtitles' src={content.subtitle_url} srcLang='id' label='Subtitel' default />
+                    ) : null}
+                </MediaPlayerVideo>
                 <MediaPlayerLoading />
                 <MediaPlayerControlsOverlay />
                 <MediaPlayerControls className='flex items-center gap-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 py-3'>

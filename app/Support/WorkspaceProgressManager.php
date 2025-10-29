@@ -9,6 +9,7 @@ use App\Models\ModuleStage;
 use App\Models\ModuleStageProgress;
 use App\Models\Quiz;
 use App\Models\QuizQuestion;
+use App\Models\QuizResult;
 use App\Models\User;
 use App\Support\Enums\ModuleStageProgressStatus;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -108,6 +109,14 @@ class WorkspaceProgressManager {
             ->get()
             ->keyBy(static fn (ModuleStageProgress $progress): int => $progress->module_stage_id);
 
+        $quizAttempts = QuizResult::query()
+            ->selectRaw('quiz_id, MAX(attempt) as max_attempt')
+            ->where('user_id', $enrollment->user_id)
+            ->groupBy('quiz_id')
+            ->pluck('max_attempt', 'quiz_id')
+            ->map(static fn ($value) => (int) $value)
+            ->all();
+
         $modules = [];
         $stageSummaries = [];
 
@@ -161,6 +170,16 @@ class WorkspaceProgressManager {
                 $stageTitle = $this->resolveStageTitle($stage);
                 $stageDescription = $this->resolveStageDescription($stage);
 
+                $attemptNumber = $this->resolveAttemptNumber($stage, $progress, $quizAttempts);
+
+                if ($attemptNumber !== null && $stage->module_quiz) {
+                    $quizId = $stage->module_quiz->getKey();
+                    $currentMax = (int) ($quizAttempts[$quizId] ?? 0);
+                    if ($attemptNumber > $currentMax) {
+                        $quizAttempts[$quizId] = $attemptNumber;
+                    }
+                }
+
                 $stageSummary = [
                     'id' => $stage->getKey(),
                     'module_id' => $module->getKey(),
@@ -181,7 +200,7 @@ class WorkspaceProgressManager {
                         'deadline_at' => $timeline['deadline_at'],
                         'quiz_result_id' => $progress?->quiz_result_id,
                         'score' => $progress?->quiz_result?->score,
-                        'attempt' => $progress?->quiz_result?->attempt,
+                        'attempt' => $attemptNumber,
                         'earned_points' => $progress?->quiz_result?->earned_points,
                         'total_points' => $stageTotalPoints,
                     ],
@@ -348,6 +367,7 @@ class WorkspaceProgressManager {
         }
 
         $fileUrl = $this->resolveContentFileUrl($content->file_path);
+        $subtitleUrl = $this->resolveContentFileUrl($content->subtitle_path);
 
         return [
             'id' => $content->getKey(),
@@ -355,6 +375,7 @@ class WorkspaceProgressManager {
             'content_type' => $content->content_type,
             'content_url' => $content->content_url,
             'file_url' => $fileUrl,
+            'subtitle_url' => $subtitleUrl,
             'duration_minutes' => $content->duration,
             'duration_label' => $this->formatDuration($content->duration),
         ];
@@ -370,6 +391,32 @@ class WorkspaceProgressManager {
         }
 
         return asset('storage/' . ltrim($path, '/'));
+    }
+
+    private function resolveAttemptNumber(ModuleStage $stage, ?ModuleStageProgress $progress, array $attemptMap): ?int {
+        if ($stage->module_able !== 'quiz') {
+            return null;
+        }
+
+        $quiz = $stage->module_quiz;
+
+        if (!$quiz instanceof Quiz) {
+            return null;
+        }
+
+        $maxAttempt = (int) ($attemptMap[$quiz->getKey()] ?? 0);
+
+        if ($progress && $progress->quiz_result) {
+            $attempt = (int) ($progress->quiz_result->attempt ?? 0);
+
+            if ($attempt > 0) {
+                return $attempt;
+            }
+
+            return max(1, $maxAttempt);
+        }
+
+        return $maxAttempt + 1;
     }
 
     /**

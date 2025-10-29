@@ -58,6 +58,7 @@ class StoreCourseModuleContentRequest extends FormRequest {
             'content.duration' => ['nullable', 'integer', 'min:1'],
             'content.content_url' => ['nullable', 'url', 'max:2048'],
             'content.file' => ['nullable', 'file', 'max:204800'],
+            'content.subtitle_file' => ['nullable', 'file', 'mimes:srt,vtt', 'max:5120'],
         ];
     }
 

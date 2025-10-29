@@ -76,6 +76,8 @@ class UpdateCourseModuleContentRequest extends FormRequest {
             'content.content_url' => ['nullable', 'url', 'max:2048'],
             'content.file' => ['nullable', 'file', 'max:204800'],
             'content.remove_file' => ['nullable', 'boolean'],
+            'content.subtitle_file' => ['nullable', 'file', 'mimes:srt,vtt', 'max:5120'],
+            'content.remove_subtitle' => ['nullable', 'boolean'],
         ];
     }
 
@@ -97,7 +99,9 @@ class UpdateCourseModuleContentRequest extends FormRequest {
                 $contentType = Arr::get($content, 'content_type');
                 $contentUrl = Arr::get($content, 'content_url');
                 $removeFile = (bool) Arr::get($content, 'remove_file', false);
+                $removeSubtitle = (bool) Arr::get($content, 'remove_subtitle', false);
                 $file = $this->file('content.file');
+                $subtitleFile = $this->file('content.subtitle_file');
                 $existingFile = $stage->module_content?->file_path;
 
                 if (!is_string($title) || trim($title) === '') {
@@ -115,6 +119,10 @@ class UpdateCourseModuleContentRequest extends FormRequest {
 
                 if (!$file && !$hasUrl && !$canKeepExistingFile) {
                     $validator->errors()->add('content.content_url', 'Unggah berkas, isi tautan konten, atau pertahankan berkas yang ada.');
+                }
+
+                if ($subtitleFile && $removeSubtitle) {
+                    $validator->errors()->add('content.subtitle_file', 'Tidak dapat mengunggah dan menghapus subtitel secara bersamaan.');
                 }
             }
 

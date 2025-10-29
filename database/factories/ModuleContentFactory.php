@@ -29,6 +29,7 @@ class ModuleContentFactory extends Factory {
             'title' => fake()->word(),
             'description' => fake()->sentence(),
             'file_path' => fake()->word(),
+            'subtitle_path' => null,
             'content_url' => fake()->sentence(),
             'duration' => fake()->numberBetween(1, 1000),
             'content_type' => fake()->word(),
