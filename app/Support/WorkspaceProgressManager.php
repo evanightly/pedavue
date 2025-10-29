@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Module;
+use App\Models\ModuleContent;
 use App\Models\ModuleStage;
 use App\Models\ModuleStageProgress;
 use App\Models\Quiz;
@@ -367,6 +368,7 @@ class WorkspaceProgressManager {
         }
 
         $fileUrl = $this->resolveContentFileUrl($content->file_path);
+        $streamUrl = $this->resolveContentStreamUrl($content);
         $subtitleUrl = $this->resolveContentFileUrl($content->subtitle_path);
 
         return [
@@ -375,6 +377,7 @@ class WorkspaceProgressManager {
             'content_type' => $content->content_type,
             'content_url' => $content->content_url,
             'file_url' => $fileUrl,
+            'file_stream_url' => $streamUrl,
             'subtitle_url' => $subtitleUrl,
             'duration_minutes' => $content->duration,
             'duration_label' => $this->formatDuration($content->duration),
@@ -391,6 +394,20 @@ class WorkspaceProgressManager {
         }
 
         return asset('storage/' . ltrim($path, '/'));
+    }
+
+    private function resolveContentStreamUrl(ModuleContent $content): ?string {
+        $path = $content->file_path;
+
+        if ($path === null || trim($path) === '') {
+            return null;
+        }
+
+        if (!Storage::disk('public')->exists($path)) {
+            return null;
+        }
+
+        return route('module-contents.stream', $content);
     }
 
     private function resolveAttemptNumber(ModuleStage $stage, ?ModuleStageProgress $progress, array $attemptMap): ?int {

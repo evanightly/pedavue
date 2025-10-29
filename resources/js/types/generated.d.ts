@@ -169,6 +169,7 @@ declare namespace App.Data.ModuleContent {
         subtitle_path: string | null;
         content_url: string | null;
         file_url: string | null;
+        file_stream_url: string | null;
         subtitle_url: string | null;
         duration: number | null;
         content_type: string | null;

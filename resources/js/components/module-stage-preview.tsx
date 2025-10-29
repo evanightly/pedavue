@@ -25,6 +25,7 @@ type ModuleContentRecord = Partial<App.Data.ModuleContent.ModuleContentData> & {
     subtitle_path?: string | null;
     content_url?: string | null;
     file_url?: string | null;
+    file_stream_url?: string | null;
     subtitle_url?: string | null;
     content_type?: string | null;
 };
@@ -98,6 +99,14 @@ export default function ModuleStagePreview({ content = null, className }: Module
         return null;
     }, [content?.file_path, content?.file_url]);
 
+    const streamUrl = useMemo(() => {
+        if (!content?.file_stream_url || content.file_stream_url.trim() === '') {
+            return null;
+        }
+
+        return content.file_stream_url;
+    }, [content?.file_stream_url]);
+
     const contentUrl = useMemo(() => {
         if (!content?.content_url) {
             return null;
@@ -113,9 +122,11 @@ export default function ModuleStagePreview({ content = null, className }: Module
     }
 
     if (previewType === 'video') {
+        const videoSrc = streamUrl ?? fileUrl;
+
         return (
             <MediaPlayer className={cn('relative h-96 overflow-hidden rounded-lg bg-black', className)} autoHide>
-                <MediaPlayerVideo src={fileUrl ?? undefined} preload='metadata' className='h-full'>
+                <MediaPlayerVideo src={videoSrc ?? undefined} preload='metadata' className='h-full'>
                     {content?.subtitle_url ? (
                         <track key='subtitle' kind='subtitles' src={content.subtitle_url} srcLang='id' label='Subtitel' default />
                     ) : null}
@@ -135,9 +146,11 @@ export default function ModuleStagePreview({ content = null, className }: Module
     }
 
     if (previewType === 'audio') {
+        const audioSrc = streamUrl ?? fileUrl;
+
         return (
             <MediaPlayer className={cn('relative w-full overflow-hidden rounded-lg border border-border bg-card', className)} withoutTooltip>
-                <MediaPlayerAudio src={fileUrl ?? undefined} preload='metadata' />
+                <MediaPlayerAudio src={audioSrc ?? undefined} preload='metadata' />
                 <MediaPlayerControls className='flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4'>
                     <div className='flex items-center gap-2'>
                         <MediaPlayerPlay />

@@ -11,6 +11,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\EnrollmentRequestController;
 use App\Http\Controllers\ModuleContentController;
+use App\Http\Controllers\ModuleContentStreamController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\ModuleStageController;
 use App\Http\Controllers\PermissionController;
@@ -104,6 +105,7 @@ Route::get('csrf-token', function () {
 Route::resource('modules', ModuleController::class);
 
 Route::resource('module-contents', ModuleContentController::class);
+Route::get('module-contents/{module_content}/stream', ModuleContentStreamController::class)->name('module-contents.stream');
 
 Route::resource('module-stages', ModuleStageController::class);
 

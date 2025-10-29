@@ -92,6 +92,7 @@ interface StageSummary {
         content_type?: string | null;
         content_url?: string | null;
         file_url?: string | null;
+        file_stream_url?: string | null;
         duration_minutes?: number | null;
         duration_label?: string | null;
     } | null;
