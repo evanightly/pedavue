@@ -376,7 +376,8 @@ it('allows an instructor to attach a quiz stage to an existing module', function
 
     expect($stage)->not->toBeNull()
         ->and($stage?->module_able)->toBe('quiz')
-        ->and($stage?->module_quiz_id)->toBe($quiz->getKey());
+        ->and($stage?->module_able_type)->toBe(Quiz::class)
+        ->and($stage?->module_able_id)->toBe($quiz->getKey());
 });
 
 it('forbids users without instructor permission from managing modules', function (): void {

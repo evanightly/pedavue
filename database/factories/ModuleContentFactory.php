@@ -15,8 +15,8 @@ class ModuleContentFactory extends Factory {
             ModuleStage::query()
                 ->whereKey($moduleContent->module_stage_id)
                 ->update([
-                    'module_content_id' => $moduleContent->getKey(),
-                    'module_able' => 'content',
+                    'module_able_type' => ModuleContent::class,
+                    'module_able_id' => $moduleContent->getKey(),
                 ]);
         });
     }

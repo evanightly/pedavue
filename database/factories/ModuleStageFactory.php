@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Module;
+use App\Models\ModuleContent;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -14,11 +15,10 @@ class ModuleStageFactory extends Factory {
      */
     public function definition(): array {
         return [
-            'module_able' => 'content',
             'order' => fake()->numberBetween(1, 1000),
             'module_id' => Module::factory(),
-            'module_content_id' => null,
-            'module_quiz_id' => null,
+            'module_able_type' => ModuleContent::class,
+            'module_able_id' => null,
         ];
     }
 }

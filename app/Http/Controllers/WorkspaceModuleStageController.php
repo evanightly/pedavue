@@ -8,6 +8,7 @@ use App\Http\Requests\Workspace\SubmitStageQuizRequest;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Module;
+use App\Models\ModuleContent;
 use App\Models\ModuleStage;
 use App\Models\ModuleStageProgress;
 use App\Models\Quiz;
@@ -16,6 +17,7 @@ use App\Models\QuizQuestionOption;
 use App\Models\QuizResult;
 use App\Support\Enums\ModuleStageProgressStatus;
 use App\Support\WorkspaceProgressManager;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -50,7 +52,14 @@ class WorkspaceModuleStageController extends Controller {
             abort(403, 'Tahap ini masih terkunci.');
         }
 
-        $moduleStage->loadMissing(['module_content', 'module_quiz.quiz_questions.quiz_question_options']);
+        $moduleStage->loadMissing([
+            'moduleAble' => static function (MorphTo $morphTo): void {
+                $morphTo->morphWith([
+                    ModuleContent::class => [],
+                    Quiz::class => ['quiz_questions.quiz_question_options'],
+                ]);
+            },
+        ]);
 
         if ($moduleStage->module_able === 'quiz') {
             $progress = $this->initializeQuizProgress($enrollment, $moduleStage);
@@ -154,7 +163,14 @@ class WorkspaceModuleStageController extends Controller {
         $this->ensureHierarchy($course, $module, $moduleStage);
 
         $enrollment = $request->enrollment();
-        $moduleStage->loadMissing(['module_quiz.quiz_questions.quiz_question_options']);
+        $moduleStage->loadMissing([
+            'moduleAble' => static function (MorphTo $morphTo): void {
+                $morphTo->morphWith([
+                    ModuleContent::class => [],
+                    Quiz::class => ['quiz_questions.quiz_question_options'],
+                ]);
+            },
+        ]);
 
         $progress = $this->initializeQuizProgress($enrollment, $moduleStage);
 
@@ -192,7 +208,14 @@ class WorkspaceModuleStageController extends Controller {
         $this->ensureHierarchy($course, $module, $moduleStage);
 
         $enrollment = $request->enrollment();
-        $moduleStage->loadMissing(['module_quiz.quiz_questions.quiz_question_options']);
+        $moduleStage->loadMissing([
+            'moduleAble' => static function (MorphTo $morphTo): void {
+                $morphTo->morphWith([
+                    ModuleContent::class => [],
+                    Quiz::class => ['quiz_questions.quiz_question_options'],
+                ]);
+            },
+        ]);
 
         $progress = $this->initializeQuizProgress($enrollment, $moduleStage);
         $answers = $request->sanitizedAnswers();
@@ -469,7 +492,14 @@ class WorkspaceModuleStageController extends Controller {
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $stage->loadMissing('module_quiz.quiz_questions.quiz_question_options');
+            $stage->loadMissing([
+                'moduleAble' => static function (MorphTo $morphTo): void {
+                    $morphTo->morphWith([
+                        ModuleContent::class => [],
+                        Quiz::class => ['quiz_questions.quiz_question_options'],
+                    ]);
+                },
+            ]);
             $sanitizedAnswers = $this->sanitizeAnswers($answers, $stage);
             $result = $this->gradeQuiz($stage, $sanitizedAnswers);
 
@@ -478,7 +508,7 @@ class WorkspaceModuleStageController extends Controller {
             if (!$quizResult instanceof QuizResult) {
                 $quizResult = new QuizResult;
                 $quizResult->user_id = $enrollment->user_id;
-                $quizResult->quiz_id = $stage->module_quiz_id;
+                $quizResult->quiz_id = $stage->module_quiz?->getKey();
                 $quizResult->attempt = 1;
             }
 

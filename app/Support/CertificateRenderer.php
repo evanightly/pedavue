@@ -414,7 +414,9 @@ class CertificateRenderer {
         // imagedestroy($qrImage);
 
         $qrImage = imagecreatefromstring($writer->write($qrCode)->getString());
-        if ($qrImage === false) return;
+        if ($qrImage === false) {
+            return;
+        }
 
         $sourceWidth = imagesx($qrImage);
         $sourceHeight = imagesy($qrImage);
@@ -543,11 +545,30 @@ class CertificateRenderer {
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
         return match ($extension) {
-            'png' => imagecreatefrompng($path),
-            'jpg', 'jpeg' => imagecreatefromjpeg($path),
-            'webp' => function_exists('imagecreatefromwebp') ? imagecreatefromwebp($path) : $this->createImageFromBinary($path),
+            'png' => $this->createImageUsing($path, static fn () => imagecreatefrompng($path)),
+            'jpg', 'jpeg' => $this->createImageUsing($path, static fn () => imagecreatefromjpeg($path)),
+            'webp' => function_exists('imagecreatefromwebp')
+                ? $this->createImageUsing($path, static fn () => imagecreatefromwebp($path))
+                : $this->createImageFromBinary($path),
             default => $this->createImageFromBinary($path),
         };
+    }
+
+    /**
+     * @param  callable():\GdImage|false  $factory
+     */
+    private function createImageUsing(string $path, callable $factory) {
+        try {
+            $resource = $factory();
+        } catch (\Throwable) {
+            $resource = false;
+        }
+
+        if ($resource === false) {
+            return $this->createImageFromBinary($path);
+        }
+
+        return $resource;
     }
 
     private function createImageFromBinary(string $path) {

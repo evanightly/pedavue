@@ -102,7 +102,8 @@ class CourseModuleController extends Controller {
             $stages->each(function (array $stage, int $index) use ($module, $request): void {
                 $moduleStage = ModuleStage::query()->create([
                     'module_id' => $module->getKey(),
-                    'module_able' => $stage['type'],
+                    'module_able_type' => ModuleStage::moduleAbleTypeForKey($stage['type']),
+                    'module_able_id' => null,
                     'order' => $stage['order'] ?? $index + 1,
                 ]);
 
@@ -134,10 +135,11 @@ class CourseModuleController extends Controller {
                     ]);
 
                     $moduleStage->update([
-                        'module_able' => 'content',
-                        'module_content_id' => $moduleContent->getKey(),
-                        'module_quiz_id' => null,
+                        'module_able_type' => ModuleContent::class,
+                        'module_able_id' => $moduleContent->getKey(),
                     ]);
+
+                    $moduleStage->setRelation('moduleAble', $moduleContent);
                 }
 
                 if ($stage['type'] === 'quiz') {
@@ -156,10 +158,11 @@ class CourseModuleController extends Controller {
                     }
 
                     $moduleStage->update([
-                        'module_able' => 'quiz',
-                        'module_quiz_id' => $quiz->getKey(),
-                        'module_content_id' => null,
+                        'module_able_type' => Quiz::class,
+                        'module_able_id' => $quiz->getKey(),
                     ]);
+
+                    $moduleStage->setRelation('moduleAble', $quiz);
                 }
             });
         });

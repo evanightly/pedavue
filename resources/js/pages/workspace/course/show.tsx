@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { Head } from '@inertiajs/react';
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import {
     AlertTriangle,
     Award,
@@ -607,7 +607,35 @@ export default function WorkspaceCourseShowPage({
 
             toast.success('Sertifikat berhasil diunduh.');
         } catch (error) {
-            toast.error('Gagal mengunduh sertifikat. Silakan coba lagi.');
+            let message = 'Gagal mengunduh sertifikat. Silakan coba lagi.';
+
+            if (isAxiosError(error) && error.response) {
+                const responseData = error.response.data;
+
+                if (responseData instanceof Blob) {
+                    try {
+                        const text = await responseData.text();
+
+                        if (text.trim() !== '') {
+                            try {
+                                const parsed = JSON.parse(text);
+
+                                if (typeof parsed?.message === 'string' && parsed.message.trim() !== '') {
+                                    message = parsed.message;
+                                }
+                            } catch {
+                                message = text;
+                            }
+                        }
+                    } catch {
+                        /* ignore blob parse errors */
+                    }
+                } else if (typeof responseData?.message === 'string' && responseData.message.trim() !== '') {
+                    message = responseData.message;
+                }
+            }
+
+            toast.error(message);
         } finally {
             setIsDownloadingCertificate(false);
         }

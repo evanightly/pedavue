@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -58,6 +59,10 @@ class CourseCertificateController extends Controller {
 
         try {
             $rendered = $this->certificateRenderer->render($course, $enrollment->user, $absolutePath, $extension, $verificationUrl, $enrollment->completed_at);
+        } catch (RuntimeException $exception) {
+            report($exception);
+
+            abort(Response::HTTP_UNPROCESSABLE_ENTITY, $exception->getMessage());
         } catch (\Throwable $exception) {
             report($exception);
 

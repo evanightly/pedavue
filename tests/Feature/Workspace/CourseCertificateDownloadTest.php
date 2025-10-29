@@ -135,8 +135,8 @@ it('rejects certificate download when quiz points requirement is unmet', functio
     $quiz = Quiz::factory()->create();
 
     $stage = ModuleStage::factory()->for($module)->create([
-        'module_able' => 'quiz',
-        'module_quiz_id' => $quiz->getKey(),
+        'module_able_type' => Quiz::class,
+        'module_able_id' => $quiz->getKey(),
         'order' => 1,
     ]);
 
@@ -187,4 +187,33 @@ it('rejects certificate download when quiz points requirement is unmet', functio
     actingAs($student)
         ->get(route('courses.workspace.certificate.download', $course))
         ->assertForbidden();
+});
+
+it('returns a helpful error when the certificate template cannot be decoded', function (): void {
+    Storage::fake('public');
+
+    $relativePath = 'courses/certificates/invalid.jpg';
+    Storage::disk('public')->put($relativePath, 'not-a-valid-image');
+
+    $course = Course::factory()->create([
+        'slug' => 'broken-template-course',
+        'certification_enabled' => true,
+        'certificate_template' => $relativePath,
+    ]);
+
+    /** @var User $student */
+    $student = User::factory()->create();
+    $student->assignRole(RoleEnum::Student->value);
+
+    Enrollment::factory()->create([
+        'course_id' => $course->getKey(),
+        'user_id' => $student->getKey(),
+        'progress' => 100,
+        'completed_at' => now(),
+    ]);
+
+    actingAs($student)
+        ->get(route('courses.workspace.certificate.download', $course))
+        ->assertUnprocessable()
+        ->assertSeeText('Template sertifikat tidak dikenali.');
 });

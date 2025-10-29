@@ -178,7 +178,10 @@ declare namespace App.Data.ModuleContent {
 declare namespace App.Data.ModuleStage {
     export type ModuleStageData = {
         id: any | number;
+        module_id: number | null;
         module_able: string | null;
+        module_able_type: string | null;
+        module_able_id: number | null;
         order: number | null;
         created_at: string | null;
         updated_at: string | null;
