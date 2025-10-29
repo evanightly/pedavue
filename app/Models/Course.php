@@ -63,12 +63,11 @@ class Course extends Model {
     }
 
     public function totalQuizPoints(): int {
-        $this->loadMissing('modules.module_stages.module_quiz.quiz_questions');
+        $this->loadMissing('modules.module_quizzes.quiz_questions');
 
         return $this->modules
-            ->flatMap(static fn (Module $module) => $module->module_stages)
-            ->filter(static fn (ModuleStage $stage) => $stage->isQuiz() && $stage->module_quiz)
-            ->flatMap(static fn (ModuleStage $stage) => $stage->module_quiz->quiz_questions)
+            ->flatMap(static fn (Module $module) => $module->module_quizzes)
+            ->flatMap(static fn (Quiz $quiz) => $quiz->quiz_questions)
             ->sum(static fn (QuizQuestion $question) => max(0, (int) ($question->points ?? 0)));
     }
 

@@ -5,7 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Module extends Model {
     use HasFactory;
@@ -48,5 +50,30 @@ class Module extends Model {
 
     public function stages(): HasMany { // Route binding compatibility for quiz
         return $this->module_stages();
+    }
+
+    public function module_contents(): HasManyThrough {
+        return $this->hasManyThrough(
+            ModuleContent::class,
+            ModuleStage::class,
+            'module_id',
+            'module_stage_id',
+            'id',
+            'id'
+        );
+    }
+
+    public function module_quizzes(): BelongsToMany {
+        return $this
+            ->belongsToMany(
+                Quiz::class,
+                'module_stages',
+                'module_id',
+                'module_able_id'
+            )
+            ->wherePivot(
+                'module_able_type',
+                ModuleStage::moduleAbleTypeForKey('quiz')
+            );
     }
 }
