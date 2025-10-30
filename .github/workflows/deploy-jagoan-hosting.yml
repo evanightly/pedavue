@@ -1,13 +1,13 @@
-name: Deploy Laravel to InfinityFree
+name: Deploy Laravel to Jagoan Hosting
 
-# on:
-#   push:
-#     branches:
-#       - main
-#   workflow_dispatch:
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-jagoan-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -16,8 +16,8 @@ jobs:
     env:
       PHP_VERSION: '8.4'
       NODE_VERSION: '22'
-      FTP_PROTOCOL: ${{ secrets.FTP_PROTOCOL }}
-      SERVER_HTDOCS_DIR: ${{ secrets.SERVER_HTDOCS_DIR }}
+      FTP_PROTOCOL: ${{ secrets.JAGOAN_FTP_PROTOCOL }}
+      SERVER_PUBLIC_DIR: ${{ secrets.JAGOAN_SERVER_PUBLIC_DIR }}
 
     steps:
       - name: Checkout
@@ -67,12 +67,12 @@ jobs:
             rsync -a --delete build/ public/build/
           fi
 
-      - name: Prepare deployable copy for shared hosting
+      - name: Prepare deployable copy for cPanel
         shell: bash
         run: |
           set -euo pipefail
 
-          mkdir -p deploy-htdocs
+          mkdir -p deploy-public_html
 
           rsync -a --delete \
             --exclude '.git/' \
@@ -82,12 +82,12 @@ jobs:
             --exclude 'tests/' \
             --exclude 'storage/logs/' \
             --exclude '.env' \
-            ./ deploy-htdocs/
+            ./ deploy-public_html/
 
-          rsync -a deploy-htdocs/public/ deploy-htdocs/
-          rm -rf deploy-htdocs/public/
+          rsync -a deploy-public_html/public/ deploy-public_html/
+          rm -rf deploy-public_html/public/
 
-          cat > deploy-htdocs/index.php <<'PHP'
+          cat > deploy-public_html/index.php <<'PHP'
           <?php
 
           use Illuminate\Foundation\Application;
@@ -95,27 +95,24 @@ jobs:
 
           define('LARAVEL_START', microtime(true));
 
-          // Determine if the application is in maintenance mode...
-          if (file_exists($maintenance = __DIR__ . '/../storage/framework/maintenance.php')) {
+          if (file_exists($maintenance = __DIR__ . '/storage/framework/maintenance.php')) {
               require $maintenance;
           }
 
-          // Register the Composer autoloader...
           require __DIR__ . '/vendor/autoload.php';
 
-          // Bootstrap Laravel and handle the request...
           /** @var Application $app */
           $app = require_once __DIR__ . '/bootstrap/app.php';
 
           $app->handleRequest(Request::capture());
           PHP
 
-          if [[ -d deploy-htdocs/build ]]; then
-            mkdir -p deploy-htdocs/public
-            rsync -a --delete deploy-htdocs/build/ deploy-htdocs/public/build/
+          if [[ -d deploy-public_html/build ]]; then
+            mkdir -p deploy-public_html/public
+            rsync -a --delete deploy-public_html/build/ deploy-public_html/public/build/
           fi
 
-          cat > deploy-htdocs/.htaccess <<'EOF'
+          cat > deploy-public_html/.htaccess <<'EOF'
           <IfModule mod_rewrite.c>
               RewriteEngine On
 
@@ -143,35 +140,35 @@ jobs:
           </IfModule>
           EOF
 
-          mkdir -p deploy-htdocs/storage/framework/{cache,sessions,views}
-          mkdir -p deploy-htdocs/bootstrap/cache
+          mkdir -p deploy-public_html/storage/framework/{cache,sessions,views}
+          mkdir -p deploy-public_html/bootstrap/cache
 
       - name: Write production env file
         shell: bash
         env:
-          SECRET_ENV: ${{ secrets.ENV_PRODUCTION }}
+          SECRET_ENV: ${{ secrets.JAGOAN_ENV_PRODUCTION }}
         run: |
           set -euo pipefail
-          mkdir -p deploy-htdocs
+          mkdir -p deploy-public_html
           if [[ -z "${SECRET_ENV}" ]]; then
-            echo 'Missing secret ENV_PRODUCTION with your production .env contents.' >&2
+            echo 'Missing secret JAGOAN_ENV_PRODUCTION with your production .env contents.' >&2
             exit 1
           fi
-          printf '%s\n' "${SECRET_ENV}" > deploy-htdocs/.env
-          chmod 600 deploy-htdocs/.env || true
+          printf '%s\n' "${SECRET_ENV}" > deploy-public_html/.env
+          chmod 600 deploy-public_html/.env || true
 
-      - name: Upload to InfinityFree
+      - name: Upload to Jagoan Hosting
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PASS }}
-          port: ${{ secrets.FTP_PORT || 21 }}
+          server: ${{ secrets.JAGOAN_FTP_HOST }}
+          username: ${{ secrets.JAGOAN_FTP_USER }}
+          password: ${{ secrets.JAGOAN_FTP_PASS }}
+          port: ${{ secrets.JAGOAN_FTP_PORT || 21 }}
           protocol: ${{ env.FTP_PROTOCOL != '' && env.FTP_PROTOCOL || 'ftps' }}
-          local-dir: deploy-htdocs/
-          server-dir: ${{ env.SERVER_HTDOCS_DIR != '' && env.SERVER_HTDOCS_DIR || '/htdocs/' }}
+          local-dir: deploy-public_html/
+          server-dir: ${{ env.SERVER_PUBLIC_DIR != '' && env.SERVER_PUBLIC_DIR || '/public_html/' }}
           dangerous-clean-slate: false
-          state-name: deploy-sync-state.json
+          state-name: deploy-jagoan-sync-state.json
           timeout: 300000
           max-timeout: 600000
           log-level: standard
