@@ -44,6 +44,7 @@ class StoreCourseModuleContentRequest extends FormRequest {
             'quiz.type' => ['nullable', 'string', 'max:100'],
             'quiz.questions' => ['nullable', 'array'],
             'quiz.questions.*.question' => ['nullable', 'string'],
+            'quiz.questions.*.points' => ['nullable', 'integer', 'min:1'],
             'quiz.questions.*.is_answer_shuffled' => ['nullable', 'boolean'],
             'quiz.questions.*.order' => ['nullable', 'integer', 'min:1'],
             'quiz.questions.*.options' => ['nullable', 'array'],
@@ -57,6 +58,7 @@ class StoreCourseModuleContentRequest extends FormRequest {
             'content.duration' => ['nullable', 'integer', 'min:1'],
             'content.content_url' => ['nullable', 'url', 'max:2048'],
             'content.file' => ['nullable', 'file', 'max:204800'],
+            'content.subtitle_file' => ['nullable', 'file', 'mimes:srt,vtt', 'max:5120'],
         ];
     }
 
@@ -127,6 +129,13 @@ class StoreCourseModuleContentRequest extends FormRequest {
             $questionText = Arr::get($question, 'question');
             if (!is_string($questionText) || trim($questionText) === '') {
                 $validator->errors()->add($questionPath . '.question', 'Isi teks pertanyaan.');
+            }
+
+            $pointsValue = Arr::get($question, 'points');
+            if ($pointsValue !== null && filter_var($pointsValue, FILTER_VALIDATE_INT) === false) {
+                $validator->errors()->add($questionPath . '.points', 'Bobot poin harus berupa angka.');
+            } elseif ($pointsValue !== null && (int) $pointsValue < 1) {
+                $validator->errors()->add($questionPath . '.points', 'Bobot poin minimal 1.');
             }
 
             $options = Arr::get($question, 'options');

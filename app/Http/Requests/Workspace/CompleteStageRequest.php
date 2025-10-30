@@ -8,7 +8,7 @@ class CompleteStageRequest extends AbstractWorkspaceStageRequest {
             return false;
         }
 
-        return $this->moduleStage()->module_able === 'content';
+        return $this->moduleStage()->isContent();
     }
 
     public function rules(): array {

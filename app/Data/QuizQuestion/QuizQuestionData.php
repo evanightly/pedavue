@@ -22,9 +22,11 @@ class QuizQuestionData extends Data {
         public string $question,
         public ?string $question_image,
         public ?string $question_image_url,
-        public bool|Optional $is_answer_shuffled = false,
+        public bool|Optional $is_answer_shuffled,
         public ?int $order,
-        public ?QuizData $quiz = null,
+        #[LiteralTypeScriptType('number|null')]
+        public ?int $points,
+        public ?QuizData $quiz,
         #[DataCollectionOf(QuizQuestionOptionData::class)]
         #[LiteralTypeScriptType('App.Data.QuizQuestionOption.QuizQuestionOptionData[]|null')]
         public ?DataCollection $quiz_question_options,
@@ -41,6 +43,7 @@ class QuizQuestionData extends Data {
             question_image_url: static::resolveQuestionImageUrl($model->question_image),
             is_answer_shuffled: $model->is_answer_shuffled,
             order: $model->order,
+            points: $model->points,
             quiz: $model->relationLoaded('quiz') ? QuizData::from($model->quiz) : null,
             quiz_question_options: $model->relationLoaded('quiz_question_options')
                 ? new DataCollection(QuizQuestionOptionData::class, $model->quiz_question_options)
@@ -50,9 +53,10 @@ class QuizQuestionData extends Data {
         );
     }
 
-    public static function rules(ValidationContext $context = null): array {
+    public static function rules(?ValidationContext $context = null): array {
         $defaultRules = [
             'quiz_id' => ['integer', 'exists:quizzes,id'],
+            'points' => ['nullable', 'integer', 'min:1'],
         ];
         switch (request()->route()->getName()) {
             case 'quizzes.questions.add':
@@ -64,7 +68,7 @@ class QuizQuestionData extends Data {
                 return $defaultRules;
         }
     }
-    
+
     private static function resolveQuestionImageUrl(?string $path): ?string {
         if (!$path) {
             return null;

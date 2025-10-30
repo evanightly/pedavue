@@ -13,6 +13,7 @@ use App\Models\ModuleStage;
 use App\Models\Quiz;
 use App\Models\QuizQuestion;
 use App\Support\QuizPayloadManager;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,8 +36,16 @@ class CourseModuleContentController extends Controller {
         abort_unless($module->course_id === $course->getKey(), 404);
 
         $module->load([
-            'module_stages.module_content',
-            'module_stages.module_quiz.quiz_questions.quiz_question_options',
+            'module_stages' => static function ($query): void {
+                $query->with([
+                    'moduleAble' => static function (MorphTo $morphTo): void {
+                        $morphTo->morphWith([
+                            ModuleContent::class => [],
+                            Quiz::class => ['quiz_questions.quiz_question_options'],
+                        ]);
+                    },
+                ]);
+            },
         ]);
 
         return Inertia::render('course/module/contents/index', [
@@ -73,19 +82,26 @@ class CourseModuleContentController extends Controller {
         DB::transaction(function () use ($module, $request, $payload, $stageOrder, $type): void {
             $moduleStage = ModuleStage::query()->create([
                 'module_id' => $module->getKey(),
-                'module_able' => $type,
+                'module_able_type' => ModuleStage::moduleAbleTypeForKey($type),
+                'module_able_id' => null,
                 'order' => (int) $stageOrder,
             ]);
 
             if ($type === 'content') {
                 $content = $payload['content'] ?? [];
                 $file = $request->file('content.file');
+                $subtitleFile = $request->file('content.subtitle_file');
                 $storedPath = null;
+                $storedSubtitlePath = null;
 
                 if ($file) {
                     $storedPath = $file->store('courses/modules/contents', 'public');
                 } elseif (!empty($content['file_path'])) {
                     $storedPath = $content['file_path'];
+                }
+
+                if ($subtitleFile) {
+                    $storedSubtitlePath = $subtitleFile->store('courses/modules/subtitles', 'public');
                 }
 
                 $contentUrl = $content['content_url'] ?? null;
@@ -106,6 +122,7 @@ class CourseModuleContentController extends Controller {
                     'title' => $content['title'] ?? null,
                     'description' => $content['description'] ?? null,
                     'file_path' => $storedPath,
+                    'subtitle_path' => $storedSubtitlePath,
                     'content_url' => $contentUrl,
                     'duration' => Arr::has($content, 'duration') ? (int) $content['duration'] : null,
                     'content_type' => $contentType,
@@ -113,10 +130,11 @@ class CourseModuleContentController extends Controller {
                 ]);
 
                 $moduleStage->update([
-                    'module_able' => 'content',
-                    'module_content_id' => $moduleContent->getKey(),
-                    'module_quiz_id' => null,
+                    'module_able_type' => ModuleContent::class,
+                    'module_able_id' => $moduleContent->getKey(),
                 ]);
+
+                $moduleStage->setRelation('moduleAble', $moduleContent);
             }
 
             if ($type === 'quiz') {
@@ -135,13 +153,11 @@ class CourseModuleContentController extends Controller {
                 }
 
                 $moduleStage->update([
-                    'module_able' => 'quiz',
-                    'module_quiz_id' => $quiz->getKey(),
-                    'module_content_id' => null,
+                    'module_able_type' => Quiz::class,
+                    'module_able_id' => $quiz->getKey(),
                 ]);
 
-                $moduleStage->setRelation('module_quiz', $quiz);
-                $moduleStage->setRelation('module_content', null);
+                $moduleStage->setRelation('moduleAble', $quiz);
             }
 
             $this->normalizeModuleStageOrder($module);
@@ -172,8 +188,12 @@ class CourseModuleContentController extends Controller {
                 ->firstOrFail();
 
             $moduleStage->load([
-                'module_content',
-                'module_quiz.quiz_questions.quiz_question_options',
+                'moduleAble' => static function (MorphTo $morphTo): void {
+                    $morphTo->morphWith([
+                        ModuleContent::class => [],
+                        Quiz::class => ['quiz_questions.quiz_question_options'],
+                    ]);
+                },
             ]);
 
             $existingQuiz = $moduleStage->module_quiz;
@@ -187,10 +207,13 @@ class CourseModuleContentController extends Controller {
             if ($type === 'content') {
                 $contentPayload = $payload['content'] ?? [];
                 $file = $request->file('content.file');
+                $subtitleFile = $request->file('content.subtitle_file');
                 $removeFile = (bool) Arr::get($contentPayload, 'remove_file', false);
+                $removeSubtitle = (bool) Arr::get($contentPayload, 'remove_subtitle', false);
 
                 $existingContent = $moduleStage->module_content;
                 $storedPath = $existingContent?->file_path;
+                $subtitlePath = $existingContent?->subtitle_path;
 
                 if ($file) {
                     if ($storedPath && Storage::disk('public')->exists($storedPath)) {
@@ -204,6 +227,20 @@ class CourseModuleContentController extends Controller {
                     }
 
                     $storedPath = null;
+                }
+
+                if ($subtitleFile) {
+                    if ($subtitlePath && Storage::disk('public')->exists($subtitlePath)) {
+                        Storage::disk('public')->delete($subtitlePath);
+                    }
+
+                    $subtitlePath = $subtitleFile->store('courses/modules/subtitles', 'public');
+                } elseif ($removeSubtitle && $subtitlePath) {
+                    if (Storage::disk('public')->exists($subtitlePath)) {
+                        Storage::disk('public')->delete($subtitlePath);
+                    }
+
+                    $subtitlePath = null;
                 }
 
                 $contentUrl = Arr::get($contentPayload, 'content_url');
@@ -225,43 +262,44 @@ class CourseModuleContentController extends Controller {
                     $file ? 'Berkas' : $fallbackType
                 );
 
+                $targetContent = $existingContent;
+
                 if ($existingContent) {
                     $existingContent->update([
                         'title' => Arr::get($contentPayload, 'title'),
                         'description' => Arr::get($contentPayload, 'description'),
                         'file_path' => $storedPath,
+                        'subtitle_path' => $subtitlePath,
                         'content_url' => $contentUrl,
                         'duration' => $duration,
                         'content_type' => $contentType,
                     ]);
-
-                    $moduleStage->module_content_id = $existingContent->getKey();
-                    $moduleStage->setRelation('module_content', $existingContent);
                 } else {
                     $newContent = ModuleContent::query()->create([
                         'title' => Arr::get($contentPayload, 'title'),
                         'description' => Arr::get($contentPayload, 'description'),
                         'file_path' => $storedPath,
+                        'subtitle_path' => $subtitlePath,
                         'content_url' => $contentUrl,
                         'duration' => $duration,
                         'content_type' => $contentType,
                         'module_stage_id' => $moduleStage->getKey(),
                     ]);
 
-                    $moduleStage->module_content_id = $newContent->getKey();
-                    $moduleStage->setRelation('module_content', $newContent);
+                    $targetContent = $newContent;
                 }
 
-                $moduleStage->module_able = 'content';
-                $moduleStage->module_quiz_id = null;
-                $moduleStage->order = $order;
-                $moduleStage->save();
+                $moduleStage->setRelation('moduleAble', $targetContent);
+
+                $moduleStage->update([
+                    'module_able_type' => ModuleContent::class,
+                    'module_able_id' => $targetContent?->getKey(),
+                    'order' => $order,
+                ]);
 
                 if ($existingQuiz) {
                     $this->deleteModuleQuiz($existingQuiz, $moduleStage);
                 }
-
-                $moduleStage->setRelation('module_quiz', null);
             } else {
                 $this->deleteModuleContent($moduleStage->module_content);
                 $quiz = null;
@@ -285,14 +323,13 @@ class CourseModuleContentController extends Controller {
                 }
 
                 $moduleStage->update([
-                    'module_able' => 'quiz',
-                    'module_quiz_id' => $quiz->getKey(),
-                    'module_content_id' => null,
+                    'module_able_type' => Quiz::class,
+                    'module_able_id' => $quiz->getKey(),
                     'order' => $order,
                 ]);
 
-                $moduleStage->setRelation('module_content', null);
-                $moduleStage->setRelation('module_quiz', $quiz);
+                $moduleStage->unsetRelation('moduleAble');
+                $moduleStage->setRelation('moduleAble', $quiz);
             }
 
             $this->normalizeModuleStageOrder($module);
@@ -357,7 +394,9 @@ class CourseModuleContentController extends Controller {
             return;
         }
 
-        $query = ModuleStage::query()->where('module_quiz_id', $quiz->getKey());
+        $query = ModuleStage::query()
+            ->where('module_able_type', Quiz::class)
+            ->where('module_able_id', $quiz->getKey());
 
         if ($excludingStage) {
             $query->whereKeyNot($excludingStage->getKey());
@@ -525,6 +564,10 @@ class CourseModuleContentController extends Controller {
 
         if ($content->file_path && Storage::disk('public')->exists($content->file_path)) {
             Storage::disk('public')->delete($content->file_path);
+        }
+
+        if ($content->subtitle_path && Storage::disk('public')->exists($content->subtitle_path)) {
+            Storage::disk('public')->delete($content->subtitle_path);
         }
 
         $content->delete();

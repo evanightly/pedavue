@@ -17,8 +17,11 @@ class ModuleContentData extends Data {
         public ?string $title,
         public ?string $description,
         public ?string $file_path,
+        public ?string $subtitle_path,
         public ?string $content_url,
         public ?string $file_url,
+        public ?string $file_stream_url,
+        public ?string $subtitle_url,
         public ?int $duration,
         public ?string $content_type,
         public ?string $created_at,
@@ -33,8 +36,11 @@ class ModuleContentData extends Data {
             title: $model->title,
             description: $model->description,
             file_path: $model->file_path,
+            subtitle_path: $model->subtitle_path,
             content_url: $model->content_url,
             file_url: static::resolveFileUrl($model->file_path),
+            file_stream_url: static::resolveStreamUrl($model),
+            subtitle_url: static::resolveFileUrl($model->subtitle_path),
             duration: $model->duration !== null ? (int) $model->duration : null,
             content_type: $model->content_type,
             created_at: $model->created_at?->toIso8601String(),
@@ -55,5 +61,19 @@ class ModuleContentData extends Data {
         }
 
         return asset('storage/' . ltrim($path, '/'));
+    }
+
+    private static function resolveStreamUrl(ModuleContent $model): ?string {
+        $path = $model->file_path;
+
+        if (!$path) {
+            return null;
+        }
+
+        if (!Storage::disk('public')->exists($path)) {
+            return null;
+        }
+
+        return route('module-contents.stream', $model);
     }
 }

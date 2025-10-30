@@ -11,11 +11,12 @@ use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Spatie\TypeScriptTransformer\Attributes\TypeScriptType;
 
 #[TypeScript]
-class QuizResultData extends Data
-{
+class QuizResultData extends Data {
     public function __construct(
         public int|Optional $id,
         public ?int $score,
+        public ?int $earned_points,
+        public ?int $total_points,
         public ?int $attempt,
         public ?string $started_at,
         public ?string $finished_at,
@@ -27,12 +28,12 @@ class QuizResultData extends Data
         public ?QuizData $quiz,
     ) {}
 
-
-    public static function fromModel(QuizResult $model): self
-    {
+    public static function fromModel(QuizResult $model): self {
         return new self(
             id: $model->getKey(),
             score: $model->score !== null ? (int) $model->score : null,
+            earned_points: $model->earned_points !== null ? (int) $model->earned_points : null,
+            total_points: $model->total_points !== null ? (int) $model->total_points : null,
             attempt: $model->attempt !== null ? (int) $model->attempt : null,
             started_at: $model->started_at?->toIso8601String(),
             finished_at: $model->finished_at?->toIso8601String(),

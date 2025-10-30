@@ -17,7 +17,17 @@ class QuizQuestion extends Model {
         'question',
         'is_answer_shuffled',
         'order',
+        'points',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array {
+        return [
+            'points' => 'integer',
+        ];
+    }
 
     public function quiz(): BelongsTo {
         return $this->belongsTo(Quiz::class);

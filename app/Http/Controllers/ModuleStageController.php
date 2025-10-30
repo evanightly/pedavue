@@ -10,41 +10,56 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Inertia\Inertia;
 use Inertia\Response;
+use Spatie\QueryBuilder\AllowedFilter;
+use Spatie\QueryBuilder\AllowedSort;
 
-
-class ModuleStageController extends BaseResourceController
-{
+class ModuleStageController extends BaseResourceController {
     use AuthorizesRequests;
 
     protected string $modelClass = ModuleStage::class;
-    protected array $allowedFilters = ['created_at', 'module_able', 'module_content_id', 'module_id', 'module_quiz_id', 'order', 'search', 'updated_at'];
-    protected array $allowedSorts = ['created_at', 'id', 'module_able', 'module_content_id', 'module_id', 'module_quiz_id', 'order', 'updated_at'];
-    protected array $allowedIncludes = ['module', 'module_content', 'module_quiz'];
-    protected array $defaultIncludes = ['module', 'module_content', 'module_quiz'];
+    protected array $allowedFilters = ['created_at', 'module_able', 'module_able_type', 'module_able_id', 'module_id', 'order', 'search', 'updated_at'];
+    protected array $allowedSorts = ['created_at', 'id', 'module_able_type', 'module_able_id', 'module_id', 'order', 'updated_at'];
+    protected array $allowedIncludes = ['module', 'moduleAble'];
+    protected array $defaultIncludes = ['module', 'moduleAble'];
     protected array $defaultSorts = ['-created_at'];
 
-    public function __construct()
-    {
+    public function __construct() {
         $this->authorizeResource(ModuleStage::class, 'module_stage');
     }
 
-    protected function filters(): array
-    {
+    protected function filters(): array {
         return [
-            'module_able',
-            'module_content_id',
+            AllowedFilter::callback('module_able', function ($query, $value): void {
+                $values = collect(Arr::wrap($value))
+                    ->filter(fn ($key) => is_string($key) && $key !== '')
+                    ->map(fn (string $key) => ModuleStage::moduleAbleTypeForKey($key))
+                    ->filter()
+                    ->all();
+
+                if (!empty($values)) {
+                    $query->whereIn('module_able_type', $values);
+                }
+            }),
             'module_id',
-            'module_quiz_id',
+            'module_able_id',
+            'module_able_type',
             'order',
-            MultiColumnSearchFilter::make(['module_able']),
+            MultiColumnSearchFilter::make(['module_able_type']),
             DateRangeFilter::make('created_at'),
             DateRangeFilter::make('updated_at'),
         ];
     }
-    public function index(Request $request): Response|JsonResponse
-    {
+
+    protected function extraSorts(): array {
+        return [
+            AllowedSort::field('module_able', 'module_able_type'),
+        ];
+    }
+
+    public function index(Request $request): Response|JsonResponse {
         $filteredData = [];
 
         $query = $this->buildIndexQuery($request);
@@ -62,45 +77,48 @@ class ModuleStageController extends BaseResourceController
             'sort' => (string) $request->query('sort', $this->defaultSorts[0] ?? '-created_at'),
         ]);
     }
-    public function create(): Response
-    {
+
+    public function create(): Response {
         return Inertia::render('module-stage/create');
     }
-    public function show(ModuleStage $moduleStage): Response
-    {
+
+    public function show(ModuleStage $moduleStage): Response {
         return Inertia::render('module-stage/show', [
             'record' => ModuleStageData::fromModel($moduleStage)->toArray(),
         ]);
     }
-    public function edit(ModuleStage $moduleStage): Response
-    {
+
+    public function edit(ModuleStage $moduleStage): Response {
         return Inertia::render('module-stage/edit', [
             'record' => ModuleStageData::fromModel($moduleStage)->toArray(),
         ]);
     }
-    public function store(ModuleStageData $moduleStageData): RedirectResponse
-    {
-        $moduleStage = ModuleStage::create($moduleStageData->toArray());
+
+    public function store(ModuleStageData $moduleStageData): RedirectResponse {
+        $moduleStage = ModuleStage::create($moduleStageData->forModel());
+
         return redirect()
             ->route('module-stages.index', $moduleStage)
             ->with('flash.success', 'ModuleStage created.');
     }
-    public function update(ModuleStageData $moduleStageData, ModuleStage $moduleStage): RedirectResponse
-    {
-        $moduleStage->update($moduleStageData->toArray());
+
+    public function update(ModuleStageData $moduleStageData, ModuleStage $moduleStage): RedirectResponse {
+        $moduleStage->update($moduleStageData->forModel());
+
         return redirect()
             ->route('module-stages.index', $moduleStage)
             ->with('flash.success', 'ModuleStage updated.');
     }
-    public function destroy(ModuleStage $moduleStage): RedirectResponse
-    {
+
+    public function destroy(ModuleStage $moduleStage): RedirectResponse {
         $moduleStage->delete();
+
         return redirect()
             ->route('module-stages.index')
             ->with('flash.success', 'ModuleStage deleted.');
     }
-    public function bulkDelete(Request $request): JsonResponse
-    {
+
+    public function bulkDelete(Request $request): JsonResponse {
         $this->authorize('deleteAny', ModuleStage::class);
 
         $payload = $request->validate([
@@ -117,5 +135,4 @@ class ModuleStageController extends BaseResourceController
             'deleted_count' => $deletedCount,
         ]);
     }
-
 }

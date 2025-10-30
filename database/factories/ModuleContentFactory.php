@@ -15,8 +15,8 @@ class ModuleContentFactory extends Factory {
             ModuleStage::query()
                 ->whereKey($moduleContent->module_stage_id)
                 ->update([
-                    'module_content_id' => $moduleContent->getKey(),
-                    'module_able' => 'content',
+                    'module_able_type' => ModuleContent::class,
+                    'module_able_id' => $moduleContent->getKey(),
                 ]);
         });
     }
@@ -29,6 +29,7 @@ class ModuleContentFactory extends Factory {
             'title' => fake()->word(),
             'description' => fake()->sentence(),
             'file_path' => fake()->word(),
+            'subtitle_path' => null,
             'content_url' => fake()->sentence(),
             'duration' => fake()->numberBetween(1, 1000),
             'content_type' => fake()->word(),

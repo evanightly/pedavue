@@ -36,8 +36,14 @@ class CourseData extends Data {
         public ?string $level,
         public ?string $duration,
         public ?string $duration_formatted,
+        #[LiteralTypeScriptType('number|null')]
+        public ?int $total_quiz_points,
         public ?string $certificate_template,
         public ?string $certificate_template_url,
+        #[LiteralTypeScriptType('number|null')]
+        public ?int $certificate_required_points,
+        #[LiteralTypeScriptType('number|null')]
+        public ?int $certificate_required_points_effective,
         #[LiteralTypeScriptType('number|null')]
         public ?int $certificate_name_position_x,
         #[LiteralTypeScriptType('number|null')]
@@ -112,10 +118,15 @@ class CourseData extends Data {
             'certificate_qr_position_y' => ['nullable', 'integer', 'between:0,100'],
             'certificate_qr_box_width' => ['nullable', 'integer', 'between:10,100'],
             'certificate_qr_box_height' => ['nullable', 'integer', 'between:10,100'],
+            'certificate_required_points' => ['nullable', 'integer', 'min:0'],
         ];
     }
 
     public static function fromModel(Course $model): self {
+        $totalQuizPoints = $model->totalQuizPoints();
+        $requiredPoints = $model->certificate_required_points;
+        $effectiveRequiredPoints = $model->certificateRequiredPointsEffective($totalQuizPoints);
+
         // Format duration
         $durationFormatted = null;
         if ($model->duration) {
@@ -189,8 +200,11 @@ class CourseData extends Data {
             level: $model->level,
             duration: $model->duration,
             duration_formatted: $durationFormatted,
+            total_quiz_points: $totalQuizPoints,
             certificate_template: $model->certificate_template,
             certificate_template_url: $model->certificate_template ? asset('storage/' . $model->certificate_template) : null,
+            certificate_required_points: $requiredPoints,
+            certificate_required_points_effective: $effectiveRequiredPoints,
             certificate_name_position_x: $model->certificate_name_position_x,
             certificate_name_position_y: $model->certificate_name_position_y,
             certificate_name_max_length: $model->certificate_name_max_length,

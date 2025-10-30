@@ -19,8 +19,10 @@ class QuizData extends Data {
         public ?string $name,
         public ?string $description,
         public ?int $duration,
-        public bool|Optional $is_question_shuffled = false,
+        public bool|Optional $is_question_shuffled,
         public ?string $type,
+        #[LiteralTypeScriptType('number|null')]
+        public ?int $total_points,
         #[DataCollectionOf(QuizQuestionData::class)]
         #[LiteralTypeScriptType('App.Data.QuizQuestion.QuizQuestionData[]|null')]
         public ?DataCollection $quiz_questions,
@@ -36,6 +38,9 @@ class QuizData extends Data {
             duration: $model->duration ?? null,
             is_question_shuffled: $model->is_question_shuffled,
             type: $model->type,
+            total_points: $model->relationLoaded('quiz_questions')
+                ? $model->quiz_questions->sum(static fn ($question) => (int) ($question->points ?? 0))
+                : null,
             quiz_questions: $model->relationLoaded('quiz_questions')
                 ? new DataCollection(QuizQuestionData::class, $model->quiz_questions)
                 : null,
@@ -44,19 +49,17 @@ class QuizData extends Data {
         );
     }
 
-    public static function rules(ValidationContext $context = null): array {
-        
+    public static function rules(?ValidationContext $context = null): array {
 
         switch (request()->route()->getName()) {
-            
+
             case 'quizzes.import.questions':
                 return [
                     'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
                 ];
-            
+
             default:
                 return [];
         }
     }
 }
-

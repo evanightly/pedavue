@@ -15,6 +15,8 @@ class QuizResult extends Model {
      */
     protected $fillable = [
         'score',
+        'earned_points',
+        'total_points',
         'attempt',
         'started_at',
         'finished_at',
@@ -28,6 +30,8 @@ class QuizResult extends Model {
     protected function casts(): array {
         return [
             'score' => 'integer',
+            'earned_points' => 'integer',
+            'total_points' => 'integer',
             'attempt' => 'integer',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',

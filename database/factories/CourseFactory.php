@@ -39,6 +39,7 @@ class CourseFactory extends Factory {
             'certificate_qr_position_y' => null,
             'certificate_qr_box_width' => null,
             'certificate_qr_box_height' => null,
+            'certificate_required_points' => null,
         ];
     }
 

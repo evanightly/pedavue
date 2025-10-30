@@ -165,6 +165,7 @@ class CourseController extends BaseResourceController {
             'certificate_images',
             'modules.module_stages.module_content',
             'modules.module_stages.module_quiz',
+            'modules.module_stages.module_quiz.quiz_questions',
         ]);
 
         $user = $request->user();
@@ -644,6 +645,18 @@ class CourseController extends BaseResourceController {
             ? max(5, min(100, (int) $data['certificate_qr_box_height']))
             : null;
 
+        if (array_key_exists('certificate_required_points', $data)) {
+            $rawRequiredPoints = $data['certificate_required_points'];
+
+            if (!$data['certification_enabled'] || $rawRequiredPoints === null || $rawRequiredPoints === '') {
+                $data['certificate_required_points'] = null;
+            } elseif (filter_var($rawRequiredPoints, FILTER_VALIDATE_INT) !== false) {
+                $data['certificate_required_points'] = max(0, (int) $rawRequiredPoints);
+            } else {
+                $data['certificate_required_points'] = null;
+            }
+        }
+
         if (!$data['certification_enabled']) {
             $data['certificate_name_position_x'] = null;
             $data['certificate_name_position_y'] = null;
@@ -659,6 +672,7 @@ class CourseController extends BaseResourceController {
             $data['certificate_qr_position_y'] = null;
             $data['certificate_qr_box_width'] = null;
             $data['certificate_qr_box_height'] = null;
+            $data['certificate_required_points'] = null;
         }
 
         return $data;

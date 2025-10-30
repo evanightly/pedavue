@@ -74,6 +74,7 @@ class CourseModuleController extends Controller {
                             : null,
                         'content_url' => Arr::get($stage, 'content.content_url'),
                         'file_path' => Arr::get($stage, 'content.file_path'),
+                        'subtitle_path' => Arr::get($stage, 'content.subtitle_path'),
                     ] : null,
                 ];
             });
@@ -102,18 +103,27 @@ class CourseModuleController extends Controller {
             $stages->each(function (array $stage, int $index) use ($module, $request): void {
                 $moduleStage = ModuleStage::query()->create([
                     'module_id' => $module->getKey(),
-                    'module_able' => $stage['type'],
+                    'module_able_type' => ModuleStage::moduleAbleTypeForKey($stage['type']),
+                    'module_able_id' => null,
                     'order' => $stage['order'] ?? $index + 1,
                 ]);
 
                 if ($stage['type'] === 'content' && $stage['content'] !== null) {
                     $file = $request->file("stages.$index.content.file");
+                    $subtitleFile = $request->file("stages.$index.content.subtitle_file");
                     $storedPath = null;
+                    $storedSubtitlePath = null;
 
                     if ($file) {
                         $storedPath = $file->store('courses/modules/contents', 'public');
                     } elseif (!empty($stage['content']['file_path'])) {
                         $storedPath = $stage['content']['file_path'];
+                    }
+
+                    if ($subtitleFile) {
+                        $storedSubtitlePath = $subtitleFile->store('courses/modules/subtitles', 'public');
+                    } elseif (!empty($stage['content']['subtitle_path'])) {
+                        $storedSubtitlePath = $stage['content']['subtitle_path'];
                     }
 
                     $contentType = $this->resolveContentType(
@@ -127,6 +137,7 @@ class CourseModuleController extends Controller {
                         'title' => $stage['content']['title'],
                         'description' => $stage['content']['description'],
                         'file_path' => $storedPath,
+                        'subtitle_path' => $storedSubtitlePath,
                         'content_url' => $stage['content']['content_url'],
                         'duration' => $stage['content']['duration'],
                         'content_type' => $contentType,
@@ -134,10 +145,11 @@ class CourseModuleController extends Controller {
                     ]);
 
                     $moduleStage->update([
-                        'module_able' => 'content',
-                        'module_content_id' => $moduleContent->getKey(),
-                        'module_quiz_id' => null,
+                        'module_able_type' => ModuleContent::class,
+                        'module_able_id' => $moduleContent->getKey(),
                     ]);
+
+                    $moduleStage->setRelation('moduleAble', $moduleContent);
                 }
 
                 if ($stage['type'] === 'quiz') {
@@ -156,10 +168,11 @@ class CourseModuleController extends Controller {
                     }
 
                     $moduleStage->update([
-                        'module_able' => 'quiz',
-                        'module_quiz_id' => $quiz->getKey(),
-                        'module_content_id' => null,
+                        'module_able_type' => Quiz::class,
+                        'module_able_id' => $quiz->getKey(),
                     ]);
+
+                    $moduleStage->setRelation('moduleAble', $quiz);
                 }
             });
         });

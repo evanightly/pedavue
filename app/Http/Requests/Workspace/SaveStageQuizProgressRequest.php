@@ -10,7 +10,7 @@ class SaveStageQuizProgressRequest extends AbstractWorkspaceStageRequest {
             return false;
         }
 
-        return $this->moduleStage()->module_able === 'quiz';
+        return $this->moduleStage()->isQuiz();
     }
 
     /**

@@ -12,10 +12,11 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import GuestLayout from '@/layouts/guest-layout';
+import { isModuleStageQuiz } from '@/lib/module-stage';
 import { login, register } from '@/routes';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { ArrowLeft, Award, BookOpen, Calendar, Clock, FileText, Layers, Plus, Trash2, User, UserPlus, Users } from 'lucide-react';
+import { ArrowLeft, Award, BookOpen, Calendar, Clock, Edit, FileText, Layers, Plus, Trash2, User, UserPlus, Users } from 'lucide-react';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 export type CourseRecord = App.Data.Course.CourseData & {
@@ -536,12 +537,20 @@ export default function CourseShow({ record, modules: modulesProp = null, abilit
                         </Link>
                     </Button>
                     {canAssignStudents ? (
-                        <Button variant='default' size='lg' asChild className='gap-2 rounded-xl shadow-2xl'>
-                            <Link href={CourseController.students.url({ course: courseSlug })}>
-                                <UserPlus className='h-4 w-4' />
-                                Kelola peserta
-                            </Link>
-                        </Button>
+                        <div className='flex gap-2'>
+                            <Button variant='link' size='lg' asChild className='gap-2 rounded-xl shadow-2xl'>
+                                <Link href={CourseController.edit({ course: courseSlug })}>
+                                    <Edit className='h-4 w-4' />
+                                    Edit Kursus
+                                </Link>
+                            </Button>
+                            <Button variant='default' size='lg' asChild className='gap-2 rounded-xl shadow-2xl'>
+                                <Link href={CourseController.students.url({ course: courseSlug })}>
+                                    <UserPlus className='h-4 w-4' />
+                                    Kelola peserta
+                                </Link>
+                            </Button>
+                        </div>
                     ) : null}
                 </div>
 
@@ -968,7 +977,7 @@ export default function CourseShow({ record, modules: modulesProp = null, abilit
                                                             typeof stageRecord?.order === 'number' && Number.isFinite(stageRecord.order)
                                                                 ? stageRecord.order
                                                                 : stageIndex + 1;
-                                                        const isQuizStage = stageRecord?.module_able === 'quiz';
+                                                        const isQuizStage = isModuleStageQuiz(stageRecord);
                                                         const content = stageRecord?.module_content as ModuleContentRecord | null;
                                                         const quiz = stageRecord?.module_quiz as QuizRecord | null;
                                                         const stageDurationLabel = formatMinutes(

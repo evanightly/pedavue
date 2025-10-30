@@ -223,6 +223,39 @@ export default function CourseEdit({ record }: CourseEditProps) {
     const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(record?.thumbnail_url ?? null);
     const [levelValue, setLevelValue] = useState<string>(record?.level ?? '');
     const [description, setDescription] = useState<string>(record?.description ?? '');
+    const totalQuizPoints = Math.max(0, Number(record?.total_quiz_points ?? 0));
+    const defaultCertificateRequiredPoints = useMemo(() => {
+        if (totalQuizPoints <= 0) {
+            return 0;
+        }
+
+        return Math.ceil(totalQuizPoints * 0.5);
+    }, [totalQuizPoints]);
+    const [certificateRequiredPointsInput, setCertificateRequiredPointsInput] = useState<string>(() => {
+        const raw = record?.certificate_required_points;
+
+        if (typeof raw === 'number' && !Number.isNaN(raw) && raw >= 0) {
+            return String(raw);
+        }
+
+        return '';
+    });
+    const effectiveRequiredPoints = useMemo(() => {
+        const trimmed = certificateRequiredPointsInput.trim();
+
+        if (trimmed.length === 0) {
+            return defaultCertificateRequiredPoints;
+        }
+
+        const numeric = Number.parseInt(trimmed, 10);
+
+        if (Number.isNaN(numeric) || numeric < 0) {
+            return defaultCertificateRequiredPoints;
+        }
+
+        return numeric;
+    }, [certificateRequiredPointsInput, defaultCertificateRequiredPoints]);
+    const pointsFormatter = useMemo(() => new Intl.NumberFormat('id-ID'), []);
     const [certificateEnabled, setCertificateEnabled] = useState<boolean>(Boolean(record?.certification_enabled));
     const [certificateTemplateFile, setCertificateTemplateFile] = useState<File | null>(null);
     const [certificateTemplatePreview, setCertificateTemplatePreview] = useState<string | null>(record?.certificate_template_url ?? null);
@@ -367,6 +400,13 @@ export default function CourseEdit({ record }: CourseEditProps) {
     const removeThumbnail = () => {
         setThumbnailFile(null);
         setThumbnailPreview(null);
+    };
+
+    const handleCertificateRequiredPointsChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const rawValue = event.target.value ?? '';
+        const sanitized = rawValue.replace(/[^0-9]/g, '');
+
+        setCertificateRequiredPointsInput(sanitized);
     };
 
     const truncatedSampleName = useMemo(() => {
@@ -999,6 +1039,20 @@ export default function CourseEdit({ record }: CourseEditProps) {
                     }
 
                     if (certificateEnabled) {
+                        const trimmedRequiredPoints = certificateRequiredPointsInput.trim();
+
+                        if (trimmedRequiredPoints.length > 0) {
+                            const numeric = Number.parseInt(trimmedRequiredPoints, 10);
+
+                            transformed.certificate_required_points = Number.isNaN(numeric) ? '' : Math.max(0, numeric);
+                        } else {
+                            transformed.certificate_required_points = '';
+                        }
+                    } else {
+                        transformed.certificate_required_points = '';
+                    }
+
+                    if (certificateEnabled) {
                         const entries = certificateImageOverlays.flatMap((overlay): Array<Record<string, FormDataConvertible>> => {
                             if (overlay.status === 'delete' && !overlay.id) {
                                 return [];
@@ -1163,6 +1217,66 @@ export default function CourseEdit({ record }: CourseEditProps) {
                                     <Switch checked={certificateEnabled} onCheckedChange={(value) => setCertificateEnabled(Boolean(value))} />
                                 </div>
                                 <div className='grid gap-6 rounded-lg border p-4'>
+                                    <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+                                        <div className='rounded-lg border bg-muted/40 p-3'>
+                                            <p className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>Total poin kuis</p>
+                                            <p className='mt-1 text-2xl font-semibold text-foreground'>{pointsFormatter.format(totalQuizPoints)}</p>
+                                            <p className='mt-1 text-xs text-muted-foreground'>
+                                                Akumulasi poin dari seluruh soal yang telah ditugaskan.
+                                            </p>
+                                        </div>
+                                        <div className='rounded-lg border bg-muted/30 p-3'>
+                                            <p className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>Default 50%</p>
+                                            <p className='mt-1 text-2xl font-semibold text-foreground'>
+                                                {pointsFormatter.format(defaultCertificateRequiredPoints)}
+                                            </p>
+                                            <p className='mt-1 text-xs text-muted-foreground'>
+                                                Batas minimal otomatis bila kolom poin minimum dikosongkan.
+                                            </p>
+                                        </div>
+                                        <div className='rounded-lg border bg-muted/30 p-3'>
+                                            <p className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>Batas saat ini</p>
+                                            <p className='mt-1 text-2xl font-semibold text-foreground'>
+                                                {pointsFormatter.format(effectiveRequiredPoints)}
+                                            </p>
+                                            <p className='mt-1 text-xs text-muted-foreground'>
+                                                Peserta harus mencapai jumlah poin ini untuk memperoleh sertifikat.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className='grid gap-2'>
+                                        <Label htmlFor='certificate_required_points'>Poin minimum sertifikat</Label>
+                                        <Input
+                                            id='certificate_required_points'
+                                            name='certificate_required_points'
+                                            type='text'
+                                            inputMode='numeric'
+                                            pattern='[0-9]*'
+                                            value={certificateRequiredPointsInput}
+                                            onChange={handleCertificateRequiredPointsChange}
+                                            disabled={!certificateEnabled}
+                                            placeholder={certificateEnabled ? pointsFormatter.format(defaultCertificateRequiredPoints) : 'Nonaktif'}
+                                        />
+                                        <p className='text-xs text-muted-foreground'>
+                                            {certificateEnabled
+                                                ? `Biarkan kosong untuk memakai 50% dari total poin (${pointsFormatter.format(defaultCertificateRequiredPoints)} poin).`
+                                                : 'Aktifkan sertifikat untuk mengatur batas poin minimal.'}
+                                        </p>
+                                        {certificateEnabled ? (
+                                            totalQuizPoints > 0 ? (
+                                                <p className='text-xs text-muted-foreground'>
+                                                    Peserta saat ini membutuhkan minimal {pointsFormatter.format(effectiveRequiredPoints)} poin dari
+                                                    total {pointsFormatter.format(totalQuizPoints)} poin.
+                                                </p>
+                                            ) : (
+                                                <p className='text-xs text-muted-foreground'>
+                                                    Belum ada poin kuis yang tercatat. Tambahkan soal atau atur bobot poin pada modul untuk mulai
+                                                    menghitung.
+                                                </p>
+                                            )
+                                        ) : null}
+                                        <InputError message={errors.certificate_required_points} />
+                                    </div>
                                     <div className='grid gap-2'>
                                         <Label htmlFor='certificate_template'>Template Sertifikat</Label>
                                         <ImageDropzone

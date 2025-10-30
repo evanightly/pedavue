@@ -2,13 +2,11 @@
 
 namespace App\Models;
 
-use App\Models\ModuleStage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class ModuleContent extends Model
-{
+class ModuleContent extends Model {
     use HasFactory;
 
     /**
@@ -18,6 +16,7 @@ class ModuleContent extends Model
         'title',
         'description',
         'file_path',
+        'subtitle_path',
         'content_url',
         'duration',
         'content_type',
@@ -27,15 +26,13 @@ class ModuleContent extends Model
     /**
      * @return array<string, string>
      */
-    protected function casts(): array
-    {
+    protected function casts(): array {
         return [
             'duration' => 'integer',
         ];
     }
 
-    public function module_stage(): BelongsTo
-    {
+    public function module_stage(): BelongsTo {
         return $this->belongsTo(ModuleStage::class);
     }
 }

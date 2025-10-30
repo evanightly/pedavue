@@ -216,6 +216,7 @@ export default function CourseCreate() {
     const [certificateNamePosition, setCertificateNamePosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
     const [certificateNameMaxLength, setCertificateNameMaxLength] = useState<number>(40);
     const [certificateNameBoxSize, setCertificateNameBoxSize] = useState<{ width: number; height: number }>({ width: 40, height: 16 });
+    const [certificateRequiredPointsInput, setCertificateRequiredPointsInput] = useState<string>('');
     const allowedFontFamilies = ['Poppins', 'Montserrat', 'Playfair Display', 'Roboto', 'Lora'] as const;
     const [certificateNameFontFamily, setCertificateNameFontFamily] = useState<string>(allowedFontFamilies[0]);
     const [certificateNameFontWeight, setCertificateNameFontWeight] = useState<string>('600');
@@ -315,6 +316,11 @@ export default function CourseCreate() {
     const removeCertificateTemplate = () => {
         setCertificateTemplateFile(null);
         setCertificateTemplatePreview(null);
+    };
+
+    const handleCertificateRequiredPointsChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const sanitized = event.target.value.replace(/[^\d]/g, '');
+        setCertificateRequiredPointsInput(sanitized);
     };
 
     const handleAddCertificateOverlay = () => {
@@ -787,6 +793,19 @@ export default function CourseCreate() {
                         certificate_qr_box_height: certificateEnabled ? Math.round(certificateQrSize.height) : null,
                     };
 
+                    if (certificateEnabled) {
+                        const trimmedRequiredPoints = certificateRequiredPointsInput.trim();
+
+                        if (trimmedRequiredPoints.length > 0) {
+                            const numeric = Number.parseInt(trimmedRequiredPoints, 10);
+                            transformed.certificate_required_points = Number.isNaN(numeric) ? '' : Math.max(0, numeric);
+                        } else {
+                            transformed.certificate_required_points = '';
+                        }
+                    } else {
+                        transformed.certificate_required_points = '';
+                    }
+
                     if (certificateEnabled && certificateTemplateFile) {
                         transformed.certificate_template = certificateTemplateFile;
                     } else {
@@ -945,6 +964,31 @@ export default function CourseCreate() {
                                     <Switch checked={certificateEnabled} onCheckedChange={(value) => setCertificateEnabled(Boolean(value))} />
                                 </div>
                                 <div className='grid gap-6 rounded-lg border p-4'>
+                                    <div className='grid gap-2'>
+                                        <Label htmlFor='certificate_required_points'>Poin minimum sertifikat</Label>
+                                        <Input
+                                            id='certificate_required_points'
+                                            name='certificate_required_points'
+                                            type='text'
+                                            inputMode='numeric'
+                                            pattern='[0-9]*'
+                                            value={certificateRequiredPointsInput}
+                                            onChange={handleCertificateRequiredPointsChange}
+                                            disabled={!certificateEnabled}
+                                            placeholder={certificateEnabled ? 'Contoh: 150' : 'Nonaktif'}
+                                        />
+                                        <p className='text-xs text-muted-foreground'>
+                                            {certificateEnabled
+                                                ? 'Biarkan kosong untuk memakai 50% dari total poin kuis yang tersedia.'
+                                                : 'Aktifkan sertifikat untuk mengatur batas poin minimal.'}
+                                        </p>
+                                        {certificateEnabled ? (
+                                            <p className='text-xs text-muted-foreground'>
+                                                Total poin kuis akan dihitung otomatis setelah modul dan kuis ditambahkan.
+                                            </p>
+                                        ) : null}
+                                        <InputError message={errors.certificate_required_points} />
+                                    </div>
                                     <div className='grid gap-2'>
                                         <Label htmlFor='certificate_template'>Template Sertifikat</Label>
                                         <ImageDropzone

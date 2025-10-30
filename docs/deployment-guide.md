@@ -7,7 +7,8 @@ This guide explains how to configure and operate the GitHub Actions workflow tha
 - Checks out the repository on Ubuntu.
 - Installs PHP 8.4 dependencies via Composer (production flags only).
 - Installs Node.js 22 dependencies and builds the Vite assets.
-- Folds the `public/` directory into the root so the app can run from `/htdocs`.
+- Flattens the Laravel `public/` directory into the hosting root while rewriting `index.php` for shared hosting.
+- Replicates the Vite build output into both `/build` and `/public/build` so Laravel can read the manifest while client assets resolve.
 - Writes the production `.env` supplied as a GitHub secret.
 - Uploads the prepared tree to InfinityFree using `SamKirkland/FTP-Deploy-Action`.
 
