@@ -6,6 +6,7 @@ use App\Models\ModuleStage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ModuleContent extends Model
 {
@@ -37,5 +38,10 @@ class ModuleContent extends Model
     public function module_stage(): BelongsTo
     {
         return $this->belongsTo(ModuleStage::class);
+    }
+
+    public function video_scenes(): HasMany
+    {
+        return $this->hasMany(VideoScene::class);
     }
 }

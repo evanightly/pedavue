@@ -15,6 +15,7 @@ return new class extends Migration {
             $table->text('question');
             $table->string('question_image')->nullable();
             $table->boolean('is_answer_shuffled')->default(false);
+            $table->boolean('is_multiple_answer')->default(false); // checkbox / radio input🗿
             $table->integer('order')->nullable();
             $table->timestamps();
         });

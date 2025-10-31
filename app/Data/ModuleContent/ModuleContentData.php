@@ -9,6 +9,7 @@ use Spatie\LaravelData\Data;
 use Spatie\LaravelData\Optional;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Spatie\TypeScriptTransformer\Attributes\TypeScriptType;
+use App\Data\VideoScene\VideoSceneData;
 
 #[TypeScript]
 class ModuleContentData extends Data {
@@ -25,6 +26,7 @@ class ModuleContentData extends Data {
         public ?string $updated_at,
         #[TypeScriptType('App.Data.ModuleStage.ModuleStageData | null')]
         public ?ModuleStageData $module_stage,
+        public ?array $video_scenes = null,
     ) {}
 
     public static function fromModel(ModuleContent $model): self {
@@ -42,6 +44,7 @@ class ModuleContentData extends Data {
             module_stage: $model->relationLoaded('module_stage') && $model->module_stage
                 ? ModuleStageData::fromModel($model->module_stage)
                 : null,
+            video_scenes: $model->relationLoaded('video_scenes') ? array_map(fn($m) => VideoSceneData::fromModel($m), $model->video_scenes->all()) : null,
         );
     }
 

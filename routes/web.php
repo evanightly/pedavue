@@ -102,12 +102,18 @@ Route::get('csrf-token', function () {
 Route::resource('modules', ModuleController::class);
 
 Route::resource('module-contents', ModuleContentController::class);
+Route::get('module-content/videos', [ModuleContentController::class, 'videos'])->name('module-contents.videos');
+Route::get('module-content/videos/{module_content}', [ModuleContentController::class, 'videoShow'])->name('module-contents.videos.show');
 
 Route::resource('module-stages', ModuleStageController::class);
 
 Route::resource('quiz-results', QuizResultController::class);
 
 Route::resource('quiz-result-answers', QuizResultAnswerController::class);
+
+// Video scenes and interactions
+Route::resource('video-scenes', App\Http\Controllers\VideoSceneController::class);
+Route::resource('scene-interactions', App\Http\Controllers\SceneInteractionController::class);
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';

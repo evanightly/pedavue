@@ -64,20 +64,77 @@ class ModuleContentController extends BaseResourceController
             'sort' => (string) $request->query('sort', $this->defaultSorts[0] ?? '-created_at'),
         ]);
     }
+    public function videos(Request $request): Response|JsonResponse
+    {
+        $filteredData = [];
+
+        $query = $this->buildIndexQuery($request);
+
+        // Restrict to video content_type
+        $query->where('content_type', 'video');
+
+        $items = $query
+            ->with(['module_stage', 'video_scenes.scene_interactions'])
+            ->paginate($request->input('per_page'))
+            ->appends($request->query());
+
+        $moduleContents = ModuleContentData::collect($items);
+
+        return $this->respond($request, 'module-content/video/index', [
+            'moduleContents' => $moduleContents,
+            'filters' => $request->only($this->allowedFilters),
+            'filteredData' => $filteredData,
+            'sort' => (string) $request->query('sort', $this->defaultSorts[0] ?? '-created_at'),
+        ]);
+    }
+
+    /**
+     * Show video details for a module content using a video-specific route.
+     */
+    public function videoShow(ModuleContent $moduleContent): Response
+    {
+        $moduleContent->load(['module_stage', 'video_scenes.scene_interactions']);
+
+        $data = ModuleContentData::fromModel($moduleContent)->toArray();
+
+        return Inertia::render('module-content/video/show', [
+            'record' => $data,
+        ]);
+    }
     public function create(): Response
     {
         return Inertia::render('module-content/create');
     }
     public function show(ModuleContent $moduleContent): Response
     {
+        $moduleContent->load(['module_stage', 'video_scenes.scene_interactions']);
+
+        $data = ModuleContentData::fromModel($moduleContent)->toArray();
+
+        if ($moduleContent->content_type === 'video') {
+            return Inertia::render('module-content/video/show', [
+                'record' => $data,
+            ]);
+        }
+
         return Inertia::render('module-content/show', [
-            'record' => ModuleContentData::fromModel($moduleContent)->toArray(),
+            'record' => $data,
         ]);
     }
     public function edit(ModuleContent $moduleContent): Response
     {
+        $moduleContent->load(['module_stage', 'video_scenes.scene_interactions']);
+
+        $data = ModuleContentData::fromModel($moduleContent)->toArray();
+
+        if ($moduleContent->content_type === 'video') {
+            return Inertia::render('module-content/video/show', [
+                'record' => $data,
+            ]);
+        }
+
         return Inertia::render('module-content/edit', [
-            'record' => ModuleContentData::fromModel($moduleContent)->toArray(),
+            'record' => $data,
         ]);
     }
     public function store(ModuleContentData $moduleContentData): RedirectResponse

@@ -115,6 +115,7 @@ declare namespace App.Data.ModuleContent {
         created_at: string | null;
         updated_at: string | null;
         module_stage: any;
+        video_scenes: Array<any> | null;
     };
 }
 declare namespace App.Data.ModuleStage {
@@ -280,6 +281,19 @@ declare namespace App.Data.Role {
         updated_at: string | null;
     };
 }
+declare namespace App.Data.SceneInteraction {
+    export type SceneInteractionData = {
+        id: number | null;
+        video_scene_id: number;
+        interactable_type: string | null;
+        interactable_id: number | null;
+        interactable_data: Array<any> | null;
+        payload: Array<any> | null;
+        position: number | null;
+        created_at: string | null;
+        updated_at: string | null;
+    };
+}
 declare namespace App.Data.User {
     export type UserData = {
         id: any | number;
@@ -292,6 +306,21 @@ declare namespace App.Data.User {
         permissions: string[] | null;
         roles: App.Data.Role.RoleData[] | null;
         roleIds: number[] | null;
+        created_at: string | null;
+        updated_at: string | null;
+    };
+}
+declare namespace App.Data.VideoScene {
+    export type VideoSceneData = {
+        id: any | number;
+        module_content_id: number | null;
+        visual: string | null;
+        voice_over: string | null;
+        time_chapter: number | null;
+        interaction_trigger_time: number | null;
+        interaction_type: string | null;
+        scene_interactions: Array<any> | null;
+        module_content: App.Data.ModuleContent.ModuleContentData | null;
         created_at: string | null;
         updated_at: string | null;
     };
