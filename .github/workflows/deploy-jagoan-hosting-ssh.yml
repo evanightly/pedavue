@@ -1,0 +1,264 @@
+name: Deploy Laravel to Jagoan Hosting (SSH)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  PHP_VERSION: '8.4'
+  NODE_VERSION: '22'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate required secrets
+        env:
+          JAGOAN_SSH_HOST: ${{ secrets.JAGOAN_SSH_HOST }}
+          JAGOAN_SSH_USER: ${{ secrets.JAGOAN_SSH_USER }}
+          JAGOAN_SSH_PRIVATE_KEY: ${{ secrets.JAGOAN_SSH_PRIVATE_KEY }}
+          JAGOAN_ENV_PRODUCTION: ${{ secrets.JAGOAN_ENV_PRODUCTION }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in JAGOAN_SSH_HOST JAGOAN_SSH_USER JAGOAN_SSH_PRIVATE_KEY JAGOAN_ENV_PRODUCTION; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing secret ${name}." >&2
+              missing=1
+            fi
+          done
+          if [[ ${missing} -ne 0 ]]; then
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          tools: composer:v2
+          coverage: none
+          extensions: mbstring, intl, fileinfo
+
+      - name: Install PHP dependencies
+        run: |
+          set -euo pipefail
+          composer install \
+            --no-dev \
+            --prefer-dist \
+            --no-interaction \
+            --no-progress \
+            --optimize-autoloader
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: |
+          set -euo pipefail
+          npm ci || npm install
+
+      - name: Build assets
+        run: |
+          set -euo pipefail
+          npm run build
+
+      - name: Sync build output into public/build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p public
+          if [[ -d build ]]; then
+            rm -rf public/build || true
+            rsync -a --delete build/ public/build/
+          fi
+
+      - name: Clean up Node workspace
+        run: |
+          set -euo pipefail
+          rm -rf node_modules package-lock.json
+
+      - name: Prepare release artifact
+        env:
+          SECRET_ENV: ${{ secrets.JAGOAN_ENV_PRODUCTION }}
+          SERVER_APP_DIR: ${{ secrets.JAGOAN_SERVER_APP_DIR }}
+          SERVER_PUBLIC_DIR: ${{ secrets.JAGOAN_SERVER_PUBLIC_DIR }}
+        run: |
+          set -euo pipefail
+
+          RELEASE_NAME="release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$(date +%Y%m%d%H%M%S)"
+          echo "RELEASE_NAME=${RELEASE_NAME}" >> "${GITHUB_ENV}"
+
+          APP_ROOT="${SERVER_APP_DIR:-~/apps/pedavue}"
+          DOC_ROOT="${SERVER_PUBLIC_DIR:-~/public_html}"
+
+          echo "REMOTE_APP_ROOT=${APP_ROOT}" >> "${GITHUB_ENV}"
+          echo "REMOTE_DOC_ROOT=${DOC_ROOT}" >> "${GITHUB_ENV}"
+          echo "REMOTE_RELEASE_PATH=${APP_ROOT}/releases/${RELEASE_NAME}" >> "${GITHUB_ENV}"
+
+          DEPLOY_DIR="deploy-release"
+          rm -rf "${DEPLOY_DIR}"
+          mkdir -p "${DEPLOY_DIR}"
+
+          rsync -a --delete \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'deploy-release/' \
+            --exclude 'node_modules/' \
+            --exclude 'tests/' \
+            --exclude 'storage/logs/' \
+            --exclude 'storage/framework/cache/data/' \
+            --exclude '.env' \
+            ./ "${DEPLOY_DIR}/"
+
+          rm -rf "${DEPLOY_DIR}/node_modules"
+
+          if [[ -z "${SECRET_ENV}" ]]; then
+            echo 'Missing secret JAGOAN_ENV_PRODUCTION with your production .env contents.' >&2
+            exit 1
+          fi
+
+          printf '%s\n' "${SECRET_ENV}" > "${DEPLOY_DIR}/.env"
+          chmod 600 "${DEPLOY_DIR}/.env" || true
+
+          mkdir -p "${DEPLOY_DIR}/storage/framework/cache"
+          mkdir -p "${DEPLOY_DIR}/storage/framework/sessions"
+          mkdir -p "${DEPLOY_DIR}/storage/framework/views"
+          mkdir -p "${DEPLOY_DIR}/bootstrap/cache"
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.JAGOAN_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.JAGOAN_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/jagoan_key
+          chmod 600 ~/.ssh/jagoan_key
+          if [[ -n "${SSH_KNOWN_HOSTS:-}" ]]; then
+            printf '%s\n' "${SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          else
+            touch ~/.ssh/known_hosts
+          fi
+
+      - name: Upload release via rsync over SSH
+        env:
+          SSH_HOST: ${{ secrets.JAGOAN_SSH_HOST }}
+          SSH_USER: ${{ secrets.JAGOAN_SSH_USER }}
+          SSH_PORT: ${{ secrets.JAGOAN_SSH_PORT }}
+          REMOTE_RELEASE_PATH: ${{ env.REMOTE_RELEASE_PATH }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SSH_PORT}" ]]; then
+            SSH_PORT=22
+          fi
+
+          RSYNC_SSH="ssh -i ~/.ssh/jagoan_key -p ${SSH_PORT} -o StrictHostKeyChecking=no"
+
+          rsync -az --delete \
+            --rsync-path="mkdir -p ${REMOTE_RELEASE_PATH} && rsync" \
+            -e "${RSYNC_SSH}" \
+            deploy-release/ \
+            "${SSH_USER}@${SSH_HOST}:${REMOTE_RELEASE_PATH}/"
+
+      - name: Activate release
+        env:
+          SSH_HOST: ${{ secrets.JAGOAN_SSH_HOST }}
+          SSH_USER: ${{ secrets.JAGOAN_SSH_USER }}
+          SSH_PORT: ${{ secrets.JAGOAN_SSH_PORT }}
+          REMOTE_APP_ROOT: ${{ env.REMOTE_APP_ROOT }}
+          REMOTE_DOC_ROOT: ${{ env.REMOTE_DOC_ROOT }}
+          REMOTE_RELEASE_PATH: ${{ env.REMOTE_RELEASE_PATH }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SSH_PORT}" ]]; then
+            SSH_PORT=22
+          fi
+
+          ssh -i ~/.ssh/jagoan_key -p "${SSH_PORT}" -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" <<EOF
+set -euo pipefail
+
+APP_ROOT="${REMOTE_APP_ROOT}"
+DOC_ROOT="${REMOTE_DOC_ROOT}"
+RELEASE_PATH="${REMOTE_RELEASE_PATH}"
+CURRENT_LINK="
+\${APP_ROOT}/current"
+RELEASES_DIR="
+\${APP_ROOT}/releases"
+
+mkdir -p "
+\${RELEASES_DIR}"
+ln -sfn "
+\${RELEASE_PATH}" "
+\${CURRENT_LINK}"
+
+DOC_ROOT_ABS=
+\$(readlink -f "
+\${DOC_ROOT}")
+CURRENT_ABS=
+\$(readlink -f "
+\${CURRENT_LINK}")
+
+mkdir -p "
+\${DOC_ROOT_ABS}"
+
+if command -v rsync >/dev/null 2>&1; then
+  rsync -a --delete --exclude '.well-known/' "
+\${CURRENT_ABS}/public/" "
+\${DOC_ROOT_ABS}/"
+else
+  find "
+\${DOC_ROOT_ABS}" -mindepth 1 \
+    \( -path "
+\${DOC_ROOT_ABS}/.well-known" -o -path "
+\${DOC_ROOT_ABS}/.well-known/*" \) -prune -o -exec rm -rf {} +
+  cp -a "
+\${CURRENT_ABS}/public/." "
+\${DOC_ROOT_ABS}/"
+fi
+
+cat > "
+\${DOC_ROOT_ABS}/index.php" <<PHP
+<?php
+
+use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
+
+define('LARAVEL_START', microtime(true));
+
+if (file_exists(
+\$maintenance = '${CURRENT_ABS}/storage/framework/maintenance.php')) {
+    require 
+\$maintenance;
+}
+
+require '${CURRENT_ABS}/vendor/autoload.php';
+
+/** @var Application 
+\$app */
+
+\$app = require_once '${CURRENT_ABS}/bootstrap/app.php';
+
+
+\$app->handleRequest(Request::capture());
+PHP
+
+rm -rf "
+\${DOC_ROOT_ABS}/storage"
+ln -s "${CURRENT_ABS}/storage/app/public" "
+\${DOC_ROOT_ABS}/storage"
+
+if [ -d "
+\${RELEASES_DIR}" ]; then
+  cd "
+\${RELEASES_DIR}"
+  ls -1dt */ 2>/dev/null | tail -n +6 | xargs -r rm -rf
+fi
+EOF
