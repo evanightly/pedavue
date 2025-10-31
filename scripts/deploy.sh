@@ -244,6 +244,6 @@ else
 fi
 
 log "Building frontend assets..."
-npm run build --silent
+NODE_OPTIONS="--max-old-space-size=768" npm run build --silent
 
 log "Deployment build finished. Run 'php artisan migrate --force' manually when you are ready."
