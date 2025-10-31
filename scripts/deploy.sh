@@ -65,7 +65,7 @@ ensure_php() {
 
     run_privileged add-apt-repository -y ppa:ondrej/php
     ensure_apt_updated
-    ensure_packages php8.4 php8.4-cli php8.4-fpm php8.4-bcmath php8.4-mbstring php8.4-xml php8.4-zip php8.4-curl php8.4-intl php8.4-mysql php8.4-readline
+    ensure_packages php8.4 php8.4-cli php8.4-fpm php8.4-bcmath php8.4-mbstring php8.4-xml php8.4-zip php8.4-curl php8.4-intl php8.4-mysql php8.4-readline php8.4-gd
     if [ -x /usr/bin/php8.4 ]; then
         run_privileged update-alternatives --set php /usr/bin/php8.4 >/dev/null 2>&1 || true
     fi
