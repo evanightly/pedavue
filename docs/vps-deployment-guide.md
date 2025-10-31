@@ -55,7 +55,7 @@ These secrets power `.github/workflows/deploy-vps-provision.yml`:
 - `VPS_SSH_PRIVATE_KEY` – required; private key that authenticates the workflow.
 - `VPS_SSH_KNOWN_HOSTS` – optional; host key fingerprint to enforce strict checking.
 - `VPS_ENV_PRODUCTION` – required; full production `.env` contents.
-- `VPS_APP_DIR` – optional; remote application path (defaults to `/var/www/pedavue`).
+- `VPS_APP_DIR` – optional; remote application path (defaults to `/var/www/<repository>` when omitted).
 - `VPS_SERVER_NAME` – optional; domain or host value for the generated Nginx config (`_` when omitted).
 
 ### Creating and Testing `VPS_SSH_PRIVATE_KEY`

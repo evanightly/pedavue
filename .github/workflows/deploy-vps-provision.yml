@@ -16,6 +16,7 @@ jobs:
     env:
       REMOTE_APP_DIR: ${{ secrets.VPS_APP_DIR }}
       VPS_SERVER_NAME: ${{ secrets.VPS_SERVER_NAME }}
+      REPO_NAME: ${{ github.event.repository.name }}
 
     steps:
       - name: Checkout
@@ -79,13 +80,27 @@ jobs:
             exit 1
           fi
 
-          REMOTE_DIR="${REMOTE_APP_DIR:-/var/www/pedavue}"
+          DEFAULT_DIR="/var/www/${REPO_NAME:-pedavue}"
+          REMOTE_DIR="${REMOTE_APP_DIR:-${DEFAULT_DIR}}"
           if [[ -z "${SSH_PORT}" ]]; then
             SSH_PORT=22
           fi
 
-          ssh -i ~/.ssh/vps_deploy_key -p "${SSH_PORT}" -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" \
-            "set -euo pipefail; APP_DIR='${REMOTE_DIR}'; if command -v sudo >/dev/null 2>&1; then sudo mkdir -p \"${APP_DIR}\"; sudo chown -R \"\$(whoami)\":\"\$(whoami)\" \"${APP_DIR}\"; else mkdir -p \"${APP_DIR}\"; fi"
+          read -r -d '' REMOTE_SCRIPT <<'EOSH'
+set -euo pipefail
+TARGET_DIR="__APP_DIR__"
+
+if command -v sudo >/dev/null 2>&1; then
+  sudo mkdir -p "$TARGET_DIR"
+  sudo chown -R "$(whoami)":"$(whoami)" "$TARGET_DIR"
+else
+  mkdir -p "$TARGET_DIR"
+fi
+EOSH
+
+          REMOTE_SCRIPT="${REMOTE_SCRIPT/__APP_DIR__/${REMOTE_DIR}}"
+
+          ssh -i ~/.ssh/vps_deploy_key -p "${SSH_PORT}" -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" "$REMOTE_SCRIPT"
 
       - name: Upload application tree
         env:
@@ -96,7 +111,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          REMOTE_DIR="${REMOTE_APP_DIR:-/var/www/pedavue}"
+          DEFAULT_DIR="/var/www/${REPO_NAME:-pedavue}"
+          REMOTE_DIR="${REMOTE_APP_DIR:-${DEFAULT_DIR}}"
           if [[ -z "${SSH_HOST}" || -z "${SSH_USER}" ]]; then
             echo 'Missing SSH host and/or user secrets.' >&2
             exit 1
@@ -123,7 +139,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          REMOTE_DIR="${REMOTE_APP_DIR:-/var/www/pedavue}"
+          DEFAULT_DIR="/var/www/${REPO_NAME:-pedavue}"
+          REMOTE_DIR="${REMOTE_APP_DIR:-${DEFAULT_DIR}}"
           if [[ -z "${SSH_HOST}" || -z "${SSH_USER}" ]]; then
             echo 'Missing SSH host and/or user secrets.' >&2
             exit 1
