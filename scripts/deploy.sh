@@ -51,20 +51,26 @@ log "Ensuring core apt tooling is present..."
 ensure_packages ca-certificates curl git unzip software-properties-common lsb-release gnupg
 
 ensure_php() {
+    local needs_repo=0
+
     if command -v php >/dev/null 2>&1; then
         CURRENT_PHP="$(php -r 'echo PHP_VERSION;')"
         if php -r "exit(version_compare(PHP_VERSION, '8.4', '<') ? 0 : 1);"; then
             log "PHP ${CURRENT_PHP} detected (older than 8.4). Upgrading..."
+            needs_repo=1
         else
             log "PHP ${CURRENT_PHP} already meets requirements."
-            return
         fi
     else
         log "PHP not detected. Installing PHP 8.4..."
+        needs_repo=1
     fi
 
-    run_privileged add-apt-repository -y ppa:ondrej/php
-    ensure_apt_updated
+    if [ "$needs_repo" -eq 1 ]; then
+        run_privileged add-apt-repository -y ppa:ondrej/php
+        ensure_apt_updated
+    fi
+
     ensure_packages php8.4 php8.4-cli php8.4-fpm php8.4-bcmath php8.4-mbstring php8.4-xml php8.4-zip php8.4-curl php8.4-intl php8.4-mysql php8.4-readline php8.4-gd
     if [ -x /usr/bin/php8.4 ]; then
         run_privileged update-alternatives --set php /usr/bin/php8.4 >/dev/null 2>&1 || true
