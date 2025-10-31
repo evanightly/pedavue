@@ -182,50 +182,28 @@ jobs:
             SSH_PORT=22
           fi
 
-          ssh -i ~/.ssh/jagoan_key -p "${SSH_PORT}" -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" <<EOF
-set -euo pipefail
+          ssh -i ~/.ssh/jagoan_key -p "${SSH_PORT}" -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" \
+            "APP_ROOT='${REMOTE_APP_ROOT}' DOC_ROOT='${REMOTE_DOC_ROOT}' RELEASE_PATH='${REMOTE_RELEASE_PATH}' bash -seuo pipefail" <<'BASH'
+CURRENT_LINK="${APP_ROOT}/current"
+RELEASES_DIR="${APP_ROOT}/releases"
 
-APP_ROOT="${REMOTE_APP_ROOT}"
-DOC_ROOT="${REMOTE_DOC_ROOT}"
-RELEASE_PATH="${REMOTE_RELEASE_PATH}"
-CURRENT_LINK="
-\${APP_ROOT}/current"
-RELEASES_DIR="
-\${APP_ROOT}/releases"
+mkdir -p "${RELEASES_DIR}"
+ln -sfn "${RELEASE_PATH}" "${CURRENT_LINK}"
 
-mkdir -p "
-\${RELEASES_DIR}"
-ln -sfn "
-\${RELEASE_PATH}" "
-\${CURRENT_LINK}"
+DOC_ROOT_ABS="$(readlink -f "${DOC_ROOT}")"
+CURRENT_ABS="$(readlink -f "${CURRENT_LINK}")"
 
-DOC_ROOT_ABS=
-\$(readlink -f "
-\${DOC_ROOT}")
-CURRENT_ABS=
-\$(readlink -f "
-\${CURRENT_LINK}")
-
-mkdir -p "
-\${DOC_ROOT_ABS}"
+mkdir -p "${DOC_ROOT_ABS}"
 
 if command -v rsync >/dev/null 2>&1; then
-  rsync -a --delete --exclude '.well-known/' "
-\${CURRENT_ABS}/public/" "
-\${DOC_ROOT_ABS}/"
+  rsync -a --delete --exclude '.well-known/' "${CURRENT_ABS}/public/" "${DOC_ROOT_ABS}/"
 else
-  find "
-\${DOC_ROOT_ABS}" -mindepth 1 \
-    \( -path "
-\${DOC_ROOT_ABS}/.well-known" -o -path "
-\${DOC_ROOT_ABS}/.well-known/*" \) -prune -o -exec rm -rf {} +
-  cp -a "
-\${CURRENT_ABS}/public/." "
-\${DOC_ROOT_ABS}/"
+  find "${DOC_ROOT_ABS}" -mindepth 1 \
+    \( -path "${DOC_ROOT_ABS}/.well-known" -o -path "${DOC_ROOT_ABS}/.well-known/*" \) -prune -o -exec rm -rf {} +
+  cp -a "${CURRENT_ABS}/public/." "${DOC_ROOT_ABS}/"
 fi
 
-cat > "
-\${DOC_ROOT_ABS}/index.php" <<PHP
+cat <<PHP > "${DOC_ROOT_ABS}/index.php"
 <?php
 
 use Illuminate\Foundation\Application;
@@ -234,31 +212,23 @@ use Illuminate\Http\Request;
 define('LARAVEL_START', microtime(true));
 
 if (file_exists(
-\$maintenance = '${CURRENT_ABS}/storage/framework/maintenance.php')) {
-    require 
-\$maintenance;
+    \$maintenance = '${CURRENT_ABS}/storage/framework/maintenance.php')) {
+    require \$maintenance;
 }
 
 require '${CURRENT_ABS}/vendor/autoload.php';
 
-/** @var Application 
-\$app */
-
+/** @var Application \$app */
 \$app = require_once '${CURRENT_ABS}/bootstrap/app.php';
-
 
 \$app->handleRequest(Request::capture());
 PHP
 
-rm -rf "
-\${DOC_ROOT_ABS}/storage"
-ln -s "${CURRENT_ABS}/storage/app/public" "
-\${DOC_ROOT_ABS}/storage"
+rm -rf "${DOC_ROOT_ABS}/storage"
+ln -s "${CURRENT_ABS}/storage/app/public" "${DOC_ROOT_ABS}/storage"
 
-if [ -d "
-\${RELEASES_DIR}" ]; then
-  cd "
-\${RELEASES_DIR}"
-  ls -1dt */ 2>/dev/null | tail -n +6 | xargs -r rm -rf
+if [ -d "${RELEASES_DIR}" ]; then
+  cd "${RELEASES_DIR}"
+  ls -1dt */ 2>/dev/null | tail -n +6 | xargs -r rm -rf || true
 fi
-EOF
+BASH
