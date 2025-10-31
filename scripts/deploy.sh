@@ -75,6 +75,7 @@ ensure_php() {
     if [ -x /usr/bin/php8.4 ]; then
         run_privileged update-alternatives --set php /usr/bin/php8.4 >/dev/null 2>&1 || true
     fi
+    run_privileged systemctl enable --now php8.4-fpm >/dev/null 2>&1 || true
     log "PHP $(php -r 'echo PHP_VERSION;') ready."
 }
 
