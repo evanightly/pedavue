@@ -86,21 +86,17 @@ jobs:
             SSH_PORT=22
           fi
 
-          read -r -d '' REMOTE_SCRIPT <<'EOSH'
-set -euo pipefail
-TARGET_DIR="__APP_DIR__"
+          ssh -i ~/.ssh/vps_deploy_key -p "${SSH_PORT}" -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" \
+            "TARGET_DIR='${REMOTE_DIR}' bash -s" <<'EOSH'
+            set -euo pipefail
 
-if command -v sudo >/dev/null 2>&1; then
-  sudo mkdir -p "$TARGET_DIR"
-  sudo chown -R "$(whoami)":"$(whoami)" "$TARGET_DIR"
-else
-  mkdir -p "$TARGET_DIR"
-fi
-EOSH
-
-          REMOTE_SCRIPT="${REMOTE_SCRIPT/__APP_DIR__/${REMOTE_DIR}}"
-
-          ssh -i ~/.ssh/vps_deploy_key -p "${SSH_PORT}" -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" "$REMOTE_SCRIPT"
+            if command -v sudo >/dev/null 2>&1; then
+              sudo mkdir -p "$TARGET_DIR"
+              sudo chown -R "$(whoami)":"$(whoami)" "$TARGET_DIR"
+            else
+              mkdir -p "$TARGET_DIR"
+            fi
+          EOSH
 
       - name: Upload application tree
         env:
