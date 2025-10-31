@@ -196,6 +196,7 @@ ensure_permissions() {
     log "Ensuring storage and cache permissions for ${web_user}..."
 
     run_privileged mkdir -p storage/framework/{cache,sessions,views}
+    run_privileged mkdir -p storage/logs
     run_privileged mkdir -p bootstrap/cache
 
     if id -u "${web_user}" >/dev/null 2>&1; then
