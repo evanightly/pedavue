@@ -20,6 +20,7 @@ This guide explains how to deploy Pedavue to a fresh Ubuntu 24.04 VPS (for examp
 3. **Dependencies** – Remove any conflicting PHP/Node repositories if previously installed.
 4. **Laravel env file** – Copy your production `.env` (see `docs/deployment-guide.md` for secret tips) and upload it to the project root before running the script.
 5. **Desired host name** – Export `SERVER_NAME=pedavue.example.com` (or set it via the GitHub Action secret) before running the script if you want the Nginx config to use a domain instead of `_`.
+6. **Web server user (optional)** – If your PHP-FPM pool runs under a user other than `www-data`, export `WEB_USER=myuser` so storage/cache permissions are applied correctly.
 
 ## Initial Server Preparation (One-Time)
 
@@ -39,6 +40,8 @@ cp .env.example .env  # replace with the real production file afterwards
 cd /var/www/pedavue
 chmod +x scripts/deploy.sh
 SERVER_NAME=pedavue.example.com ./scripts/deploy.sh
+# or specify alternative PHP-FPM user if needed
+SERVER_NAME=pedavue.example.com WEB_USER=nginx ./scripts/deploy.sh
 ```
 
 ### Script Arguments
@@ -57,6 +60,7 @@ These secrets power `.github/workflows/deploy-vps-provision.yml`:
 - `VPS_ENV_PRODUCTION` – required; full production `.env` contents.
 - `VPS_APP_DIR` – optional; remote application path (defaults to `/var/www/<repository>` when omitted).
 - `VPS_SERVER_NAME` – optional; domain or host value for the generated Nginx config (`_` when omitted).
+- `VPS_WEB_USER` – optional; PHP-FPM/web server user for storage permissions (defaults to `www-data`).
 
 ### Creating and Testing `VPS_SSH_PRIVATE_KEY`
 

@@ -173,6 +173,23 @@ server {
     error_log /var/log/nginx/pedavue_error.log;
     access_log /var/log/nginx/pedavue_access.log;
 }
+
+ensure_permissions() {
+    local web_user="${WEB_USER:-www-data}"
+
+    log "Ensuring storage and cache permissions for ${web_user}..."
+
+    run_privileged mkdir -p storage/framework/{cache,sessions,views}
+    run_privileged mkdir -p bootstrap/cache
+
+    if id -u "${web_user}" >/dev/null 2>&1; then
+        run_privileged chown -R "${web_user}:${web_user}" storage bootstrap/cache || true
+    else
+        log "User ${web_user} not found; skipping ownership change."
+    fi
+
+    run_privileged chmod -R ug+rwX storage bootstrap/cache
+}
 EOF"
 
     run_privileged mkdir -p /var/log/nginx
@@ -201,6 +218,9 @@ ensure_composer
 log "Ensuring Nginx is installed..."
 ensure_nginx
 configure_nginx
+
+log "Adjusting filesystem permissions..."
+ensure_permissions
 
 log "Installing Composer dependencies..."
 composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --ansi --no-progress

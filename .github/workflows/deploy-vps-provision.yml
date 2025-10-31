@@ -17,6 +17,7 @@ jobs:
       REMOTE_APP_DIR: ${{ secrets.VPS_APP_DIR }}
       VPS_SERVER_NAME: ${{ secrets.VPS_SERVER_NAME }}
       REPO_NAME: ${{ github.event.repository.name }}
+      VPS_WEB_USER: ${{ secrets.VPS_WEB_USER }}
 
     steps:
       - name: Checkout
@@ -147,7 +148,7 @@ jobs:
           fi
 
           ssh -tt -i ~/.ssh/vps_deploy_key -p "${SSH_PORT}" -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" \
-            "set -euo pipefail; cd \"${REMOTE_DIR}\"; chmod +x scripts/deploy.sh; SERVER_NAME='${VPS_SERVER_NAME:-_}' ./scripts/deploy.sh"
+            "set -euo pipefail; cd \"${REMOTE_DIR}\"; chmod +x scripts/deploy.sh; SERVER_NAME='${VPS_SERVER_NAME:-_}' WEB_USER='${VPS_WEB_USER:-www-data}' ./scripts/deploy.sh"
 
       - name: Migration reminder
         shell: bash
