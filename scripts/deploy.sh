@@ -173,6 +173,21 @@ server {
     error_log /var/log/nginx/pedavue_error.log;
     access_log /var/log/nginx/pedavue_access.log;
 }
+EOF"
+
+    run_privileged mkdir -p /var/log/nginx
+    run_privileged ln -sfn "${conf_path}" "${enabled_path}"
+    if [ -e /etc/nginx/sites-enabled/default ]; then
+        run_privileged rm -f /etc/nginx/sites-enabled/default
+    fi
+
+    if run_privileged nginx -t; then
+        run_privileged systemctl reload nginx
+        log "Nginx reloaded with pedavue.conf"
+    else
+        log "Nginx configuration test failed; keeping existing configuration."
+    fi
+}
 
 ensure_permissions() {
     local web_user="${WEB_USER:-www-data}"
@@ -189,21 +204,6 @@ ensure_permissions() {
     fi
 
     run_privileged chmod -R ug+rwX storage bootstrap/cache
-}
-EOF"
-
-    run_privileged mkdir -p /var/log/nginx
-    run_privileged ln -sfn "${conf_path}" "${enabled_path}"
-    if [ -e /etc/nginx/sites-enabled/default ]; then
-        run_privileged rm -f /etc/nginx/sites-enabled/default
-    fi
-
-    if run_privileged nginx -t; then
-        run_privileged systemctl reload nginx
-        log "Nginx reloaded with pedavue.conf"
-    else
-        log "Nginx configuration test failed; keeping existing configuration."
-    fi
 }
 
 log "Preparing PHP runtime..."
