@@ -7,6 +7,8 @@ cd "${PROJECT_ROOT}"
 
 SERVER_NAME="${SERVER_NAME:-_}"
 
+export COMPOSER_ALLOW_SUPERUSER=1
+
 if command -v sudo >/dev/null 2>&1; then
     SUDO="sudo -E"
 else
@@ -84,7 +86,7 @@ ensure_node() {
 
 ensure_composer() {
     if command -v composer >/dev/null 2>&1; then
-        log "Composer $(composer --version | awk '{print $3}') detected. Updating..."
+        log "Composer $(COMPOSER_ALLOW_SUPERUSER=1 composer --version | awk '{print $3}') detected. Updating..."
     else
         log "Composer not detected. Installing..."
     fi
@@ -102,7 +104,7 @@ ensure_composer() {
 
     run_privileged php composer-setup.php --install-dir=/usr/local/bin --filename=composer --quiet
     rm -f composer-setup.php
-    log "Composer $(composer --version | awk '{print $3}') ready."
+    log "Composer $(COMPOSER_ALLOW_SUPERUSER=1 composer --version | awk '{print $3}') ready."
 }
 
 ensure_nginx() {
@@ -195,7 +197,6 @@ ensure_nginx
 configure_nginx
 
 log "Installing Composer dependencies..."
-export COMPOSER_ALLOW_SUPERUSER=1
 composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --ansi --no-progress
 
 if [ ! -f .env ]; then
